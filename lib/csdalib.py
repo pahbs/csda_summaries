@@ -2165,274 +2165,58 @@ def extract_platform(platform_name):
             return 'Landsat'
         else:
             return platform_str
-# Broken
-# def link_acquisitions_to_sites(footprint_gdf, sites_gdf, buffer_distance=1000, 
-#                                 site_name_col='Site Name'):
-#     """
-#     Link acquisitions to sites, handling cases where sites don't exactly overlap
-#     with acquisition footprints but are nearby.
-    
-#     Parameters:
-#     -----------
-#     footprint_gdf : GeoDataFrame
-#         Acquisition footprints (polygons)
-#     sites_gdf : GeoDataFrame
-#         Site locations (points)
-#     buffer_distance : float, default=1000
-#         Buffer distance around sites in CRS units (meters if using projected CRS)
-#     site_name_col : str
-#         Column name for site identifier
-        
-#     Returns:
-#     --------
-#     tuple: (footprint_with_sites, acquisition_site_mapping)
-#         - footprint_with_sites: Original footprints with site info added (one row per acquisition)
-#         - acquisition_site_mapping: DataFrame showing all site-acquisition relationships
-#     """
-#     import pandas as pd
-#     import geopandas as gpd
-    
-#     # Ensure both are in same CRS (preferably projected for buffering)
-#     if footprint_gdf.crs != sites_gdf.crs:
-#         print(f"Reprojecting sites from {sites_gdf.crs} to {footprint_gdf.crs}")
-#         sites_gdf = sites_gdf.to_crs(footprint_gdf.crs)
-    
-#     # Check if CRS is geographic (degrees) - warn about buffering
-#     if sites_gdf.crs.is_geographic:
-#         print(f"WARNING: CRS is geographic ({sites_gdf.crs}). Buffer distance will be in degrees.")
-#         print(f"Consider reprojecting to a projected CRS for accurate buffering.")
-    
-#     # Buffer sites to capture nearby acquisitions
-#     sites_buffered = sites_gdf.copy()
-#     sites_buffered['geometry'] = sites_gdf.buffer(buffer_distance)
-    
-#     # Spatial join: find all acquisitions that intersect buffered sites
-#     # This creates one row per acquisition-site pair
-#     joined = gpd.sjoin(
-#         footprint_gdf,
-#         sites_buffered[[site_name_col, 'geometry']],
-#         how='inner',  # Only keep acquisitions that intersect sites
-#         predicate='intersects'
-#     )
-    
-#     # Create mapping of acquisition_id to all associated sites
-#     acquisition_site_mapping = joined.groupby('acquisition_id').agg({
-#         site_name_col: lambda x: sorted(list(x.unique()))  # Sort alphabetically for consistency
-#     }).reset_index()
-#     acquisition_site_mapping.columns = ['acquisition_id', 'sites']
-    
-#     # Add count of sites per acquisition
-#     acquisition_site_mapping['num_sites'] = acquisition_site_mapping['sites'].apply(len)
-    
-#     # Add primary site (first alphabetically)
-#     acquisition_site_mapping['Primary_Site'] = acquisition_site_mapping['sites'].apply(
-#         lambda x: x[0] if len(x) > 0 else None
-#     )
-    
-#     # Merge back to original footprint_gdf to ensure we keep all acquisitions
-#     footprint_with_sites = footprint_gdf.merge(
-#         acquisition_site_mapping[['acquisition_id', 'Primary_Site', 'num_sites', 'sites']],
-#         on='acquisition_id',
-#         how='left'  # Keep all acquisitions, even those without sites
-#     )
-    
-#     # Fill NaN for acquisitions not near any site
-#     footprint_with_sites['Primary_Site'] = footprint_with_sites['Primary_Site'].fillna('Not CSDA Eval Site')
-#     footprint_with_sites['num_sites'] = footprint_with_sites['num_sites'].fillna(0).astype(int)
-#     footprint_with_sites['sites'] = footprint_with_sites['sites'].apply(
-#         lambda x: x if isinstance(x, list) else []
-#     )
-    
-#     # Verify no duplicates (should have one row per acquisition)
-#     assert footprint_with_sites['acquisition_id'].duplicated().sum() == 0, \
-#         "Error: Duplicate acquisition_ids found in result"
-    
-#     return footprint_with_sites, acquisition_site_mapping
-
-
-# def create_comprehensive_summary(footprint_with_sites, acquisition_site_mapping, 
-#                                    site_name_col='Primary_Site'):
-#     """
-#     Create comprehensive summaries accounting for multi-site acquisitions.
-    
-#     Parameters:
-#     -----------
-#     footprint_with_sites : GeoDataFrame
-#         Footprints with site associations from link_acquisitions_to_sites()
-#     acquisition_site_mapping : DataFrame
-#         Acquisition-to-sites mapping from link_acquisitions_to_sites()
-#     site_name_col : str
-#         Column name for primary site
-        
-#     Returns:
-#     --------
-#     dict of DataFrames with various summaries
-#     """
-#     import pandas as pd
-    
-#     summaries = {}
-    
-#     # 1. Summary by site (primary site only - no double counting)
-#     summary_by_site = footprint_with_sites.groupby(
-#         [site_name_col, 'affiliation', 'constellation', 'sensor', 'image_type']
-#     ).agg({
-#         'acquisition_id': 'nunique',
-#         'date': ['min', 'max']
-#     }).reset_index()
-    
-#     summary_by_site.columns = [
-#         site_name_col, 'affiliation', 'constellation', 'sensor', 'image_type',
-#         'acquisition_count', 'Earliest_Date', 'Latest_Date'
-#     ]
-#     summaries['by_site'] = summary_by_site.sort_values(
-#         ['Latest_Date', site_name_col], 
-#         ascending=[False, True]
-#     ).reset_index(drop=True)
-    
-#     # 2. Summary by affiliation/constellation/sensor (total unique acquisitions)
-#     summary_by_sensor = footprint_with_sites.groupby(
-#         ['affiliation', 'constellation', 'sensor', 'image_type']
-#     ).agg({
-#         'acquisition_id': 'nunique',
-#         'date': ['min', 'max']
-#     }).reset_index()
-    
-#     summary_by_sensor.columns = [
-#         'affiliation', 'constellation', 'sensor', 'image_type',
-#         'total_acquisitions', 'Earliest_Date', 'Latest_Date'
-#     ]
-#     summaries['by_sensor'] = summary_by_sensor.sort_values(
-#         'total_acquisitions', 
-#         ascending=False
-#     ).reset_index(drop=True)
-    
-#     # 3. Summary by affiliation only
-#     summary_by_affiliation = footprint_with_sites.groupby('affiliation').agg({
-#         'acquisition_id': 'nunique'
-#     }).reset_index()
-#     summary_by_affiliation.columns = ['affiliation', 'total_acquisitions']
-#     summaries['by_affiliation'] = summary_by_affiliation.sort_values(
-#         'total_acquisitions', 
-#         ascending=False
-#     ).reset_index(drop=True)
-    
-#     # 4. Summary by constellation
-#     summary_by_constellation = footprint_with_sites.groupby(
-#         ['affiliation', 'constellation']
-#     ).agg({
-#         'acquisition_id': 'nunique'
-#     }).reset_index()
-#     summary_by_constellation.columns = ['affiliation', 'constellation', 'total_acquisitions']
-#     summaries['by_constellation'] = summary_by_constellation.sort_values(
-#         'total_acquisitions', 
-#         ascending=False
-#     ).reset_index(drop=True)
-    
-#     # 5. Multi-site acquisitions analysis
-#     multi_site_acqs = footprint_with_sites[footprint_with_sites['num_sites'] > 1]
-#     if len(multi_site_acqs) > 0:
-#         multi_site_summary = multi_site_acqs.groupby(
-#             ['affiliation', 'constellation', 'sensor']
-#         ).agg({
-#             'acquisition_id': 'nunique',
-#             'num_sites': 'mean'
-#         }).reset_index()
-#         multi_site_summary.columns = [
-#             'affiliation', 'constellation', 'sensor',
-#             'multi_site_acquisitions', 'avg_sites_per_acquisition'
-#         ]
-#         multi_site_summary['avg_sites_per_acquisition'] = multi_site_summary['avg_sites_per_acquisition'].round(2)
-#         summaries['multi_site_acquisitions'] = multi_site_summary
-#     else:
-#         summaries['multi_site_acquisitions'] = pd.DataFrame()
-    
-#     # 6. Detailed site-by-site with ALL site associations
-#     # This counts each acquisition for EVERY site it covers (allows double counting)
-#     exploded_list = []
-#     for _, row in acquisition_site_mapping.iterrows():
-#         acq_id = row['acquisition_id']
-#         sites = row['sites']
-#         for site in sites:
-#             exploded_list.append({'acquisition_id': acq_id, 'Site_Name': site})
-    
-#     if exploded_list:
-#         exploded = pd.DataFrame(exploded_list)
-        
-#         # Merge with footprint data
-#         detailed = exploded.merge(
-#             footprint_with_sites[['acquisition_id', 'affiliation', 'constellation', 'sensor', 'image_type', 'date']],
-#             on='acquisition_id',
-#             how='left'
-#         )
-        
-#         # Summary counting each acquisition for each site it covers
-#         summary_all_sites = detailed.groupby(
-#             ['Site_Name', 'affiliation', 'constellation', 'sensor', 'image_type']
-#         ).agg({
-#             'acquisition_id': 'nunique',
-#             'date': ['min', 'max']
-#         }).reset_index()
-        
-#         summary_all_sites.columns = [
-#             'Site_Name', 'affiliation', 'constellation', 'sensor', 'image_type',
-#             'acquisition_count', 'Earliest_Date', 'Latest_Date'
-#         ]
-#         summaries['by_site_all_associations'] = summary_all_sites.sort_values(
-#             ['Latest_Date', 'Site_Name'], 
-#             ascending=[False, True]
-#         ).reset_index(drop=True)
-        
-#         # 7. Site coverage statistics
-#         site_stats = detailed.groupby('Site_Name').agg({
-#             'acquisition_id': 'nunique',
-#             'affiliation': 'nunique',
-#             'sensor': 'nunique'
-#         }).reset_index()
-#         site_stats.columns = ['Site_Name', 'total_acquisitions', 'num_affiliations', 'num_sensors']
-#         summaries['site_statistics'] = site_stats.sort_values('total_acquisitions', ascending=False).reset_index(drop=True)
-#     else:
-#         summaries['by_site_all_associations'] = pd.DataFrame()
-#         summaries['site_statistics'] = pd.DataFrame()
-    
-#     return summaries
-
-# Orig  
-def link_acquisitions_to_sites(footprint_gdf, sites_gdf, buffer_distance=1000, 
-                                site_name_col_primary='Site Name Primary',
-                                site_name_col='Site Name'):
+def link_acquisitions_to_sites(footprint_gdf, sites_gdf, buffer_distance=0, 
+                               site_name_col='Site Name'):
     """
-    Link acquisitions to sites, handling cases where sites don't exactly overlap
-    with acquisition footprints but are nearby.
+    Link acquisition-level footprints to sites using spatial join.
+    
+    This function:
+    1. Buffers sites by specified distance
+    2. Spatially joins acquisitions to sites (finds intersections)
+    3. Creates mapping of acquisition_id to list of associated sites
+    4. Merges site information back to footprint_gdf
     
     Parameters:
     -----------
     footprint_gdf : GeoDataFrame
-        Acquisition footprints (polygons)
+        Acquisition-level footprints (must have 'acquisition_id' column)
     sites_gdf : GeoDataFrame
-        Site locations (points)
-    buffer_distance : float, default=1000
-        Buffer distance around sites in CRS units (meters if using projected CRS)
-    site_name_col_primary : str
-        Column name for primary site identifier (if multiple sites associated with footprint, this is just the 'first'
-        
+        Sites polygons
+    buffer_distance : float, default=0
+        Distance to buffer sites (in units of sites_gdf CRS)
+    site_name_col : str, default='Site Name'
+        Column name containing site names in sites_gdf (note: 'Site Name' with space)
+    
     Returns:
     --------
     tuple: (footprint_with_sites, acquisition_site_mapping)
-        - footprint_with_sites: Original footprints with site info added (one row per acquisition)
-        - acquisition_site_mapping: DataFrame showing all site-acquisition relationships
+        - footprint_with_sites: GeoDataFrame with added columns:
+            - 'Site_Primary': primary site name for each acquisition (1st alphabetically)
+            - 'Site_Secondary': secondary site name (2nd alphabetically), None if only 1 site
+            - 'Site_Tertiary': tertiary site name (3rd alphabetically), None if <3 sites
+            - 'num_sites': count of sites per acquisition
+            - 'sites': list of all site names for each acquisition
+        - acquisition_site_mapping: DataFrame mapping acquisition_id to sites
     """
-    import pandas as pd
     import geopandas as gpd
     
-    # Ensure both are in same CRS (preferably projected for buffering)
-    if footprint_gdf.crs != sites_gdf.crs:
-        print(f"Reprojecting sites from {sites_gdf.crs} to {footprint_gdf.crs}")
-        sites_gdf = sites_gdf.to_crs(footprint_gdf.crs)
+    # Validate inputs
+    if 'acquisition_id' not in footprint_gdf.columns:
+        raise ValueError("footprint_gdf must have 'acquisition_id' column")
+    
+    if site_name_col not in sites_gdf.columns:
+        raise ValueError(f"sites_gdf does not have column '{site_name_col}'. Available columns: {sites_gdf.columns.tolist()}")
     
     # Check if CRS is geographic (degrees) - warn about buffering
     if sites_gdf.crs.is_geographic:
         print(f"WARNING: CRS is geographic ({sites_gdf.crs}). Buffer distance will be in degrees.")
         print(f"Consider reprojecting to a projected CRS for accurate buffering.")
+    
+    # Check CRS match
+    if footprint_gdf.crs != sites_gdf.crs:
+        print(f"WARNING: CRS mismatch. Footprints: {footprint_gdf.crs}, Sites: {sites_gdf.crs}")
+        print(f"Reprojecting sites to match footprints CRS...")
+        sites_gdf = sites_gdf.to_crs(footprint_gdf.crs)
     
     # Buffer sites to capture nearby acquisitions
     sites_buffered = sites_gdf.copy()
@@ -2448,42 +2232,56 @@ def link_acquisitions_to_sites(footprint_gdf, sites_gdf, buffer_distance=1000,
     )
     
     # Create mapping of acquisition_id to all associated sites
-    # Group by acquisition_id and aggregate the sites
+    # Group by acquisition_id and aggregate the site names
     acquisition_site_mapping = joined.groupby('acquisition_id')[site_name_col].apply(
-        lambda x: sorted(list(x.unique()))  # Sort alphabetically within each acquisition
+        lambda x: sorted(list(x.unique()))  # Sort alphabetically for consistency
     ).reset_index()
-    acquisition_site_mapping.columns = ['acquisition_id', site_name_col]
+    acquisition_site_mapping.columns = ['acquisition_id', 'sites']
     
     # Add count of sites per acquisition
-    acquisition_site_mapping['num_sites'] = acquisition_site_mapping[site_name_col].apply(len)
+    acquisition_site_mapping['num_sites'] = acquisition_site_mapping['sites'].apply(len)
     
-    # Add primary site (first alphabetically for each acquisition)
-    acquisition_site_mapping[site_name_col_primary] = acquisition_site_mapping[site_name_col].apply(
+    # Add primary, secondary, and tertiary sites (1st, 2nd, 3rd alphabetically)
+    acquisition_site_mapping['Site_Primary'] = acquisition_site_mapping['sites'].apply(
         lambda x: x[0] if len(x) > 0 else None
+    )
+    acquisition_site_mapping['Site_Secondary'] = acquisition_site_mapping['sites'].apply(
+        lambda x: x[1] if len(x) > 1 else None
+    )
+    acquisition_site_mapping['Site_Tertiary'] = acquisition_site_mapping['sites'].apply(
+        lambda x: x[2] if len(x) > 2 else None
     )
     
     # Merge back to original footprint_gdf to ensure we keep all acquisitions
     footprint_with_sites = footprint_gdf.merge(
-        acquisition_site_mapping[['acquisition_id', site_name_col, 'num_sites', site_name_col_primary]],
+        acquisition_site_mapping[['acquisition_id', 'Site_Primary', 'Site_Secondary', 
+                                   'Site_Tertiary', 'num_sites', 'sites']],
         on='acquisition_id',
         how='left'  # Keep all acquisitions, even those without sites
     )
     
     # Fill NaN for acquisitions not near any site
-    footprint_with_sites[site_name_col_primary] = footprint_with_sites[site_name_col_primary].fillna('Not CSDA Eval Site')
+    footprint_with_sites['Site_Primary'] = footprint_with_sites['Site_Primary'].fillna('Not CSDA Eval Site')
+    # For Secondary and Tertiary, NaN is fine - they represent "no secondary/tertiary site"
+    # But if you want to explicitly set them, use np.nan or leave as-is
     footprint_with_sites['num_sites'] = footprint_with_sites['num_sites'].fillna(0).astype(int)
-    footprint_with_sites[site_name_col_primary] = footprint_with_sites[site_name_col_primary].apply(
+    footprint_with_sites['sites'] = footprint_with_sites['sites'].apply(
         lambda x: x if isinstance(x, list) else []
     )
     
     # Verify no duplicates (should have one row per acquisition)
-    duplicate_count = footprint_with_sites['acquisition_id'].duplicated().sum()
-    if duplicate_count > 0:
-        print(f"WARNING: Found {duplicate_count} duplicate acquisition_ids")
-        # Show some examples
-        duplicates = footprint_with_sites[footprint_with_sites['acquisition_id'].duplicated(keep=False)]
-        print("Sample duplicates:")
-        print(duplicates[['acquisition_id',site_name_col_primary, site_name_col]].head(10))
+    n_duplicates = footprint_with_sites['acquisition_id'].duplicated().sum()
+    if n_duplicates > 0:
+        print(f"WARNING: Found {n_duplicates} duplicate acquisition_ids in result")
+        print("This may indicate duplicate acquisitions in input data")
+    
+    print(f"\nSummary:")
+    print(f"  Total acquisitions: {len(footprint_with_sites)}")
+    print(f"  Acquisitions intersecting sites: {(footprint_with_sites['num_sites'] > 0).sum()}")
+    print(f"  Acquisitions NOT intersecting sites: {(footprint_with_sites['num_sites'] == 0).sum()}")
+    print(f"  Single-site acquisitions: {(footprint_with_sites['num_sites'] == 1).sum()}")
+    print(f"  Multi-site acquisitions (2+ sites): {(footprint_with_sites['num_sites'] > 1).sum()}")
+    print(f"  Acquisitions covering 3+ sites: {(footprint_with_sites['num_sites'] > 2).sum()}")
     
     return footprint_with_sites.to_crs(4326), acquisition_site_mapping
 
@@ -2691,120 +2489,6 @@ def create_comprehensive_summary(footprint_with_sites, acquisition_site_mapping,
     
     return summaries
     
-# def create_site_summary(footprint_gdf, sites_gdf, site_name_col='Site Name', 
-#                         format='detailed', include_non_site_images=True):
-#     """
-#     Create a summary of images by site, with options for detailed or pivot format.
-    
-#     Parameters:
-#     -----------
-#     footprint_gdf : GeoDataFrame
-#         Footprint geodataframe with image metadata
-#     sites_gdf : GeoDataFrame
-#         Sites geodataframe
-#     site_name_col : str
-#         Column name in sites_gdf that identifies each site
-#     format : str, default='detailed'
-#         Output format: 'detailed' (long format) or 'pivot' (wide format)
-#     include_non_site_images : bool, default=True
-#         If True, includes images not associated with any site as 'Not CSDA Site'
-    
-#     Returns:
-#     --------
-#     pd.DataFrame
-#         Summary table in requested format
-#     """
-#     import pandas as pd
-#     import geopandas as gpd
-    
-#     # Ensure both GDFs are in the same CRS
-#     if footprint_gdf.crs != sites_gdf.crs:
-#         print(f"Reprojecting footprints from {footprint_gdf.crs} to {sites_gdf.crs}")
-#         footprint_gdf = footprint_gdf.to_crs(sites_gdf.crs)
-    
-#     # Perform spatial intersection
-#     join_type = 'left' if include_non_site_images else 'inner'
-#     intersected = gpd.sjoin(
-#         footprint_gdf, 
-#         sites_gdf, 
-#         how=join_type, 
-#         predicate='intersects'
-#     )
-    
-#     # Fill in 'Not CSDA Site' for footprints that don't intersect with any site
-#     NOT_CSDA_STR = 'Not CSDA Eval Site'
-#     if include_non_site_images:
-#         if site_name_col in intersected.columns:
-#             intersected[site_name_col] = intersected[site_name_col].fillna(NOT_CSDA_STR)
-#         else:
-#             intersected[site_name_col] = NOT_CSDA_STR
-    
-#     # Check if required columns exist
-#     if site_name_col not in intersected.columns:
-#         raise ValueError(f"Column '{site_name_col}' not found in sites_gdf")
-    
-#     if 'sensor' not in intersected.columns:
-#         raise ValueError("Column 'sensor' not found in footprint_gdf. Run get_attributes_from_filename first.")
-    
-#     # Generate summary based on format
-#     if format.lower() == 'pivot':
-#         # Create combined affiliation-constellation label
-#         intersected['affiliation_constellation'] = (
-#             intersected['affiliation'].astype(str) + ' - ' + 
-#             intersected['constellation'].astype(str)
-#         )
-        
-#         # Group and count
-#         summary = intersected.groupby(
-#             [site_name_col, 'affiliation_constellation']
-#         ).size().reset_index(name='count')
-        
-#         # Create pivot table
-#         pivot = summary.pivot(
-#             index=site_name_col,
-#             columns='affiliation_constellation',
-#             values='count'
-#         ).fillna(0).astype(int)
-        
-#         # Sort columns alphabetically
-#         pivot = pivot.reindex(sorted(pivot.columns), axis=1)
-        
-#         # Add total column
-#         pivot['Total'] = pivot.sum(axis=1)
-        
-#         # Sort by total descending
-#         pivot = pivot.sort_values('Total', ascending=False)
-        
-#         return pivot
-    
-#     else:  # detailed format (default)
-#         # Group by site, affiliation, constellation, sensor, and image_type
-#         summary = intersected.groupby(
-#             [site_name_col, 'affiliation', 'constellation', 'sensor', 'image_type']
-#         ).size().reset_index(name='acquisition_count')
-        
-#         # Add date range if available
-#         if 'date' in intersected.columns:
-#             date_range = intersected.groupby(
-#                 [site_name_col, 'affiliation', 'constellation', 'sensor', 'image_type']
-#             )['date'].agg(['min', 'max']).reset_index()
-            
-#             summary = summary.merge(
-#                 date_range,
-#                 on=[site_name_col, 'affiliation', 'constellation', 'sensor', 'image_type'],
-#                 how='left'
-#             )
-#             summary.rename(columns={'min': 'Earliest_Date', 'max': 'Latest_Date'}, inplace=True)
-        
-#         # Sort by Latest_Date descending (most recent first), then by site name
-#         if 'Latest_Date' in summary.columns:
-#             summary = summary.sort_values(['Latest_Date', site_name_col], ascending=[False, True])
-#         else:
-#             summary = summary.sort_values([site_name_col, 'acquisition_count'], ascending=[True, False])
-        
-#         summary = summary.reset_index(drop=True)
-        
-#         return summary
 def create_site_summary(footprint_gdf, sites_gdf=None, site_name_col='Site Name', 
                         format='detailed', include_non_site_images=True):
     """
@@ -3405,3 +3089,361 @@ def buffer_site_gdf(gdf, BUF_KM):
         gdf_buffered = gdf.copy()
         gdf_buffered['geometry'] = gdf.buffer(BUF_KM * 1000)  
         return gdf_buffered
+
+def plot_site_coverage(site_name, footprint_gdf, sites_gdf, BUF_KM, BUF_KM_TOTAL_FOR_DISPLAY, sites_buf_gdf=None, 
+                       figsize=(5, 5), ax=None):
+    """
+    Plot acquisition footprints for a specific site with ESRI gray basemap.
+    
+    Parameters:
+    -----------
+    site_name : str
+        Name of the site to plot
+    footprint_gdf : GeoDataFrame
+        Acquisition footprints with 'Site_Primary' column
+    sites_gdf : GeoDataFrame
+        Sites boundaries
+    sites_buf_gdf : GeoDataFrame, optional
+        Buffered sites for display
+    ax : matplotlib axis, optional
+        Axis to plot on. If None, creates new figure.
+    """
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as mpatches
+    import contextily as ctx
+    import geopandas as gpd
+    import numpy as np
+    from matplotlib_scalebar.scalebar import ScaleBar
+    
+    # =========================================================================
+    # COLOR DICTIONARY
+    # =========================================================================
+    cmap = plt.cm.turbo
+    
+    AFFILIATION_CONSTELLATION_COLORS = {
+        'Maxar - Legion': cmap(0.1),
+        'Maxar - WorldView': cmap(0.2),
+        'Airbus - SPOT': cmap(0.35),
+        'Airbus - Pleiades': cmap(0.5),
+        'Airbus - Pleiades Neo': cmap(0.65),
+        'Pixxel - Firefly': cmap(0.8),
+        'Satellogic - MarkIV': cmap(0.9),
+        'Satellogic - MarkV': cmap(0.95),
+    }
+    # =========================================================================
+    
+    # Filter data
+    site = sites_gdf[sites_gdf['Site Name'] == site_name].copy()
+    footprints = footprint_gdf[footprint_gdf['Site_Primary'] == site_name].copy()
+    
+    if len(site) == 0:
+        print(f"Site '{site_name}' not found!")
+        return
+    
+    if len(footprints) == 0:
+        print(f"No acquisitions found for site '{site_name}'")
+        return
+    
+    print(f"Plotting {len(footprints)} acquisitions for {site_name}")
+    
+    # Convert to Web Mercator
+    footprints_web = footprints.to_crs(epsg=3857)
+    site_web = site.to_crs(epsg=3857)
+    
+    # Get buffer extent and find additional acquisitions
+    footprints_buf = None
+    if sites_buf_gdf is not None:
+        site_buf = sites_buf_gdf[sites_buf_gdf['Site Name'] == site_name].copy()
+        if len(site_buf) > 0:
+            site_buf_web = site_buf.to_crs(epsg=3857)
+            
+            footprints_all_web = footprint_gdf.to_crs(epsg=3857)
+            footprints_in_buf = gpd.sjoin(footprints_all_web, site_buf_web, 
+                                          how='inner', predicate='intersects')
+            
+            footprints_in_buf = footprints_in_buf.drop_duplicates(subset='acquisition_id')
+            footprints_buf = footprints_in_buf[~footprints_in_buf['acquisition_id'].isin(footprints_web['acquisition_id'])]
+            
+            print(f"Found {len(footprints_buf)} additional acquisitions in buffer zone")
+    
+    # Create figure and axis if not provided
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+        standalone = True
+    else:
+        fig = ax.get_figure()
+        standalone = False
+    
+    # Create combined label for coloring
+    footprints_web['combined_label'] = (
+        footprints_web['affiliation'].astype(str) + ' - ' + 
+        footprints_web['constellation'].astype(str)
+    )
+    
+    # Get ALL unique combinations
+    all_combos = set(footprints_web['combined_label'].unique())
+    if footprints_buf is not None and len(footprints_buf) > 0:
+        footprints_buf['combined_label'] = (
+            footprints_buf['affiliation'].astype(str) + ' - ' + 
+            footprints_buf['constellation'].astype(str)
+        )
+        all_combos.update(footprints_buf['combined_label'].unique())
+    
+    # Create color map
+    all_combos = sorted(list(all_combos))
+    color_map = {}
+    
+    cmap_idx = 0
+    for combo in all_combos:
+        if combo in AFFILIATION_CONSTELLATION_COLORS:
+            color_map[combo] = AFFILIATION_CONSTELLATION_COLORS[combo]
+        else:
+            color_map[combo] = cmap(cmap_idx / max(len(all_combos), 1))
+            cmap_idx += 1
+    
+    # Plot each affiliation-constellation group (main site)
+    legend_handles_site = []
+    for combo in footprints_web['combined_label'].unique():
+        subset = footprints_web[footprints_web['combined_label'] == combo]
+        subset.plot(ax=ax, 
+                    facecolor=color_map[combo], 
+                    edgecolor=color_map[combo],
+                    alpha=0.3,
+                    linewidth=2)
+        
+        patch = mpatches.Patch(facecolor=color_map[combo], edgecolor=color_map[combo],
+                               alpha=0.3, label=f"{combo} (n={len(subset)})")
+        legend_handles_site.append(patch)
+    
+    # Plot acquisitions in buffer zone
+    legend_handles_buffer = []
+    if footprints_buf is not None and len(footprints_buf) > 0:
+        unique_combos_buf = footprints_buf['combined_label'].unique()
+        
+        for combo in unique_combos_buf:
+            subset = footprints_buf[footprints_buf['combined_label'] == combo]
+            color = color_map[combo]
+            
+            subset.plot(ax=ax, 
+                        facecolor=color, 
+                        edgecolor=color,
+                        alpha=0.15,
+                        linewidth=1,
+                        hatch='///')
+            
+            patch = mpatches.Patch(facecolor=color, edgecolor=color,
+                                   alpha=0.15, hatch='///',
+                                   label=f"{combo} (n={len(subset)})")
+            legend_handles_buffer.append(patch)
+    
+    # Plot buffer
+    if sites_buf_gdf is not None:
+        site_buf = sites_buf_gdf[sites_buf_gdf['Site Name'] == site_name].to_crs(epsg=3857)
+        if len(site_buf) > 0:
+            site_buf.boundary.plot(ax=ax, color='gray', linewidth=1.5, 
+                                   linestyle=':', alpha=0.6, zorder=9)
+    
+    
+    # Plot site boundary
+    site_web.boundary.plot(ax=ax, color='black', linewidth=2, 
+                           linestyle='--', 
+                           label=f'Overlapping {site_name} site ({BUF_KM} km buffer)', 
+                           zorder=10)
+    
+    # Add basemap
+    ctx.add_basemap(ax, source=ctx.providers.Esri.WorldGrayCanvas, attribution_size=8)
+    
+    # Format
+    ax.set_title(f'{site_name} : {len(footprints)} acquisitions', 
+                 fontsize=15, fontweight='bold', pad=0)
+
+    # Add scalebar (ADD THIS)
+    scalebar = ScaleBar(1, location='lower right', box_alpha=0.8, 
+                       scale_loc='top', font_properties={'size': 10})
+    ax.add_artist(scalebar)
+    
+    # Create primary legend for main site acquisitions
+    legend1 = ax.legend(handles=legend_handles_site, 
+                       loc='upper left', 
+                       fontsize=9, 
+                       framealpha=0.95,
+                       title=f'Overlapping {site_name} site ({BUF_KM} km buffer)',
+                       title_fontsize=10)
+    ax.add_artist(legend1)  # Add first legend back to plot
+    
+    # Create secondary legend for buffer zone acquisitions (if any)
+    if legend_handles_buffer:
+        legend2 = ax.legend(handles=legend_handles_buffer, 
+                           loc='lower left', 
+                           fontsize=9, 
+                           framealpha=0.95,
+                           title=f'Nearby {site_name} site (within {BUF_KM_TOTAL_FOR_DISPLAY} km )',
+                           title_fontsize=10)
+    
+    ax.set_xticks([])
+    ax.set_yticks([])
+    
+    # Only show/tight_layout if standalone
+    if standalone:
+        plt.tight_layout()
+        plt.show()
+    
+    return fig, ax
+
+def plot_acquisition_timeline_gantt(footprint_gdf, title='Image Acquisition Timeline'):
+    """
+    Create a Gantt-style timeline showing individual acquisitions.
+    Each row is a sensor/platform, each bar is an acquisition.
+    Uses Set1 colormap based on number of combinations.
+    """
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as mpatches
+    from matplotlib.dates import DateFormatter, MonthLocator
+    import numpy as np
+    
+    # Filter to MS only
+    gdf_ms = footprint_gdf[footprint_gdf['image_type'] != 'P'].copy()
+    
+    # Create combined category (same as your original)
+    gdf_ms['combined_category'] = (gdf_ms['affiliation'].astype(str) + ' - ' + 
+                                   gdf_ms['constellation'].astype(str) + ' - ' + 
+                                   gdf_ms['sensor'].astype(str) + ' - ' + 
+                                   gdf_ms['image_type'].astype(str))
+    
+    # Get unique combinations and create sensor labels
+    unique_combinations = sorted(gdf_ms['combined_category'].unique())
+    n_combinations = len(unique_combinations)
+    
+    # Create sensor label (without image_type for display)
+    gdf_ms['sensor_label'] = (gdf_ms['affiliation'].astype(str) + ' - ' + 
+                              gdf_ms['constellation'].astype(str) + ' - ' + 
+                              gdf_ms['sensor'].astype(str))
+    
+    # Get unique sensors for y-axis
+    unique_sensors = sorted(gdf_ms['sensor_label'].unique())
+    sensor_to_y = {sensor: i for i, sensor in enumerate(unique_sensors)}
+    
+    # Create color map using Set1 with n_combinations
+    colors = plt.cm.Set1(np.linspace(0, 1, n_combinations))
+    
+    # Map each combined_category to a color
+    combo_to_color = {combo: colors[i] for i, combo in enumerate(unique_combinations)}
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(16, max(6, len(unique_sensors) * 0.5)))
+    
+    # Group by date, sensor_label, and combined_category to get counts
+    acquisitions = gdf_ms.groupby(['date', 'sensor_label', 'combined_category']).size().reset_index(name='count')
+    
+    # Plot each acquisition as a bar
+    bar_height = 0.7
+    for _, row in acquisitions.iterrows():
+        y_pos = sensor_to_y[row['sensor_label']]
+        color = combo_to_color[row['combined_category']]
+        
+        # Alpha based on count (darker = more images)
+        alpha = min(0.4 + (row['count'] / acquisitions['count'].max()) * 0.6, 1.0)
+        
+        ax.barh(y_pos, width=1, left=row['date'], height=bar_height,
+                color=color, alpha=alpha, edgecolor='black', linewidth=0.5)
+        
+        # Add count label if significant
+        if row['count'] > 1:
+            ax.text(row['date'], y_pos, str(int(row['count'])), 
+                   ha='center', va='center', fontsize=8, fontweight='bold')
+    
+    # Customize axes
+    ax.set_yticks(range(len(unique_sensors)))
+    ax.set_yticklabels(unique_sensors, fontsize=9)
+    ax.set_xlabel('Date', fontsize=12, fontweight='bold')
+    ax.set_title(title, fontsize=14, fontweight='bold', pad=20)
+    
+    # Format x-axis as dates
+    ax.xaxis.set_major_formatter(DateFormatter('%Y-%m-%d'))
+    ax.xaxis.set_major_locator(MonthLocator())
+    plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
+    
+    # Add grid
+    ax.grid(axis='x', linestyle='--', alpha=0.3)
+    ax.set_axisbelow(True)
+    
+    # Create legend with combined categories and Set1 colors
+    legend_elements = [mpatches.Patch(facecolor=combo_to_color[combo], 
+                                     edgecolor='black', 
+                                     label=combo)
+                      for combo in unique_combinations]
+    
+    # Add opacity legend
+    legend_elements.append(mpatches.Patch(facecolor='white', edgecolor='white', label=''))  # Spacer
+    legend_elements.append(mpatches.Patch(facecolor='gray', alpha=0.4, label='Few images'))
+    legend_elements.append(mpatches.Patch(facecolor='gray', alpha=1.0, label='Many images'))
+    
+    ax.legend(handles=legend_elements, 
+             bbox_to_anchor=(1.05, 1), 
+             loc='upper left', 
+             fontsize=8,
+             title='Affiliation-Constellation-Sensor')
+    
+    plt.tight_layout()
+    plt.subplots_adjust(right=0.75)
+    
+    return fig, ax
+
+def plot_acquisition_heatmap(footprint_gdf, title='Image Acquisition Heatmap'):
+    """
+    Calendar heatmap showing acquisition intensity.
+    Great for identifying patterns and gaps.
+    """
+    import seaborn as sns
+    from matplotlib.ticker import MaxNLocator
+    
+    # Filter to MS only
+    gdf_ms = footprint_gdf[footprint_gdf['image_type'] != 'P'].copy()
+    
+    # Create combined category
+    gdf_ms['sensor_label'] = (gdf_ms['affiliation'].astype(str) + ' - ' + 
+                              gdf_ms['sensor'].astype(str))
+    
+    # Aggregate by date and sensor
+    daily_counts = gdf_ms.groupby(['date', 'sensor_label']).size().reset_index(name='count')
+    
+    # Pivot for heatmap
+    heatmap_data = daily_counts.pivot(index='sensor_label', columns='date', values='count')
+    heatmap_data = heatmap_data.fillna(0)
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(16, max(6, len(heatmap_data) * 0.5)))
+    
+    # Get max value for colorbar range
+    max_count = int(heatmap_data.max().max())
+    
+    # Create heatmap
+    sns.heatmap(heatmap_data, 
+                cmap='plasma', 
+                annot=False,
+                fmt='g',
+                linewidths=0.5,
+                cbar_kws={'label': 'Number of Images'},
+                vmin=0,
+                vmax=max_count,
+                ax=ax)
+    
+    # Force colorbar to show only integers
+    cbar = ax.collections[0].colorbar
+    cbar.ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+    
+    # Customize
+    ax.set_title(title, fontsize=14, fontweight='bold', pad=20)
+    ax.set_xlabel('Date', fontsize=12, fontweight='bold')
+    ax.set_ylabel('Sensor', fontsize=12, fontweight='bold')
+    
+    # Format x-axis dates
+    n_dates = len(heatmap_data.columns)
+    tick_spacing = max(1, n_dates // 20)
+    ax.set_xticks(range(0, n_dates, tick_spacing))
+    ax.set_xticklabels([heatmap_data.columns[i].strftime('%Y-%m-%d') 
+                        for i in range(0, n_dates, tick_spacing)],
+                       rotation=45, ha='right')
+    
+    plt.tight_layout()
+    return fig, ax
