@@ -32,76 +32,75 @@ SENSOR_LOOKUP = {
                    'resolution_ms': 5.0, 'num_bands': 45, 'spectral_range': 'VNIR'}
     }
 },
-# Satellogic Aleph-1 constellation (all generations use "Aleph1" constellation name)
-'SATELLOGIC': {
-    'affiliation': 'Satellogic',
-    'constellation': 'Aleph-1',  # Satellogic uses "Aleph1" for all
-    'patterns': ['SATELLOGIC', 'NEWSAT', 'ALEPH', '_SN', 'SN01', 'SN02', 'SN03', 'SN04', 'SN05', 'SN06', 'SN07', 'SN08', 'SN09', 'SN10', 
-                 'SN11', 'SN12', 'SN13', 'SN14', 'SN15', 'SN16', 'SN17', 'SN18', 'SN19', 'SN20',
-                 'SN21', 'SN22', 'SN23', 'SN24', 'SN25', 'SN26', 'SN27', 'SN28', 'SN29', 'SN30',
+    # Satellogic Aleph-1 constellation (all generations use "Aleph1" constellation name)
+    'SATELLOGIC': {
+        'affiliation': 'Satellogic',
+        'constellation': 'Aleph-1',  # Satellogic uses "Aleph1" for all
+        'patterns': ['SATELLOGIC', 'NEWSAT', 'ALEPH', '_SN', 'SN01', 'SN02', 'SN03', 'SN04', 'SN05', 'SN06', 'SN07', 'SN08', 'SN09', 'SN10', 
+                     'SN11', 'SN12', 'SN13', 'SN14', 'SN15', 'SN16', 'SN17', 'SN18', 'SN19', 'SN20',
+                     'SN21', 'SN22', 'SN23', 'SN24', 'SN25', 'SN26', 'SN27', 'SN28', 'SN29', 'SN30',
                  'SN31', 'SN32', 'SN33', 'SN34', 'SN35', 'SN36', 'SN37', 'SN38', 'SN39', 'SN40',
                  'SN41', 'SN42', 'SN43', 'SN44', 'SN45', 'SN46', 'SN47', 'SN48', 'SN49', 'SN50'],
-    'sensors': {
-        # Mark-II Generation (1.0m resolution)
-        'SN01': {'name': 'NewSat-1', 'launch_year': 2017, 'generation': 'Mark-II', 'resolution_ms': 1.0},
-        'SN02': {'name': 'NewSat-2', 'launch_year': 2017, 'generation': 'Mark-II', 'resolution_ms': 1.0},
-        
-        # Mark-III Generation (1.0m resolution) - SN03-SN18
-        'SN03': {'name': 'NewSat-3', 'launch_year': 2018, 'generation': 'Mark-III', 'resolution_ms': 1.0},
-        'SN04': {'name': 'NewSat-4', 'launch_year': 2018, 'generation': 'Mark-III', 'resolution_ms': 1.0},
-        'SN05': {'name': 'NewSat-5', 'launch_year': 2018, 'generation': 'Mark-III', 'resolution_ms': 1.0},
-        'SN06': {'name': 'NewSat-6', 'launch_year': 2018, 'generation': 'Mark-III', 'resolution_ms': 1.0},
-        'SN07': {'name': 'NewSat-7', 'launch_year': 2019, 'generation': 'Mark-III', 'resolution_ms': 1.0},
-        'SN08': {'name': 'NewSat-8', 'launch_year': 2019, 'generation': 'Mark-III', 'resolution_ms': 1.0},
-        'SN09': {'name': 'NewSat-9', 'launch_year': 2019, 'generation': 'Mark-III', 'resolution_ms': 1.0},
-        'SN10': {'name': 'NewSat-10', 'launch_year': 2019, 'generation': 'Mark-III', 'resolution_ms': 1.0},
-        'SN11': {'name': 'NewSat-11', 'launch_year': 2019, 'generation': 'Mark-III', 'resolution_ms': 1.0},
-        'SN12': {'name': 'NewSat-12', 'launch_year': 2019, 'generation': 'Mark-III', 'resolution_ms': 1.0},
-        'SN13': {'name': 'NewSat-13', 'launch_year': 2019, 'generation': 'Mark-III', 'resolution_ms': 1.0},
-        'SN14': {'name': 'NewSat-14', 'launch_year': 2019, 'generation': 'Mark-III', 'resolution_ms': 1.0},
-        'SN15': {'name': 'NewSat-15', 'launch_year': 2019, 'generation': 'Mark-III', 'resolution_ms': 1.0},
-        'SN16': {'name': 'NewSat-16', 'launch_year': 'NewSat-16', 'launch_year': 2019, 'generation': 'Mark-III', 'resolution_ms': 1.0},
-        'SN17': {'name': 'NewSat-17', 'launch_year': 2019, 'generation': 'Mark-III', 'resolution_ms': 1.0},
-        'SN18': {'name': 'NewSat-18', 'launch_year': 2019, 'generation': 'Mark-III', 'resolution_ms': 1.0},
-        
-        # Mark-IV & Mark-V (0.7m resolution) - SN19 onwards
-        # Using GSD from STAC to determine generation dynamically
-        'SN19': {'name': 'NewSat-19', 'launch_year': 2020, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
-        'SN20': {'name': 'NewSat-20', 'launch_year': 2020, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
-        'SN21': {'name': 'NewSat-21', 'launch_year': 2020, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
-        'SN22': {'name': 'NewSat-22', 'launch_year': 2020, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
-        'SN23': {'name': 'NewSat-23', 'launch_year': 2021, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
-        'SN24': {'name': 'NewSat-24', 'launch_year': 2021, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
-        'SN25': {'name': 'NewSat-25', 'launch_year': 2021, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
-        'SN26': {'name': 'NewSat-26', 'launch_year': 2021, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
-        'SN27': {'name': 'NewSat-27', 'launch_year': 2021, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
-        'SN28': {'name': 'NewSat-28', 'launch_year': 2021, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
-        'SN29': {'name': 'NewSat-29', 'launch_year': 2022, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
-        'SN30': {'name': 'NewSat-30', 'launch_year': 2022, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
-        'SN31': {'name': 'NewSat-31', 'launch_year': 2022, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
-        'SN32': {'name': 'NewSat-32', 'launch_year': 2022, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
-        'SN33': {'name': 'NewSat-33', 'launch_year': 2023, 'generation': 'Mark-V', 'resolution_ms': 0.7},
-        'SN34': {'name': 'NewSat-34', 'launch_year': 2023, 'generation': 'Mark-V', 'resolution_ms': 0.7},
-        'SN35': {'name': 'NewSat-35', 'launch_year': 2023, 'generation': 'Mark-V', 'resolution_ms': 0.7},
-        'SN36': {'name': 'NewSat-36', 'launch_year': 2023, 'generation': 'Mark-V', 'resolution_ms': 0.7},
-        'SN37': {'name': 'NewSat-37', 'launch_year': 2023, 'generation': 'Mark-V', 'resolution_ms': 0.7},
-        'SN38': {'name': 'NewSat-38', 'launch_year': 2023, 'generation': 'Mark-V', 'resolution_ms': 0.7},
-        'SN39': {'name': 'NewSat-39', 'launch_year': 2024, 'generation': 'Mark-V', 'resolution_ms': 0.7},
-        'SN40': {'name': 'NewSat-40', 'launch_year': 2024, 'generation': 'Mark-V', 'resolution_ms': 0.7},
-        'SN41': {'name': 'NewSat-41', 'launch_year': 2024, 'generation': 'Mark-V', 'resolution_ms': 0.7},
-        'SN42': {'name': 'NewSat-42', 'launch_year': 2024, 'generation': 'Mark-V', 'resolution_ms': 0.7},
-        'SN43': {'name': 'NewSat-43', 'launch_year': 2024, 'generation': 'Mark-V', 'resolution_ms': 0.7},
-        'SN44': {'name': 'NewSat-44', 'launch_year': 2024, 'generation': 'Mark-V', 'resolution_ms': 0.7},
-        'SN45': {'name': 'NewSat-45', 'launch_year': 2024, 'generation': 'Mark-V', 'resolution_ms': 0.7},
-        'SN46': {'name': 'NewSat-46', 'launch_year': 2024, 'generation': 'Mark-V', 'resolution_ms': 0.7},
-        'SN47': {'name': 'NewSat-47', 'launch_year': 2024, 'generation': 'Mark-V', 'resolution_ms': 0.7},
-        'SN48': {'name': 'NewSat-48', 'launch_year': 2024, 'generation': 'Mark-V', 'resolution_ms': 0.7},
-        'SN49': {'name': 'NewSat-49', 'launch_year': 2024, 'generation': 'Mark-V', 'resolution_ms': 0.7},
-        'SN50': {'name': 'NewSat-50', 'launch_year': 2024, 'generation': 'Mark-V', 'resolution_ms': 0.7},
-        
-        'SATELLOGIC': {'name': 'Satellogic', 'launch_year': 2020, 'generation': 'Unknown', 'resolution_ms': 0.7}
-    }
-},
+        'sensors': {
+            # Mark-II Generation (1.0m resolution)
+            'SN01': {'name': 'NewSat-1', 'launch_year': 2017, 'generation': '', 'resolution_ms': 1.0},
+            'SN02': {'name': 'NewSat-2', 'launch_year': 2017, 'generation': '', 'resolution_ms': 1.0},
+            
+            # Mark-III Generation (1.0m resolution) - SN03-SN18
+            # Mark-IV & Mark-V (0.7m resolution) - SN19 onwards
+            # Using GSD from STAC to determine generation dynamically
+            'SN03': {'name': 'NewSat-3', 'launch_year': 2018, 'generation': 'Mark-IV', 'resolution_ms': 1.0},
+            'SN04': {'name': 'NewSat-4', 'launch_year': 2018, 'generation': 'Mark-IV', 'resolution_ms': 1.0},
+            'SN05': {'name': 'NewSat-5', 'launch_year': 2018, 'generation': 'Mark-IV', 'resolution_ms': 1.0},
+            'SN06': {'name': 'NewSat-6', 'launch_year': 2018, 'generation': 'Mark-IV', 'resolution_ms': 1.0},
+            'SN07': {'name': 'NewSat-7', 'launch_year': 2019, 'generation': 'Mark-IV', 'resolution_ms': 1.0},
+            'SN08': {'name': 'NewSat-8', 'launch_year': 2019, 'generation': 'Mark-IV', 'resolution_ms': 1.0},
+            'SN09': {'name': 'NewSat-9', 'launch_year': 2019, 'generation': 'Mark-IV', 'resolution_ms': 1.0},
+            'SN10': {'name': 'NewSat-10', 'launch_year': 2019, 'generation': 'Mark-IV', 'resolution_ms': 1.0},
+            'SN11': {'name': 'NewSat-11', 'launch_year': 2019, 'generation': 'Mark-IV', 'resolution_ms': 1.0},
+            'SN12': {'name': 'NewSat-12', 'launch_year': 2019, 'generation': 'Mark-IV', 'resolution_ms': 1.0},
+            'SN13': {'name': 'NewSat-13', 'launch_year': 2019, 'generation': 'Mark-IV', 'resolution_ms': 1.0},
+            'SN14': {'name': 'NewSat-14', 'launch_year': 2019, 'generation': 'Mark-IV', 'resolution_ms': 1.0},
+            'SN15': {'name': 'NewSat-15', 'launch_year': 2019, 'generation': 'Mark-IV', 'resolution_ms': 1.0},
+            'SN16': {'name': 'NewSat-16', 'launch_year': 2019, 'generation': 'Mark-IV', 'resolution_ms': 1.0},
+            'SN17': {'name': 'NewSat-17', 'launch_year': 2019, 'generation': 'Mark-IV', 'resolution_ms': 1.0},
+            'SN18': {'name': 'NewSat-18', 'launch_year': 2019, 'generation': 'Mark-IV', 'resolution_ms': 1.0},
+            'SN19': {'name': 'NewSat-19', 'launch_year': 2020, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
+            'SN20': {'name': 'NewSat-20', 'launch_year': 2020, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
+            'SN21': {'name': 'NewSat-21', 'launch_year': 2020, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
+            'SN22': {'name': 'NewSat-22', 'launch_year': 2020, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
+            'SN23': {'name': 'NewSat-23', 'launch_year': 2021, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
+            'SN24': {'name': 'NewSat-24', 'launch_year': 2021, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
+            'SN25': {'name': 'NewSat-25', 'launch_year': 2021, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
+            'SN26': {'name': 'NewSat-26', 'launch_year': 2021, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
+            'SN27': {'name': 'NewSat-27', 'launch_year': 2021, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
+            'SN28': {'name': 'NewSat-28', 'launch_year': 2021, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
+            'SN29': {'name': 'NewSat-29', 'launch_year': 2022, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
+            'SN30': {'name': 'NewSat-30', 'launch_year': 2022, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
+            'SN31': {'name': 'NewSat-31', 'launch_year': 2022, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
+            'SN32': {'name': 'NewSat-32', 'launch_year': 2022, 'generation': 'Mark-IV', 'resolution_ms': 0.7},
+            'SN33': {'name': 'NewSat-33', 'launch_year': 2023, 'generation': 'Mark-V', 'resolution_ms': 0.7},
+            'SN34': {'name': 'NewSat-34', 'launch_year': 2023, 'generation': 'Mark-V', 'resolution_ms': 0.7},
+            'SN35': {'name': 'NewSat-35', 'launch_year': 2023, 'generation': 'Mark-V', 'resolution_ms': 0.7},
+            'SN36': {'name': 'NewSat-36', 'launch_year': 2023, 'generation': 'Mark-V', 'resolution_ms': 0.7},
+            'SN37': {'name': 'NewSat-37', 'launch_year': 2023, 'generation': 'Mark-V', 'resolution_ms': 0.7},
+            'SN38': {'name': 'NewSat-38', 'launch_year': 2023, 'generation': 'Mark-V', 'resolution_ms': 0.7},
+            'SN39': {'name': 'NewSat-39', 'launch_year': 2024, 'generation': 'Mark-V', 'resolution_ms': 0.7},
+            'SN40': {'name': 'NewSat-40', 'launch_year': 2024, 'generation': 'Mark-V', 'resolution_ms': 0.7},
+            'SN41': {'name': 'NewSat-41', 'launch_year': 2024, 'generation': 'Mark-V', 'resolution_ms': 0.7},
+            'SN42': {'name': 'NewSat-42', 'launch_year': 2024, 'generation': 'Mark-V', 'resolution_ms': 0.7},
+            'SN43': {'name': 'NewSat-43', 'launch_year': 2024, 'generation': 'Mark-V', 'resolution_ms': 0.7},
+            'SN44': {'name': 'NewSat-44', 'launch_year': 2024, 'generation': 'Mark-V', 'resolution_ms': 0.7},
+            'SN45': {'name': 'NewSat-45', 'launch_year': 2024, 'generation': 'Mark-V', 'resolution_ms': 0.7},
+            'SN46': {'name': 'NewSat-46', 'launch_year': 2024, 'generation': 'Mark-V', 'resolution_ms': 0.7},
+            'SN47': {'name': 'NewSat-47', 'launch_year': 2024, 'generation': 'Mark-V', 'resolution_ms': 0.7},
+            'SN48': {'name': 'NewSat-48', 'launch_year': 2024, 'generation': 'Mark-V', 'resolution_ms': 0.7},
+            'SN49': {'name': 'NewSat-49', 'launch_year': 2024, 'generation': 'Mark-V', 'resolution_ms': 0.7},
+            'SN50': {'name': 'NewSat-50', 'launch_year': 2024, 'generation': 'Mark-V', 'resolution_ms': 0.7},
+            
+            'SATELLOGIC': {'name': 'Satellogic', 'launch_year': 2020, 'generation': 'Unknown', 'resolution_ms': 0.7}
+        }
+    },
     # Airbus Pleiades Neo constellation
     'PNEO': {
         'affiliation': 'Airbus',
