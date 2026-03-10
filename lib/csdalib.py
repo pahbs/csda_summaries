@@ -3091,6 +3091,10 @@ def buffer_site_gdf(gdf, BUF_KM):
         return gdf_buffered
 
 def plot_site_coverage(site_name, footprint_gdf, sites_gdf, BUF_KM, BUF_KM_TOTAL_FOR_DISPLAY, sites_buf_gdf=None, 
+                       site_name_field = 'Site_Primary',
+                       id_field = 'acquisition_id', 
+                       affiliation_field = 'affiliation',
+                       constellation_field = 'constellation',
                        figsize=(5, 5), ax=None):
     """
     Plot acquisition footprints for a specific site with ESRI gray basemap.
@@ -3134,7 +3138,7 @@ def plot_site_coverage(site_name, footprint_gdf, sites_gdf, BUF_KM, BUF_KM_TOTAL
     
     # Filter data
     site = sites_gdf[sites_gdf['Site Name'] == site_name].copy()
-    footprints = footprint_gdf[footprint_gdf['Site_Primary'] == site_name].copy()
+    footprints = footprint_gdf[footprint_gdf[site_name_field] == site_name].copy()
     
     if len(site) == 0:
         print(f"Site '{site_name}' not found!")
@@ -3161,8 +3165,8 @@ def plot_site_coverage(site_name, footprint_gdf, sites_gdf, BUF_KM, BUF_KM_TOTAL
             footprints_in_buf = gpd.sjoin(footprints_all_web, site_buf_web, 
                                           how='inner', predicate='intersects')
             
-            footprints_in_buf = footprints_in_buf.drop_duplicates(subset='acquisition_id')
-            footprints_buf = footprints_in_buf[~footprints_in_buf['acquisition_id'].isin(footprints_web['acquisition_id'])]
+            footprints_in_buf = footprints_in_buf.drop_duplicates(subset=id_field)
+            footprints_buf = footprints_in_buf[~footprints_in_buf[id_field].isin(footprints_web[id_field])]
             
             print(f"Found {len(footprints_buf)} additional acquisitions in buffer zone")
     
@@ -3176,16 +3180,16 @@ def plot_site_coverage(site_name, footprint_gdf, sites_gdf, BUF_KM, BUF_KM_TOTAL
     
     # Create combined label for coloring
     footprints_web['combined_label'] = (
-        footprints_web['affiliation'].astype(str) + ' - ' + 
-        footprints_web['constellation'].astype(str)
+        footprints_web[affiliation_field].astype(str) + ' - ' + 
+        footprints_web[constellation_field].astype(str)
     )
     
     # Get ALL unique combinations
     all_combos = set(footprints_web['combined_label'].unique())
     if footprints_buf is not None and len(footprints_buf) > 0:
         footprints_buf['combined_label'] = (
-            footprints_buf['affiliation'].astype(str) + ' - ' + 
-            footprints_buf['constellation'].astype(str)
+            footprints_buf[affiliation_field].astype(str) + ' - ' + 
+            footprints_buf[constellation_field].astype(str)
         )
         all_combos.update(footprints_buf['combined_label'].unique())
     
@@ -3254,7 +3258,7 @@ def plot_site_coverage(site_name, footprint_gdf, sites_gdf, BUF_KM, BUF_KM_TOTAL
     ctx.add_basemap(ax, source=ctx.providers.Esri.WorldGrayCanvas, attribution_size=8)
     
     # Format
-    ax.set_title(f'{site_name} : {len(footprints)} acquisitions', 
+    ax.set_title(f'{site_name}\n{len(footprints)} acquisitions', 
                  fontsize=15, fontweight='bold', pad=0)
 
     # Add scalebar (ADD THIS)
