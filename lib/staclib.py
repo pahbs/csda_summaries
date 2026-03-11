@@ -140,7 +140,7 @@ def create_site_dict_from_gdf(sites_gdf, site_name_field='Site_Name', buffer_deg
     
     return site_dict
 
-def stac_search_site(site_tuple, today, start_date='2010-01-01', collections=['satellogic'], 
+def stac_search_site(site_tuple, end_date, start_date='2010-01-01', collections=['satellogic'], 
                 DICT_QUERY={
                             #'eo:cloud_cover': {'lt': 50},  # Less than 20% cloud cover
                     
@@ -162,7 +162,7 @@ def stac_search_site(site_tuple, today, start_date='2010-01-01', collections=['s
         
         search = catalog.search(
             bbox=bbox,
-            datetime=f'{start_date}/{today}',
+            datetime=f'{start_date}/{end_date}',
             collections=collections,
             max_items=None,
             # Property filters (if supported)
