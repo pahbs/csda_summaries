@@ -181,7 +181,7 @@ def stac_search_site(site_tuple, end_date, start_date='2010-01-01', collections=
     except Exception as e:
         return (site_name, None, f"Error: {str(e)}")
 
-def plot_collections_map(gdf, collection_field='collection', collections=None, 
+def plot_collections_map(gdf, collection_field='collection', collections=None, suptitle=None, site_name_field='site_name',
                         figsize=None, alpha=0.4, linewidth=0.5, 
                         show_stats=True):
     """
@@ -267,8 +267,8 @@ def plot_collections_map(gdf, collection_field='collection', collections=None,
         title = f'{collection}\n{len(gdf_collection):,} acquisitions'
         
         # Add stats if requested
-        if show_stats and 'site_name' in gdf_collection.columns:
-            n_sites = gdf_collection['site_name'].nunique()
+        if show_stats and site_name_field in gdf_collection.columns:
+            n_sites = gdf_collection[site_name_field].nunique()
             title += f'\n{n_sites} sites'
         
         ax.set_title(title, fontsize=11, fontweight='bold')
@@ -289,8 +289,11 @@ def plot_collections_map(gdf, collection_field='collection', collections=None,
     # Hide unused
     for idx in range(n_collections, len(axes)):
         axes[idx].axis('off')
-    
-    plt.suptitle('CSDA Program STAC Records for Evaluation Sites', 
+
+    if suptitle is None:
+        suptitle = 'CSDA Program STAC Records for Evaluation Sites'
+        
+    plt.suptitle(suptitle, 
                 fontsize=14, fontweight='bold', y=0.995)
     
     plt.tight_layout()
