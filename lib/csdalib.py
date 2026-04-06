@@ -3005,91 +3005,6 @@ def copy_all_latest_files(directory, extensions=['csv', 'gpkg'], pattern='*20??-
     
     return latest_files
 
-def buffer_site_gdf(gdf, BUF_KM):
-    """
-    Buffer a GeoDataFrame by BUF_KM km.
-    For global datasets, buffers each site in its own appropriate UTM zone.
-    
-    Parameters:
-    -----------
-    gdf : GeoDataFrame
-        Input GeoDataFrame to buffer
-    BUF_KM : float
-        Buffer distance in kilometers
-        
-    Returns:
-    --------
-    GeoDataFrame with buffered geometries in original CRS
-    """
-    # Check if CRS is geographic (lat/lon), if so reproject to metric
-    if gdf.crs and gdf.crs.is_geographic:
-        original_crs = gdf.crs
-        
-        # Create empty list to store buffered geometries (in original CRS)
-        buffered_geoms = []
-        
-        # Buffer each site individually in its own UTM zone
-        for idx, row in gdf.iterrows():
-            # Skip if geometry is None or empty
-            if row.geometry is None or row.geometry.is_empty:
-                print(f"Warning: Skipping empty geometry at index {idx}")
-                buffered_geoms.append(row.geometry)  # Keep the empty geometry
-                continue
-            
-            # Create single-row GeoDataFrame for this site
-            site_gdf = gpd.GeoDataFrame([row], geometry='geometry', crs=original_crs)
-            
-            # Get approximate center using bounds (avoids centroid warning)
-            try:
-                bounds = row.geometry.bounds  # (minx, miny, maxx, maxy)
-                lon = (bounds[0] + bounds[2]) / 2
-                lat = (bounds[1] + bounds[3]) / 2
-            except Exception as e:
-                print(f"Warning: Could not get bounds for index {idx}: {e}")
-                buffered_geoms.append(row.geometry)
-                continue
-            
-            # For equatorial regions (within 5 degrees of equator), use Azimuthal Equidistant
-            if abs(lat) < 5:
-                proj_crs = f"+proj=aeqd +lat_0={lat} +lon_0={lon} +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
-            else:
-                # Use UTM zone appropriate for this specific site
-                try:
-                    proj_crs = site_gdf.estimate_utm_crs()
-                except Exception as e:
-                    print(f"Warning: Could not estimate UTM CRS for index {idx}: {e}")
-                    # Fallback to Azimuthal Equidistant
-                    proj_crs = f"+proj=aeqd +lat_0={lat} +lon_0={lon} +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
-            
-            # Project, buffer, and reproject back to original CRS
-            try:
-                site_projected = site_gdf.to_crs(proj_crs)
-                site_buffered_projected = site_projected.buffer(BUF_KM * 1000).iloc[0]
-                
-                # Convert buffered geometry back to original CRS
-                site_buffered_gdf = gpd.GeoDataFrame([{'geometry': site_buffered_projected}], 
-                                                       geometry='geometry', 
-                                                       crs=proj_crs)
-                site_buffered_original = site_buffered_gdf.to_crs(original_crs).geometry.iloc[0]
-                
-                # Store the buffered geometry (now in original CRS)
-                buffered_geoms.append(site_buffered_original)
-            except Exception as e:
-                print(f"Warning: Could not buffer geometry at index {idx}: {e}")
-                buffered_geoms.append(row.geometry)  # Keep original geometry
-                continue
-        
-        # Create new GeoDataFrame with buffered geometries
-        gdf_buffered = gdf.copy()
-        gdf_buffered['geometry'] = buffered_geoms
-        
-        return gdf_buffered
-    else:
-        # Already in projected CRS (assumed to be in meters)
-        gdf_buffered = gdf.copy()
-        gdf_buffered['geometry'] = gdf.buffer(BUF_KM * 1000)  
-        return gdf_buffered
-
 def plot_site_coverage(site_name, footprint_gdf, sites_gdf, BUF_KM, BUF_KM_TOTAL_FOR_DISPLAY, sites_buf_gdf=None, 
                        site_name_field = 'Site_Primary',
                        id_field = 'acquisition_id', 
@@ -3148,7 +3063,8 @@ def plot_site_coverage(site_name, footprint_gdf, sites_gdf, BUF_KM, BUF_KM_TOTAL
         print(f"No acquisitions found for site '{site_name}'")
         return
     
-    print(f"Plotting {len(footprints)} acquisitions for {site_name}")
+    if False:
+        print(f"Plotting {len(footprints)} acquisitions for {site_name}")
     
     # Convert to Web Mercator
     footprints_web = footprints.to_crs(epsg=3857)
@@ -3168,7 +3084,8 @@ def plot_site_coverage(site_name, footprint_gdf, sites_gdf, BUF_KM, BUF_KM_TOTAL
             footprints_in_buf = footprints_in_buf.drop_duplicates(subset=id_field)
             footprints_buf = footprints_in_buf[~footprints_in_buf[id_field].isin(footprints_web[id_field])]
             
-            print(f"Found {len(footprints_buf)} additional acquisitions in buffer zone")
+            if False:
+                print(f"Found {len(footprints_buf)} additional acquisitions in buffer zone")
     
     # Create figure and axis if not provided
     if ax is None:
@@ -3211,7 +3128,7 @@ def plot_site_coverage(site_name, footprint_gdf, sites_gdf, BUF_KM, BUF_KM_TOTAL
         subset = footprints_web[footprints_web['combined_label'] == combo]
         subset.plot(ax=ax, 
                     facecolor=color_map[combo], 
-                    edgecolor=color_map[combo],
+                    edgecolor='black',
                     alpha=0.3,
                     linewidth=2)
         
@@ -3230,12 +3147,12 @@ def plot_site_coverage(site_name, footprint_gdf, sites_gdf, BUF_KM, BUF_KM_TOTAL
             
             subset.plot(ax=ax, 
                         facecolor=color, 
-                        edgecolor=color,
+                        edgecolor='black',
                         alpha=0.15,
-                        linewidth=1,
+                        linewidth=1, linestyle='.',
                         hatch='///')
             
-            patch = mpatches.Patch(facecolor=color, edgecolor=color,
+            patch = mpatches.Patch(facecolor=color, edgecolor='black',
                                    alpha=0.15, hatch='///',
                                    label=f"{combo} (n={len(subset)})")
             legend_handles_buffer.append(patch)
@@ -3249,9 +3166,9 @@ def plot_site_coverage(site_name, footprint_gdf, sites_gdf, BUF_KM, BUF_KM_TOTAL
     
     
     # Plot site boundary
-    site_web.boundary.plot(ax=ax, color='black', linewidth=2, 
-                           linestyle='--', 
-                           label=f'Overlapping {site_name} site ({BUF_KM} km buffer)', 
+    site_web.boundary.plot(ax=ax, color='red', linewidth=2, 
+                           linestyle='-', 
+                           label=f'Overlapping {site_name} site', 
                            zorder=10)
     
     # Add basemap
@@ -3270,8 +3187,8 @@ def plot_site_coverage(site_name, footprint_gdf, sites_gdf, BUF_KM, BUF_KM_TOTAL
     legend1 = ax.legend(handles=legend_handles_site, 
                        loc='upper left', 
                        fontsize=9, 
-                       framealpha=0.95,
-                       title=f'Overlapping {site_name} site ({BUF_KM} km buffer)',
+                       framealpha=0.95, 
+                       title=f'Overlapping {site_name} site',
                        title_fontsize=10)
     ax.add_artist(legend1)  # Add first legend back to plot
     
