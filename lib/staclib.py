@@ -111,6 +111,9 @@ def create_site_dict_from_gdf(sites_gdf, site_name_field='Site_Name', buffer_deg
             ]
         
         elif geom.geom_type == 'Polygon':
+
+            buffer_degrees = None
+            
             # Polygon geometry - use bounds
             minx, miny, maxx, maxy = geom.bounds
             
