@@ -284,3 +284,23 @@ def create_sites_gdf_with_aois(sites_df, default_size_km=3, custom_geojson_dict=
     sites_gdf = sites_gdf[~sites_gdf.geometry.is_empty]
     
     return sites_gdf
+
+def calculate_area_km2_per_site(gdf):
+    """
+    Calculate area in km² for each feature in its own UTM zone
+    (More accurate for global datasets)
+    """
+    areas = []
+    
+    for idx, row in gdf.iterrows():
+        # Create single-feature GeoDataFrame
+        single_gdf = gpd.GeoDataFrame([row], geometry='geometry', crs=gdf.crs)
+        
+        # Project to appropriate UTM zone for this feature
+        single_proj = single_gdf.to_crs(single_gdf.estimate_utm_crs())
+        
+        # Calculate area in km²
+        area_km2 = single_proj.area.iloc[0] / 1_000_000
+        areas.append(area_km2)
+    
+    return areas
