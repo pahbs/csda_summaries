@@ -1956,7 +1956,7 @@ def footprint_gpkg_wrapper(f_list, d, OUT_FOOT_FN, WRITE_GPKG=False):
 def make_CSDA_footprints_map(gdf, MAP=None, width='100%', height='25%', ACQS=True, site_name_col='Primary_Site'):
 
     Map_Figure=Figure()
-    
+    combined_gdf_list = []    
     if MAP is None:
         
         #------------------
@@ -1997,17 +1997,19 @@ def make_CSDA_footprints_map(gdf, MAP=None, width='100%', height='25%', ACQS=Tru
     combined_values = gdf['combined_label'].unique()
     n_combinations = len(combined_values)
     # colors = ['red', 'blue', 'green', 'purple', 'orange', 'yellow', 'pink', 'brown', 'gray', 'cyan', 
-    #           'darkred', 'lightred', 'darkblue', 'lightblue', 'darkgreen', 'lightgreen', 'cadetblue', make_CSDA_footprints_map
+    #           'darkred', 'lightred', 'darkblue', 'lightblue', 'darkgreen', 'lightgreen', 'cadetblue',
     #           'darkpurple', 'white', 'lightgray']
     # Create colors
     colors = plt.cm.plasma(np.linspace(0, 1, n_combinations))
 
     # Convert to hex colors for Folium
     colors = [mcolors.to_hex(color) for color in colors]
+    color_dict = {}
     
     # Create a feature group for each combined value
     for i, combined_val in enumerate(combined_values):
         color = colors[i % len(colors)]
+        color_dict[combined_val] = color
         
         # Filter dataframe for just this combination
         combined_gdf = gdf[gdf['combined_label'] == combined_val]
@@ -2030,6 +2032,7 @@ def make_CSDA_footprints_map(gdf, MAP=None, width='100%', height='25%', ACQS=Tru
         
         # Add the feature group to the map
         fg.add_to(m)
+        combined_gdf_list.append(combined_gdf)
     
     # Convert numpy array to list for JSON serialization
     bounds = gdf.total_bounds.tolist()
@@ -2120,6 +2123,11 @@ def make_CSDA_footprints_map(gdf, MAP=None, width='100%', height='25%', ACQS=Tru
 
     # Add layer control to toggle on/off each layer
     m = MAP_CONTROL(m)
+
+    # Create and write a QML color dict file for QGIS
+    combined_gdf = pd.concat(combined_gdf_list)
+    combined_gdf.to_file('footprints_CSDA_eval_ACQUISITIONS_combined_label_version.geojson')
+    create_qgis_qml(color_dict, 'footprints_CSDA_eval_ACQUISITIONS_combined_label_color_dict.qml', field_name='combined_label')    
     
     return(m)
 def MAP_CONTROL(m):
@@ -3368,3 +3376,67 @@ def plot_acquisition_heatmap(footprint_gdf, title='Image Acquisition Heatmap'):
     
     plt.tight_layout()
     return fig, ax
+
+# Function to create QGIS QML from hex colors
+def create_qgis_qml(color_dict, output_qml_path, field_name='combined_label'):
+    """
+    Create a QGIS QML style file for categorized symbology
+    
+    Parameters:
+    -----------
+    color_dict : dict
+        Dictionary mapping category values to hex color codes
+    output_qml_path : str
+        Path where QML file should be saved
+    field_name : str
+        Name of the field to use for categorization
+    """
+    
+    def hex_to_rgb(hex_color):
+        """Convert hex color to R,G,B string"""
+        hex_color = hex_color.lstrip('#')
+        return ','.join(str(int(hex_color[i:i+2], 16)) for i in (0, 2, 4))
+    
+    # Start QML XML
+    qml_content = '''<!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>
+<qgis version="3.28" styleCategories="Symbology">
+  <renderer-v2 type="categorizedSymbol" attr="{field_name}" symbollevels="0" forceraster="0">
+    <categories>
+'''.format(field_name=field_name)
+    
+    # Add categories
+    for i, (label, hex_color) in enumerate(color_dict.items()):
+        category = '''      <category symbol="{i}" value="{label}" label="{label}" render="true"/>
+'''.format(i=i, label=label)
+        qml_content += category
+    
+    qml_content += '''    </categories>
+    <symbols>
+'''
+    
+    # Add symbols
+    for i, (label, hex_color) in enumerate(color_dict.items()):
+        rgb = hex_to_rgb(hex_color)
+        
+        symbol = '''      <symbol type="fill" name="{i}" alpha="1" clip_to_extent="1" force_rhr="0">
+        <layer class="SimpleFill" locked="0" enabled="1">
+          <prop k="color" v="{rgb},255"/>
+          <prop k="outline_color" v="35,35,35,255"/>
+          <prop k="outline_style" v="solid"/>
+          <prop k="outline_width" v="0.26"/>
+          <prop k="style" v="solid"/>
+        </layer>
+      </symbol>
+'''.format(i=i, rgb=rgb)
+        qml_content += symbol
+    
+    qml_content += '''    </symbols>
+  </renderer-v2>
+</qgis>
+'''
+    
+    # Write to file
+    with open(output_qml_path, 'w') as f:
+        f.write(qml_content)
+    
+    print(f"QML file created: {output_qml_path}")
