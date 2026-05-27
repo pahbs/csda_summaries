@@ -2,11 +2,41 @@ import geopandas as gpd
 import pandas as pd
 from shapely.geometry import Point, box
 import numpy as np
+from urllib.parse import quote
+
 
 '''
 Library of functions to handle processing of site AOIs
 '''
+def read_from_sheet(SPREADSHEET_ID = '13MrpqFtAOqQY9WdW9lHNsqjCbG-e3VQkEDbHOGIKa6k', SHEET_NAME = 'Evaluation Sites', CSDA_ONLY=True):
+    # 2. Encode the sheet name for safe use in a URL
+    ENCODED_SHEET_NAME = quote(SHEET_NAME)
+    
+    # 3. Construct the full URL using the gviz/tq endpoint
+    url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet={ENCODED_SHEET_NAME}"
+    
+    # 4. Use pandas to read the CSV data directly from the URL
+    try:
+        sites = pd.read_csv(url)
+        
+        if SHEET_NAME == 'Evaluation Sites':
+            sites['Site Name'] = sites['Site Name abbrev'].str.rstrip()
+            if CSDA_ONLY:
+                # Get only Priority Sites - used for defining CSDA sites for now
+                sites = sites[sites['Program Use'] == 'CSDA']
+        
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    
+    # # Get only Priority Sites = high
+    # sites = sites[sites['Priority Level'] == 'high']
+    
+    # Get the list of columns to drop
+    cols_to_drop = sites.columns[sites.columns.str.contains('Unnamed')]
+    sites = sites.drop(columns=cols_to_drop)
 
+    return sites
+    
 def buffer_site_gdf(gdf, BUF_KM):
     """
     Buffer a GeoDataFrame by BUF_KM km.
