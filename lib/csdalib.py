@@ -3157,7 +3157,7 @@ def plot_site_coverage(site_name, footprint_gdf, sites_gdf, BUF_KM, BUF_KM_TOTAL
                         facecolor=color, 
                         edgecolor='black',
                         alpha=0.15,
-                        linewidth=1, linestyle='.',
+                        linewidth=1, linestyle='dotted',
                         hatch='///')
             
             patch = mpatches.Patch(facecolor=color, edgecolor='black',
@@ -3170,7 +3170,7 @@ def plot_site_coverage(site_name, footprint_gdf, sites_gdf, BUF_KM, BUF_KM_TOTAL
         site_buf = sites_buf_gdf[sites_buf_gdf['Site Name'] == site_name].to_crs(epsg=3857)
         if len(site_buf) > 0:
             site_buf.boundary.plot(ax=ax, color='gray', linewidth=1.5, 
-                                   linestyle=':', alpha=0.6, zorder=9)
+                                   linestyle='dotted', alpha=0.6, zorder=9)
     
     
     # Plot site boundary
