@@ -10,5 +10,5 @@ Commercial spaceborne image data are requested & purchased by CSDA, received, an
 
 | |
 |:--|
-| <img width="1800" height="1200" alt="download" src="https://github.com/user-attachments/assets/fdc0d625-0c26-4f5a-a711-473bd6deedf6" /> |
+| <img width="1800" height="1200" alt="image" src="https://github.com/user-attachments/assets/58bd9ba9-411b-41fe-8af0-39039be4fd5e" /> |
 | **Figure 1.** Map showing the generalized locations of a number of evalation sites and types. |
