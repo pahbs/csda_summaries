@@ -20,7 +20,9 @@ def read_from_sheet(SPREADSHEET_ID = '13MrpqFtAOqQY9WdW9lHNsqjCbG-e3VQkEDbHOGIKa
         sites = pd.read_csv(url)
         
         if SHEET_NAME == 'Evaluation Sites':
-            sites['Site Name'] = sites['Site Name abbrev'].str.rstrip()
+            #sites['Site Name'] = sites['Site Name abbrev'].str.rstrip()
+            # If no abbreviation set, then just use Site Name
+            sites['Site Name'] = sites['Site Name abbrev'].fillna(sites['Site Name']).str.rstrip()
             if CSDA_ONLY:
                 # Get only Priority Sites - used for defining CSDA sites for now
                 sites = sites[sites['Program Use'] == 'CSDA']
