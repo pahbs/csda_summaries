@@ -8,6 +8,38 @@ from urllib.parse import quote
 '''
 Library of functions to handle processing of site AOIs
 '''
+def update_sites_attributes(sites_gdf, site_configs):
+    """
+    Update sites GeoDataFrame with attributes based on configuration.
+    
+    Parameters:
+    -----------
+    sites_gdf : GeoDataFrame
+        Sites geodataframe to update
+    site_configs : list of dict
+        List of configurations, each with 'sites' and 'attributes' keys
+        
+    Returns:
+    --------
+    GeoDataFrame : Updated sites (copy)
+    list : All site names from configs
+    """
+    sites_updated = sites_gdf.copy()
+    all_sites = []
+    
+    for config in site_configs:
+        site_list = config['sites']
+        attributes = config['attributes']
+        
+        # Update attributes for these sites
+        mask = sites_updated['Site Name'].isin(site_list)
+        for key, value in attributes.items():
+            sites_updated.loc[mask, key] = value
+        
+        all_sites.extend(site_list)
+    
+    return sites_updated, all_sites
+    
 def read_from_sheet(SPREADSHEET_ID = '13MrpqFtAOqQY9WdW9lHNsqjCbG-e3VQkEDbHOGIKa6k', SHEET_NAME = 'Evaluation Sites', CSDA_ONLY=True):
     # 2. Encode the sheet name for safe use in a URL
     ENCODED_SHEET_NAME = quote(SHEET_NAME)
