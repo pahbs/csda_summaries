@@ -282,7 +282,7 @@ def create_sites_gdf_with_aois(sites_df, default_size_km=3, custom_geojson_dict=
             continue
             
         site_name = row[site_column]
-        aoi_type = row.get('aoi_type', 'circle')
+        aoi_type = row.get('aoi_shape', 'circle')
         
         if aoi_type == 'custom' or site_name in custom_geojson_dict:
             sites_with_custom.append(idx)
