@@ -3013,7 +3013,8 @@ def copy_all_latest_files(directory, extensions=['csv', 'gpkg'], pattern='*20??-
     
     return latest_files
 
-def plot_site_coverage(site_name, footprint_gdf, sites_gdf, BUF_KM, BUF_KM_TOTAL_FOR_DISPLAY, sites_buf_gdf=None, 
+def plot_site_coverage(site_name, footprint_gdf, sites_gdf, #BUF_KM, 
+                       BUF_KM_TOTAL_FOR_DISPLAY, sites_buf_gdf=None, 
                        site_name_field = 'Site_Primary',
                        id_field = 'acquisition_id', 
                        affiliation_field = 'affiliation',
