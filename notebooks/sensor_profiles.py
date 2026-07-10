@@ -466,6 +466,7 @@ SENSOR_PROFILES = {
 
         'detect': {
             'filename_patterns': [
+                r'-[PM]1BS-',        # M1BS, P1BS
                 r'-[PMS]3DS_R\d+C\d+',       # M3DS, P3DS, S3DS (standard)
                 r'-[PM]2[AS]S_R\d+C\d+',      # M2AS, P2AS, M2SS, P2SS (legacy Legion)
                 r'\d{2}[A-Z]{3}\d{8}-[PMS][23][AD]S',
@@ -513,7 +514,7 @@ SENSOR_PROFILES = {
         'affiliation': 'Maxar',
         'detect': {
             'filename_patterns': [r'-[PM]2[AS]S_R\d+C\d+',
-                                  r'\d{2}[A-Z]{3}\d{8}-[PM]2[AS]S'],
+                                  r'\d{2}[A-Z]{3}\d{8}-[PM]2[AS]S','Worldview'],
             'metadata_glob':     '*.XML',
         },
         'metadata_finder': {
