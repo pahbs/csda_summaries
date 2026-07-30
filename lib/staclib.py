@@ -143,46 +143,113 @@ def create_site_dict_from_gdf(sites_gdf, site_name_field='Site_Name', buffer_deg
     
     return site_dict
 
-def stac_search_site(site_tuple, end_date, start_date='2010-01-01', collections=['satellogic'], 
-                DICT_QUERY={
-                            #'eo:cloud_cover': {'lt': 50},  # Less than 20% cloud cover
-                    
-                            }
-               ):
-    """Search a single site"""
+def stac_search_site(site_tuple, end_date, start_date='2010-01-01',
+                      collections=['satellogic'],
+                      months=None,
+                      DICT_QUERY={}):
     from pystac_client import Client
     import numpy as np
-    
+    import pandas as pd
+    import geopandas as gpd
+
     site_name, site_info = site_tuple
     bbox = site_info['bbox']
-    
-    # Validate bbox
+
     if bbox is None or len(bbox) != 4 or any(np.isnan(bbox)):
-        return (site_name, None, "Invalid bbox")
-    
+        return (site_name, None, 'Invalid bbox')
+
+    # Build intervals to search
+    if months is None:
+        intervals = [f'{start_date}/{end_date}']
+    else:
+        intervals = _build_seasonal_intervals(start_date, end_date, months)
+        if not intervals:
+            return (site_name, None, 'No valid seasonal intervals')
+
     try:
         catalog = Client.open('https://csdap.earthdata.nasa.gov/stac')
-        
-        search = catalog.search(
-            bbox=bbox,
-            datetime=f'{start_date}/{end_date}',
-            collections=collections,
-            max_items=None,
-            # Property filters (if supported)
-            query=DICT_QUERY
-        )
-        
-        items = list(search.items())
-        
-        if len(items) > 0:
-            gdf = stac_items_to_gdf(items)
-            gdf['site_name'] = site_name
-            return (site_name, gdf, f"Found {len(items)} items")
+
+        all_gdfs = []
+        total_items = 0
+        for interval in intervals:
+            search = catalog.search(
+                bbox=bbox,
+                datetime=interval,
+                collections=collections,
+                max_items=None,
+                query=DICT_QUERY,
+            )
+            items = list(search.items())
+            total_items += len(items)
+            if items:
+                gdf = stac_items_to_gdf(items)
+                gdf['site_name'] = site_name
+                all_gdfs.append(gdf)
+
+        if all_gdfs:
+            combined = pd.concat(all_gdfs, ignore_index=True)
+            combined = gpd.GeoDataFrame(combined,
+                                         geometry='geometry',
+                                         crs=all_gdfs[0].crs)
+            season_note = f' (months={months})' if months else ''
+            return (site_name, combined,
+                    f'Found {total_items} items across {len(intervals)} interval(s){season_note}')
         else:
-            return (site_name, None, "No items found")
-    
+            return (site_name, None, 'No items found')
+
     except Exception as e:
-        return (site_name, None, f"Error: {str(e)}")
+        return (site_name, None, f'Error: {str(e)}')
+
+
+def _build_seasonal_intervals(start_date, end_date, months):
+    """
+    Build a list of 'YYYY-MM-DD/YYYY-MM-DD' intervals covering only the specified
+    months within [start_date, end_date]. Handles wraparound seasons (e.g. DJF).
+    """
+    from datetime import date
+    import calendar
+    from itertools import groupby
+    
+    start = date.fromisoformat(start_date)
+    end   = date.fromisoformat(end_date)
+
+    # Group consecutive months into contiguous blocks
+    sorted_months = sorted(set(months))
+    blocks = []
+    for k, g in groupby(enumerate(sorted_months), lambda ix: ix[0] - ix[1]):
+        block = [m for _, m in g]
+        blocks.append(block)
+
+    # Handle wrap-around case (e.g. months = [12, 1, 2] → [[1, 2], [12]])
+    # Merge if the first block starts at month 1 and the last block ends at month 12
+    if (len(blocks) > 1 and blocks[0][0] == 1 and blocks[-1][-1] == 12):
+        # Combine into a wrap-around block covering (Dec–Feb) etc.
+        wrap_block = blocks[-1] + blocks[0]
+        blocks = blocks[1:-1] + [wrap_block]
+
+    intervals = []
+    for year in range(start.year, end.year + 1):
+        for block in blocks:
+            first_month, last_month = block[0], block[-1]
+
+            # Wrap-around block spans year boundary
+            if first_month > last_month:
+                # e.g., Dec–Feb → Dec of `year` to Feb of `year + 1`
+                s = date(year, first_month, 1)
+                last_day = calendar.monthrange(year + 1, last_month)[1]
+                e = date(year + 1, last_month, last_day)
+            else:
+                s = date(year, first_month, 1)
+                last_day = calendar.monthrange(year, last_month)[1]
+                e = date(year, last_month, last_day)
+
+            # Clip to overall [start, end]
+            s = max(s, start)
+            e = min(e, end)
+            if s <= e:
+                intervals.append(f'{s.isoformat()}/{e.isoformat()}')
+
+    return intervals
 
 def plot_collections_map(gdf, collection_field='collection', collections=None, suptitle=None, site_name_field='site_name',
                         figsize=None, alpha=0.4, linewidth=0.5, 

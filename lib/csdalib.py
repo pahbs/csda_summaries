@@ -1089,7 +1089,7 @@ def link_acquisitions_to_sites(footprint_gdf, sites_gdf, buffer_distance=0,
     return footprint_with_sites.to_crs(4326), acquisition_site_mapping
 
 def create_comprehensive_summary(footprint_with_sites, acquisition_site_mapping, 
-                                   site_name_col='site_primary',
+                                   site_name_col='site_primary', date_col='acquisition_date',
                                    exclude_sites=None):
     """
     Create comprehensive summaries accounting for multi-site acquisitions.
@@ -1138,7 +1138,7 @@ def create_comprehensive_summary(footprint_with_sites, acquisition_site_mapping,
         [site_name_col, 'affiliation', 'constellation', 'sensor', 'image_type']
     ).agg({
         'acquisition_id': 'nunique',
-        'acquisition_datetime': ['min', 'max']
+        date_col: ['min', 'max']
     }).reset_index()
     
     summary_by_site.columns = [
@@ -1155,7 +1155,7 @@ def create_comprehensive_summary(footprint_with_sites, acquisition_site_mapping,
         ['affiliation', 'constellation', 'sensor', 'image_type']
     ).agg({
         'acquisition_id': 'nunique',
-        'acquisition_datetime': ['min', 'max']
+        date_col: ['min', 'max']
     }).reset_index()
     
     summary_by_sensor.columns = [
@@ -1231,7 +1231,7 @@ def create_comprehensive_summary(footprint_with_sites, acquisition_site_mapping,
             ['Site_Name', 'affiliation', 'constellation', 'sensor', 'image_type']
         ).agg({
             'acquisition_id': 'nunique',
-            'acquisition_datetime': ['min', 'max']
+            date_col: ['min', 'max']
         }).reset_index()
         
         summary_all_sites.columns = [
