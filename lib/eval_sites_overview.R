@@ -192,6 +192,7 @@ build_overview_map <- function(sites_proj, base_map, my_colors,
                                domain_col      =  'Evaluation.Category',#'Remote.Sensing.Domain',
                                filter_expr     = NULL,
                                highlight_sites = NULL,
+                               label_sites = NULL,
                                site_col        = 'Site.Name',
                                gray_color      = 'gray70',
                                title           = 'Evaluation Sites',
@@ -209,7 +210,7 @@ build_overview_map <- function(sites_proj, base_map, my_colors,
     sites_color <- dplyr::filter(data, .data[[site_col]] %in% highlight_sites)
     sites_gray  <- dplyr::filter(data, !(.data[[site_col]] %in% highlight_sites))
 
-    base_map +
+    overview_map = base_map +
       # Faded background sites
       geom_point(
         data = sites_gray,
@@ -229,7 +230,7 @@ build_overview_map <- function(sites_proj, base_map, my_colors,
         values = my_colors, drop = FALSE,
         name = legend_title,
         guide = guide_legend(
-          ncol = 1,
+          nrow = 1,
           override.aes = list(size = 3, label = '')
         )
       ) +
@@ -239,7 +240,7 @@ build_overview_map <- function(sites_proj, base_map, my_colors,
 
   } else {
     # Default: all sites colored by domain
-    base_map +
+    overview_map = base_map +
       geom_point(
         data = data,
         aes(geometry = geometry, fill = .data[[domain_col]]),
@@ -255,6 +256,12 @@ build_overview_map <- function(sites_proj, base_map, my_colors,
         )
       ) +
       labs(title = title)
+  }
+
+  if (!is.null(label_sites)) {
+    overview_map = overview_map + geom_label_repel(data = dplyr::filter(data, .data[[site_col]] %in% label_sites), aes(label=.data[[site_col]]))  
+      } else {
+      overview_map
   }
 }
 
@@ -308,7 +315,8 @@ make_eval_site_overview <- function(
   sites_url  = 'https://raw.githubusercontent.com/pahbs/csda_summaries/master/sites/eval_sites_aoi.geojson',
   world_path = '/explore/nobackup/people/pmontesa/userfs02/arc/continents.shp',
   proj       = '+proj=eck6 +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs',
-    highlight_sites = NULL
+    highlight_sites = NULL,
+    label_sites = NULL
 ) {
   sites_eval <- load_eval_sites(sites_url, world_path)
   base       <- prep_base_layers(world_path, proj)
@@ -324,17 +332,17 @@ make_eval_site_overview <- function(
     my_colors    = my_colors,
     map_csda = build_overview_map(sites_proj, base_map, my_colors,
                                    filter_expr = "`Program.Use` == 'CSDA'",
-                                   highlight_sites = highlight_sites,
+                                   highlight_sites = highlight_sites, label_sites = label_sites,
                                    title = 'CSDA Evaluation Sites',
                                    legend_title = NULL),
     map_csda_sme_domain = build_overview_map(sites_proj, base_map, my_colors,
                                    filter_expr = "`Program.Use` == 'CSDA'",
-                                   highlight_sites = highlight_sites,
+                                   highlight_sites = highlight_sites, label_sites = label_sites,
                                    title = 'CSDA Evaluation Sites', domain_col =  'Remote.Sensing.Domain',
                                    legend_title = NULL),
     map_csda_eval_cat = build_overview_map(sites_proj, base_map, my_colors_evaLcat,
                                    filter_expr = "`Program.Use` == 'CSDA'",
-                                   highlight_sites = highlight_sites,
+                                   highlight_sites = highlight_sites, label_sites = label_sites,
                                    title = 'CSDA Evaluation Sites', domain_col =  'Evaluation.Category',
                                    legend_title = NULL),
     map_fusion   = build_overview_map(sites_proj, base_map, my_colors,
