@@ -147,6 +147,17 @@ def stac_search_site(site_tuple, end_date, start_date='2010-01-01',
                       collections=['satellogic'],
                       months=None,
                       DICT_QUERY={}):
+    """
+    Search a single site, optionally seasonally.
+
+    Returns
+    -------
+    tuple : (site_name, gdf, items, message)
+        site_name : str
+        gdf       : GeoDataFrame or None
+        items     : list of pystac.Item or None — for use with CsdaClient downloads
+        message   : str
+    """
     from pystac_client import Client
     import numpy as np
     import pandas as pd
@@ -156,21 +167,21 @@ def stac_search_site(site_tuple, end_date, start_date='2010-01-01',
     bbox = site_info['bbox']
 
     if bbox is None or len(bbox) != 4 or any(np.isnan(bbox)):
-        return (site_name, None, 'Invalid bbox')
+        return (site_name, None, None, 'Invalid bbox')
 
-    # Build intervals to search
+    # Build search intervals
     if months is None:
         intervals = [f'{start_date}/{end_date}']
     else:
         intervals = _build_seasonal_intervals(start_date, end_date, months)
         if not intervals:
-            return (site_name, None, 'No valid seasonal intervals')
+            return (site_name, None, None, 'No valid seasonal intervals')
 
     try:
         catalog = Client.open('https://csdap.earthdata.nasa.gov/stac')
 
         all_gdfs = []
-        total_items = 0
+        all_items = []
         for interval in intervals:
             search = catalog.search(
                 bbox=bbox,
@@ -180,8 +191,8 @@ def stac_search_site(site_tuple, end_date, start_date='2010-01-01',
                 query=DICT_QUERY,
             )
             items = list(search.items())
-            total_items += len(items)
             if items:
+                all_items.extend(items)
                 gdf = stac_items_to_gdf(items)
                 gdf['site_name'] = site_name
                 all_gdfs.append(gdf)
@@ -192,14 +203,13 @@ def stac_search_site(site_tuple, end_date, start_date='2010-01-01',
                                          geometry='geometry',
                                          crs=all_gdfs[0].crs)
             season_note = f' (months={months})' if months else ''
-            return (site_name, combined,
-                    f'Found {total_items} items across {len(intervals)} interval(s){season_note}')
+            return (site_name, combined, all_items,
+                    f'Found {len(all_items)} items across {len(intervals)} interval(s){season_note}')
         else:
-            return (site_name, None, 'No items found')
+            return (site_name, None, None, 'No items found')
 
     except Exception as e:
-        return (site_name, None, f'Error: {str(e)}')
-
+        return (site_name, None, None, f'Error: {str(e)}')
 
 def _build_seasonal_intervals(start_date, end_date, months):
     """

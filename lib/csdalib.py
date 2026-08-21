@@ -7,8 +7,10 @@ from shapely.geometry import shape
 
 import pandas as pd
 
-from sensor_profiles import SENSOR_PROFILES
 import os, sys
+sys.path.append('/home/pmontesa/code/csda_summaries/lib')
+from sensor_profiles import SENSOR_PROFILES
+
 sys.path.append('/home/pmontesa/code/geoscitools')
 import footprintlib
 
@@ -69,7 +71,9 @@ basemaps = {
 def _get_nested(d, dotted_path):
     """Walk dotted path through nested dict, return None if missing."""
     cur = d
+    #print(f'Dotted path: {dotted_path}')
     for key in dotted_path.split('.'):
+        #print(f'key: {key}')
         if isinstance(cur, dict) and key in cur:
             cur = cur[key]
         else:
@@ -766,8 +770,9 @@ def plot_site_coverage(site_name, footprint_gdf, sites_gdf, #BUF_KM,
     # =========================================================================
     
     # Filter data
-    site = sites_gdf[sites_gdf['Site Name'] == site_name].copy()
-    footprints = footprint_gdf[footprint_gdf[site_name_field] == site_name].copy()
+    site = sites_gdf.loc[sites_gdf['Site Name'] == site_name].copy()
+    footprints = footprint_gdf.loc[footprint_gdf[site_name_field] == site_name].copy()
+
     
     if len(site) == 0:
         print(f"Site '{site_name}' not found!")
@@ -787,7 +792,7 @@ def plot_site_coverage(site_name, footprint_gdf, sites_gdf, #BUF_KM,
     # Get buffer extent and find additional acquisitions
     footprints_buf = None
     if sites_buf_gdf is not None:
-        site_buf = sites_buf_gdf[sites_buf_gdf['Site Name'] == site_name].copy()
+        site_buf = sites_buf_gdf.loc[sites_buf_gdf['Site Name'] == site_name].copy()
         if len(site_buf) > 0:
             site_buf_web = site_buf.to_crs(epsg=3857)
             
@@ -796,7 +801,8 @@ def plot_site_coverage(site_name, footprint_gdf, sites_gdf, #BUF_KM,
                                           how='inner', predicate='intersects')
             
             footprints_in_buf = footprints_in_buf.drop_duplicates(subset=id_field)
-            footprints_buf = footprints_in_buf[~footprints_in_buf[id_field].isin(footprints_web[id_field])]
+            footprints_buf = footprints_in_buf[~footprints_in_buf[id_field].isin(footprints_web[id_field])].copy()
+
             
             if False:
                 print(f"Found {len(footprints_buf)} additional acquisitions in buffer zone")
@@ -963,7 +969,7 @@ def prepare_gdf_for_export(gdf):
                         lambda x: ', '.join(map(str, x)) if isinstance(x, (list, tuple, np.ndarray)) and len(x) > 0 else ''
                     )
         except Exception as e:
-            print(f"Warning: Could not process column '{col}': {e}")
+            print(f"Warning: Could not procesexplodeds column '{col}': {e}")
             continue
     
     return gdf_export
@@ -1221,7 +1227,7 @@ def create_comprehensive_summary(footprint_with_sites, acquisition_site_mapping,
         
         # Merge with footprint data
         detailed = exploded.merge(
-            footprint_with_sites[['acquisition_id', 'affiliation', 'constellation', 'sensor', 'image_type', 'acquisition_datetime']],
+            footprint_with_sites[['acquisition_id', 'affiliation', 'constellation', 'sensor', 'image_type', date_col]],
             on='acquisition_id',
             how='left'
         )
@@ -1550,3 +1556,37 @@ def create_qgis_qml(color_dict, output_qml_path, field_name='combined_label'):
         f.write(qml_content)
     
     print(f"QML file created: {output_qml_path}")
+
+# CSDA Downloading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+def _process_one_item(item, client):
+    info = get_product_info_smart(item, client)
+    info['item_id'] = item.id
+    return info
+
+def download_all_assets(item, client, output_dir, skip=None):
+    """
+    Download every asset of a STAC item to a directory.
+    """
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    skip = set(skip or [])
+    
+    downloaded = {}
+    for key, asset in item.assets.items():
+        if key in skip:
+            continue
+        
+        # Use the asset's original filename
+        filename = asset.href.split('/')[-1]
+        local_path = output_dir / filename
+        
+        try:
+            client.download_item(item, key, str(local_path))
+            downloaded[key] = local_path
+            print(f'  ✓ {key:20s}  → {filename}')
+        except Exception as e:
+            print(f'  ✗ {key:20s}  {e}')
+    
+    return downloaded
