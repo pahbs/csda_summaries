@@ -490,7 +490,7 @@ def process_file(file_path, profiles=SENSOR_PROFILES):
     
     return record
 
-def process_files(file_list, profiles=SENSOR_PROFILES):
+def process_files(file_list, profiles=SENSOR_PROFILES, n_cpu=10):
     """
     Process a list of files. Returns a GeoDataFrame.
     Files needing raster bounds are dispatched to existing footprintlib.raster_footprint.
@@ -522,7 +522,7 @@ def process_files(file_list, profiles=SENSOR_PROFILES):
         from multiprocessing import Pool
         from functools import partial
         # ...whatever footprintlib.raster_footprint expects
-        with Pool(processes=4) as pool:
+        with Pool(processes=n_cpu) as pool:
             geoms = pool.map(
                 partial(
                     footprintlib.raster_footprint, # no
@@ -931,6 +931,112 @@ def plot_site_coverage(site_name, footprint_gdf, sites_gdf, #BUF_KM,
     
     return fig, ax
 
+def plot_skyplots_by_site_and_sensor(df, site_col='Site_Primary', sensor_col='sensor'):
+    """
+    Generates a grid of polar skyplots faceted by unique Site and Sensor combinations.
+    """
+    # 1. Filter out rows missing any of our key spatial tracking variables
+    sky_df = df.copy()
+    required_cols = ['sun_azimuth', 'sun_elevation', 'satellite_azimuth', 'satellite_elevation']
+    
+    # Ensure the columns are numeric and drop missing rows or empty labels
+    for col in required_cols:
+        sky_df[col] = pd.to_numeric(sky_df[col], errors='coerce')
+    sky_df = sky_df.dropna(subset=required_cols + [site_col, sensor_col])
+
+    # Extract unique combinations of Site and Sensor
+    # Drop duplicates to find every active combination
+    facets = sky_df[[site_col, sensor_col]].drop_duplicates().values.tolist()
+    num_facets = len(facets)
+
+    if num_facets == 0:
+        print("Error: No valid records found with complete Sun and Sensor tracking geometry.")
+        return
+
+    # 2. Configure subplot matrix dimensions (aiming for 2 columns)
+    ncols = 6 if num_facets > 1 else 1
+    nrows = (num_facets + ncols - 1) // ncols
+
+    # Use subplot_kw={'projection': 'polar'} to force every sub-frame to be a polar canvas
+    fig, axes = plt.subplots(
+        nrows=nrows, ncols=ncols, 
+        figsize=(15, 3.5 * nrows),
+        subplot_kw={'projection': 'polar'},
+        facecolor='white'
+    )
+
+    # Ensure axes is a flat array even if there is only 1 subplot frame
+    if num_facets == 1:
+        axes = np.array([axes])
+    else:
+        axes = axes.flatten()
+
+    # 3. Populate each subplot quadrant by Site and Sensor combination
+    for i, (site_name, sensor_name) in enumerate(facets):
+        ax = axes[i]
+        
+        # Filter data matching this specific facet combination
+        facet_data = sky_df[(sky_df[site_col] == site_name) & (sky_df[sensor_col] == sensor_name)]
+        
+        # Extract angles and translate to radians/zenith distances
+        sun_az_rad = np.radians(facet_data['sun_azimuth'])
+        sun_zenith = 90.0 - facet_data['sun_elevation']
+        
+        sat_az_rad = np.radians(facet_data['satellite_azimuth'])
+        sat_zenith = 90.0 - facet_data['satellite_elevation']
+
+        # Configure individual polar grid orientations (North is up, clockwise rotation)
+        ax.set_theta_zero_location("N")
+        ax.set_theta_direction(-1)
+        
+        # Set uniform 0 to 90 elevation boundaries
+        ax.set_ylim(0, 90)
+        
+        # Pass BOTH the numeric tick coordinates and the string labels together
+        numeric_ticks = [0, 15, 30, 45, 60, 75, 90]
+        string_labels = ['90° Zenith', '75°', '60°', '45°', '30°', '15°', '0° Horizon']
+        
+        ax.set_yticks(numeric_ticks, labels=string_labels, fontsize=7)
+        ax.tick_params(axis='x', labelsize=8)  # Coordinate degree label sizing
+        
+        # Plot the Sun geometry points
+        ax.scatter(
+            sun_az_rad, sun_zenith, 
+            color='#e6ab02', s=45, alpha=0.75, label='Sun Position', 
+            edgecolors='black', linewidth=0.4, zorder=4
+        )
+        
+        # Plot the Satellite geometry points (ADJUSTED TO GRAY)
+        ax.scatter(
+            sat_az_rad, sat_zenith, 
+            color='#888888', s=45, alpha=0.75, label='Sensor (Satellite)', 
+            edgecolors='black', linewidth=0.4, zorder=4
+        )
+        
+        # Individual grid cosmetics
+        ax.set_title(f"{site_name} | {sensor_name}\n(n={len(facet_data)} acquisitions)", 
+                     fontsize=10, fontweight='bold', pad=15)
+        ax.grid(True, linestyle=':', color='gray', alpha=0.5)
+
+    # Clean up empty axes slots if your layout grid count is odd
+    for j in range(num_facets, len(axes)):
+        fig.delaxes(axes[j])
+
+    # 4. Global Figure Layout Adjustments
+    # Use the first plot's handles to build one clean, unified legend box for the entire figure
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc='upper left', 
+               #bbox_to_anchor=(0.5, 0.01), 
+               ncol=2, frameon=True)
+
+    plt.suptitle('Acquisition Geometry', 
+                 fontsize=14, fontweight='bold')
+    
+    # Push the bottom up a little bit more if you have many rows to avoid crushing the legend
+    #plt.subplots_adjust(bottom=0.08 if nrows > 2 else 0.14, hspace=0.45, wspace=0.35)
+    plt.tight_layout()
+    plt.show()
+
 def prepare_gdf_for_export(gdf):
     """
     Prepare GeoDataFrame for export by converting list/array columns to strings.
@@ -1032,7 +1138,7 @@ def link_acquisitions_to_sites(footprint_gdf, sites_gdf, buffer_distance=0,
     sites_buffered['geometry'] = sites_gdf.buffer(buffer_distance)
     
     # Spatial join: find all acquisitions that intersect buffered sites
-    # This creates one row per acquisition-site pair
+    # This creates one row per (acquisition-site) pair
     joined = gpd.sjoin(
         footprint_gdf,
         sites_buffered[[site_name_col, 'geometry']],
@@ -1040,10 +1146,26 @@ def link_acquisitions_to_sites(footprint_gdf, sites_gdf, buffer_distance=0,
         predicate='intersects'
     )
     
-    # Create mapping of acquisition_id to all associated sites
-    # Group by acquisition_id and aggregate the site names
+    # CRITICAL FIX for duplicate acquisition_ids with different geometries:
+    # Preserve the original row index from footprint_gdf so we can match sites back to the correct geometry
+    # Add the original index as a column for deduplication
+    joined['_orig_idx'] = joined.index
+    
+    # Deduplicate: only keep ONE (acquisition_id, Site) pair per original row
+    # This prevents a single acquisition_id that spans multiple sites from
+    # contaminating all rows that share that ID
+    joined = joined.drop_duplicates(subset=['_orig_idx', site_name_col], keep='first')
+    
+    # Create per-row site mappings by grouping on the original row index
+    # This is CRITICAL for handling duplicate acquisition_ids with different geometries
+    # Each row keeps only the sites IT intersects, not all sites for that acquisition_id
+    per_row_sites = joined.groupby(joined.index)[site_name_col].apply(
+        lambda x: sorted(list(x.unique()))
+    )
+    
+    # Create acquisition_site_mapping for reference/reporting
     acquisition_site_mapping = joined.groupby('acquisition_id')[site_name_col].apply(
-        lambda x: sorted(list(x.unique()))  # Sort alphabetically for consistency
+        lambda x: sorted(list(x.unique()))
     ).reset_index()
     acquisition_site_mapping.columns = ['acquisition_id', 'sites']
     
@@ -1061,22 +1183,36 @@ def link_acquisitions_to_sites(footprint_gdf, sites_gdf, buffer_distance=0,
         lambda x: x[2] if len(x) > 2 else None
     )
     
-    # Merge back to original footprint_gdf to ensure we keep all acquisitions
-    footprint_with_sites = footprint_gdf.merge(
-        acquisition_site_mapping[['acquisition_id', 'Site_Primary', 'Site_Secondary', 
-                                   'Site_Tertiary', 'num_sites', 'sites']],
-        on='acquisition_id',
-        how='left'  # Keep all acquisitions, even those without sites
+    # Merge per-row sites back to original GeoDataFrame
+    # This is the CRITICAL DIFFERENCE: we use per-row associations, not acquisition_id aggregates
+    footprint_with_sites = footprint_gdf.copy()
+    footprint_with_sites['sites'] = per_row_sites
+    
+    # For acquisitions not in joined (no site intersections), set empty list
+    footprint_with_sites['sites'] = footprint_with_sites['sites'].apply(
+        lambda x: x if isinstance(x, list) else []
     )
+    
+    # Extract Site_Primary, Secondary, Tertiary from per-row sites list
+    def extract_site(sites_list, idx):
+        if not isinstance(sites_list, list) or idx >= len(sites_list):
+            return None
+        return sites_list[idx]
+    
+    footprint_with_sites['Site_Primary'] = footprint_with_sites['sites'].apply(
+        lambda x: extract_site(x, 0)
+    )
+    footprint_with_sites['Site_Secondary'] = footprint_with_sites['sites'].apply(
+        lambda x: extract_site(x, 1)
+    )
+    footprint_with_sites['Site_Tertiary'] = footprint_with_sites['sites'].apply(
+        lambda x: extract_site(x, 2)
+    )
+    footprint_with_sites['num_sites'] = footprint_with_sites['sites'].apply(len)
     
     # Fill NaN for acquisitions not near any site
     footprint_with_sites['Site_Primary'] = footprint_with_sites['Site_Primary'].fillna('Not CSDA Eval Site')
     # For Secondary and Tertiary, NaN is fine - they represent "no secondary/tertiary site"
-    # But if you want to explicitly set them, use np.nan or leave as-is
-    footprint_with_sites['num_sites'] = footprint_with_sites['num_sites'].fillna(0).astype(int)
-    footprint_with_sites['sites'] = footprint_with_sites['sites'].apply(
-        lambda x: x if isinstance(x, list) else []
-    )
     
     # Verify no duplicates (should have one row per acquisition)
     n_duplicates = footprint_with_sites['acquisition_id'].duplicated().sum()
@@ -1085,7 +1221,7 @@ def link_acquisitions_to_sites(footprint_gdf, sites_gdf, buffer_distance=0,
         print("This may indicate duplicate acquisitions in input data")
     
     print(f"\nSummary:")
-    print(f"  Total acquisitions: {len(footprint_with_sites)}")
+    print(f"  Total acquisitions (P + MS): {len(footprint_with_sites)}")
     print(f"  Acquisitions intersecting sites: {(footprint_with_sites['num_sites'] > 0).sum()}")
     print(f"  Acquisitions NOT intersecting sites: {(footprint_with_sites['num_sites'] == 0).sum()}")
     print(f"  Single-site acquisitions: {(footprint_with_sites['num_sites'] == 1).sum()}")
@@ -1276,7 +1412,7 @@ def create_comprehensive_summary(footprint_with_sites, acquisition_site_mapping,
     print(f"Total Affiliations:        {n_affiliations:>6}")
     print(f"Total Constellations:      {n_constellations:>6}")
     print(f"Total Evaluation Sites:    {n_sites:>6}")
-    print(f"Total Images:              {n_images:>6}")
+    print(f"Total Acquisitions:         {n_images:>6}")
     print("-"*70)
     
     # Print breakdown by affiliation
@@ -1284,7 +1420,7 @@ def create_comprehensive_summary(footprint_with_sites, acquisition_site_mapping,
     for _, row in summaries['by_affiliation'].iterrows():
         affiliation = row['affiliation']
         count = row['total_acquisitions']
-        print(f"  {affiliation:<20} {count:>6} images")
+        print(f"  {affiliation:<20} {count:>6} acquisitions")
     
     # Print breakdown by constellation
     print("\nBreakdown by Constellation:")
@@ -1292,7 +1428,7 @@ def create_comprehensive_summary(footprint_with_sites, acquisition_site_mapping,
         affiliation = row['affiliation']
         constellation = row['constellation']
         count = row['total_acquisitions']
-        print(f"  {affiliation}/{constellation:<30} {count:>6} images")
+        print(f"  {affiliation}/{constellation:<30} {count:>6} acquisitions")
     
     print("="*70 + "\n")
     
@@ -1486,10 +1622,10 @@ def make_CSDA_footprints_map(gdf, MAP=None, width='100%', height='25%', ACQS=Tru
     # Add layer control to toggle on/off each layer
     m = MAP_CONTROL(m)
 
-    # Create and write a QML color dict file for QGIS
-    combined_gdf = pd.concat(combined_gdf_list)
-    combined_gdf.to_file('footprints_CSDA_eval_ACQUISITIONS_combined_label_version.geojson')
-    create_qgis_qml(color_dict, 'footprints_CSDA_eval_ACQUISITIONS_combined_label_color_dict.qml', field_name='combined_label')    
+    # # Create and write a QML color dict file for QGIS
+    # combined_gdf = pd.concat(combined_gdf_list)
+    # combined_gdf.to_file('footprints_CSDA_eval_ACQUISITIONS_combined_label_version.geojson')
+    # create_qgis_qml(color_dict, 'footprints_CSDA_eval_ACQUISITIONS_combined_label_color_dict.qml', field_name='combined_label')    
     
     return(m)
 
