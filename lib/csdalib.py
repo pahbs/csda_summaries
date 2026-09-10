@@ -8,11 +8,8 @@ from shapely.geometry import shape
 import pandas as pd
 
 import os, sys
-sys.path.append('/home/pmontesa/code/csda_summaries/lib')
+sys.path.append('../lib')
 from sensor_profiles import SENSOR_PROFILES
-
-sys.path.append('/home/pmontesa/code/geoscitools')
-import footprintlib
 
 import numpy as np
 import matplotlib.colors as mcolors
@@ -491,6 +488,8 @@ def process_file(file_path, profiles=SENSOR_PROFILES):
     return record
 
 def process_files(file_list, profiles=SENSOR_PROFILES, n_cpu=10):
+    sys.path.append('/home/pmontesa/code/geoscitools')
+    import footprintlib
     """
     Process a list of files. Returns a GeoDataFrame.
     Files needing raster bounds are dispatched to existing footprintlib.raster_footprint.
