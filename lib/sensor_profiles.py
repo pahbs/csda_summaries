@@ -694,7 +694,7 @@ SENSOR_PROFILES = {
         },
         'metadata_format': 'xml',
         'fields': {
-            'acquisition_datetime': {'tag': 'START'} ,
+            'acquisition_datetime': {'tag': 'TIME'} ,
             'mission':       {'tag': 'MISSION', 'fallback_tags': ['INSTRUMENT']},
             'mission_index': {'tag': 'MISSION_INDEX'},
             'catid':         {'tag': 'SOURCE_ID','fallback_tags': ['DATASET_NAME']},
