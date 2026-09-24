@@ -828,3 +828,341 @@ def create_interactive_heatmap(gdf, collection_name=None, grid_size=0.1,
     m.get_root().html.add_child(folium.Element(title_html))
     
     return m, grid_gdf
+
+eckert_vi_crs  = '+proj=eck6  +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs'
+robinson_crs   = '+proj=robin +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs'
+
+def plot_stac_acquisition_density(
+    stac_gdf,
+    sites_gdf        = None,
+    projection_crs   = robinson_crs,
+    bin_method       = 'hexbin',
+    gridsize         = 50,
+    cmap             = 'plasma',
+    title            = None,
+    filter_text      = None,
+    figsize          = (18, 9),
+    vmin             = 1,
+    vmax             = None,
+    show_sites       = True,
+    site_name_col    = 'Site Name',
+    lon_col          = 'longitude',
+    lat_col          = 'latitude',
+):
+    import geopandas as gpd
+    import numpy as np
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as mpatches
+    import matplotlib.colors as mcolors
+    from matplotlib.colors import LogNorm
+    from matplotlib.patches import PathPatch
+    from matplotlib.path import Path
+    from shapely.geometry import Polygon, MultiLineString, box
+    from shapely.ops import unary_union
+    from pyproj import Transformer
+    import warnings
+    warnings.filterwarnings('ignore')
+
+    # ── Colors ────────────────────────────────────────────────────────────────
+    WATER_COLOR = '#f0f0f0'   # light gray
+    LAND_COLOR  = '#d9d9d9'   # slightly darker gray
+
+    # ── Load world basemap ────────────────────────────────────────────────────
+    world     = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
+    world_proj = world.to_crs(projection_crs)
+
+    # ── Build projection boundary by densifying the lon/lat envelope ──────────
+    # Sample edges of the geographic extent densely so the projected
+    # boundary follows the true curved shape of the projection
+    def make_projection_boundary(proj_crs, n=500):
+        transformer = Transformer.from_crs('EPSG:4326', proj_crs, always_xy=True)
+
+        # March around the boundary of the geographic extent
+        top    = [(lon,  90) for lon in np.linspace(-180,  180, n)]
+        right  = [(180,  lat) for lat in np.linspace( 90,  -90, n)]
+        bottom = [(lon, -90) for lon in np.linspace( 180, -180, n)]
+        left   = [(-180, lat) for lat in np.linspace(-90,   90, n)]
+
+        boundary_ll = top + right + bottom + left
+        lons, lats  = zip(*boundary_ll)
+        xs, ys      = transformer.transform(lons, lats)
+
+        return Polygon(zip(xs, ys))
+
+    proj_boundary     = make_projection_boundary(projection_crs)
+    proj_boundary_gdf = gpd.GeoDataFrame(
+        geometry=[proj_boundary], crs=projection_crs
+    )
+
+    # ── Project stac points ───────────────────────────────────────────────────
+    if stac_gdf.crs is None:
+        stac_gdf = stac_gdf.set_crs('EPSG:4326')
+
+    pts = stac_gdf.to_crs(projection_crs).copy()
+    pts['geometry'] = pts.geometry.centroid
+    x = pts.geometry.x.values
+    y = pts.geometry.y.values
+    n_pts = len(stac_gdf)
+
+    # ── Figure and axes ───────────────────────────────────────────────────────
+    fig, ax = plt.subplots(figsize=figsize, facecolor='white')
+    ax.set_aspect('equal')
+    ax.axis('off')
+
+    # ── 1. Fill projection boundary with water color ──────────────────────────
+    proj_boundary_gdf.plot(ax=ax, facecolor=WATER_COLOR, edgecolor='none', zorder=0)
+
+    # ── 2. Plot land ──────────────────────────────────────────────────────────
+    world_proj.plot(ax=ax, facecolor=LAND_COLOR, edgecolor='white',
+                    linewidth=0.3, zorder=1)
+
+    # ── 3. Bin and plot acquisitions ──────────────────────────────────────────
+    if bin_method == 'hexbin':
+        _vmax = vmax or max(2, int(np.percentile(
+            [v for v in np.histogram2d(x, y, bins=gridsize)[0].flatten() if v > 0],
+            99
+        )) + 1)
+
+        hb = ax.hexbin(
+            x, y,
+            gridsize   = gridsize,
+            cmap       = cmap,
+            mincnt     = 1,
+            norm       = LogNorm(vmin=vmin, vmax=_vmax),
+            edgecolors = 'none',
+            alpha      = 0.9,
+            zorder     = 2
+        )
+        mappable   = hb
+        cbar_label = 'Acquisitions per cell (log scale)'
+
+    elif bin_method == 'grid':
+        if lon_col in stac_gdf.columns and lat_col in stac_gdf.columns:
+            lons_data = stac_gdf[lon_col].values
+            lats_data = stac_gdf[lat_col].values
+        else:
+            src = stac_gdf.to_crs('EPSG:4326').copy()
+            src['geometry'] = src.geometry.centroid
+            lons_data = src.geometry.x.values
+            lats_data = src.geometry.y.values
+
+        lon_bins = np.arange(-180, 181, 1)
+        lat_bins = np.arange(-90,   91, 1)
+        counts, xedges, yedges = np.histogram2d(lons_data, lats_data,
+                                                 bins=[lon_bins, lat_bins])
+
+        rows = []
+        for i in range(len(xedges) - 1):
+            for j in range(len(yedges) - 1):
+                c = counts[i, j]
+                if c > 0:
+                    rows.append({
+                        'lon':   (xedges[i] + xedges[i+1]) / 2,
+                        'lat':   (yedges[j] + yedges[j+1]) / 2,
+                        'count': c
+                    })
+
+        cells = gpd.GeoDataFrame(
+            rows,
+            geometry = gpd.points_from_xy(
+                [r['lon'] for r in rows],
+                [r['lat'] for r in rows]
+            ),
+            crs = 'EPSG:4326'
+        ).to_crs(projection_crs)
+
+        _vmax  = vmax or cells['count'].quantile(0.99)
+        norm   = LogNorm(vmin=vmin, vmax=_vmax)
+        sm     = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+        sm.set_array([])
+
+        ax.scatter(
+            cells.geometry.x,
+            cells.geometry.y,
+            c      = cells['count'].values,
+            cmap   = cmap,
+            norm   = norm,
+            s      = 5,
+            marker = 's',
+            alpha  = 0.9,
+            zorder = 2,
+            linewidths = 0
+        )
+        mappable   = sm
+        cbar_label = 'Acquisitions per 1° cell (log scale)'
+
+    # ── 4. Projection boundary outline (on top of everything) ─────────────────
+    proj_boundary_gdf.plot(ax=ax, facecolor='none', edgecolor='black',
+                           linewidth=1.2, zorder=5)
+
+    # ── 5. Site annotations ───────────────────────────────────────────────────
+    if show_sites and sites_gdf is not None:
+        sites_proj = sites_gdf.to_crs(projection_crs).copy()
+        sites_proj['geometry'] = sites_proj.geometry.centroid
+
+        for _, row in sites_proj.iterrows():
+            sx, sy = row.geometry.x, row.geometry.y
+            # ax.plot(sx, sy,
+            #         marker='o', color='red', markersize=5, zorder=6,
+            #         markeredgecolor='white', markeredgewidth=0.6)
+            ax.annotate(
+                text       = row[site_name_col],
+                xy         = (sx, sy),
+                xytext     = (6, 4),
+                textcoords = 'offset points',
+                fontsize   = 6.5,
+                fontweight = 'bold',
+                color      = 'black',
+                zorder     = 7,
+                bbox       = dict(boxstyle='round,pad=0.2',
+                                  fc='white', ec='none', alpha=0.75)
+            )
+
+    # ── 6. Filter text ────────────────────────────────────────────────────────
+    if filter_text:
+        ax.text(0.01, 0.02, filter_text,
+                transform         = ax.transAxes,
+                fontsize          = 8,
+                verticalalignment = 'bottom',
+                bbox              = dict(boxstyle='round', facecolor='white',
+                                         alpha=0.85, edgecolor='#aaaaaa'))
+
+    # ── 7. Horizontal colorbar at bottom ──────────────────────────────────────
+    cbar = fig.colorbar(
+        mappable,
+        ax          = ax,
+        orientation = 'horizontal',
+        location    = 'bottom',          # <-- move to top
+        fraction    = 0.025,
+        pad         = 0.02,
+        shrink      = 0.45,
+        aspect      = 35
+    )
+    cbar.set_label(cbar_label, fontweight='bold', fontsize=9)
+    cbar.ax.tick_params(labelsize=7)
+
+    # ── 8. Title ──────────────────────────────────────────────────────────────
+    _title = title or f'Global Acquisition Density  (n={n_pts:,})'
+    ax.set_title(_title, fontsize=13, fontweight='bold', pad=12)
+
+    # ── 9. Clip axes to projection boundary so nothing bleeds outside ─────────
+    xmin, ymin, xmax, ymax = proj_boundary.bounds
+    pad = (xmax - xmin) * 0.01
+    ax.set_xlim(xmin - pad, xmax + pad)
+    ax.set_ylim(ymin - pad, ymax + pad)
+
+    plt.tight_layout()
+    plt.show()
+
+    return fig, ax
+
+
+def plot_acquisition_timeline(
+    stac_gdf,
+    platform_col     = 'platform',
+    datetime_col     = 'datetime',
+    fallback_col     = 'start_datetime',
+    #bins             = 20,
+    cmap             = 'Blues',
+    platform_order   = None,
+    title            = None,
+    figsize          = (10, 5),
+    interval_months  = 6,
+    bar_width        = 0.8,      # <-- new: 1.0 = no gap, 0.8 = 20% gap
+    ax               = None,
+):
+    import pandas as pd
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import matplotlib.dates as mdates
+
+    # ── Resolve datetime column ───────────────────────────────────────────────
+    df = stac_gdf.copy()
+    df[datetime_col] = pd.to_datetime(df[datetime_col], errors='coerce')
+
+    if fallback_col in df.columns:
+        df[fallback_col] = pd.to_datetime(df[fallback_col], errors='coerce')
+        df[datetime_col] = df[datetime_col].fillna(df[fallback_col])
+
+    df = df.dropna(subset=[datetime_col])
+
+    # ── Platform ordering ─────────────────────────────────────────────────────
+    _default_order = [
+        'GE01',
+        'WV01', 'WV02', 'WV03', 'WV04',
+        'LG01', 'LG02', 'LG03', 'LG04', 'LG05',
+        'LG06', 'LG07', 'LG08', 'LG09'
+    ]
+    order      = platform_order or _default_order
+    actual     = df[platform_col].dropna().unique()
+    platforms  = [p for p in order if p in actual]
+    platforms += [p for p in actual if p not in platforms]
+
+    n_platforms = len(platforms)
+    colors      = plt.get_cmap(cmap)(np.linspace(0.3, 1.0, n_platforms))
+    color_dict  = dict(zip(platforms, colors))
+
+    # ── Build per-platform data lists ─────────────────────────────────────────
+    platform_data   = []
+    platform_labels = []
+    for p in platforms:
+        p_data = df[df[platform_col] == p][datetime_col]
+        platform_data.append(p_data)
+        platform_labels.append(f"{p}  (n={len(p_data):,})")
+
+    # ── Axes ──────────────────────────────────────────────────────────────────
+    standalone = ax is None
+    if standalone:
+        fig, ax = plt.subplots(figsize=figsize, facecolor='white')
+
+    # ── Compute bin edges aligned to month boundaries ─────────────────────────
+    date_min = df[datetime_col].min().to_period('M').to_timestamp()
+    date_max = df[datetime_col].max().to_period('M').to_timestamp() \
+               + pd.offsets.MonthEnd(1)
+
+    bin_edges = pd.date_range(
+        start = date_min,
+        end   = date_max,
+        freq  = f'{interval_months}MS'   # MS = month start, aligned to ticks
+    )
+
+    # ── Plot ──────────────────────────────────────────────────────────────────
+    ax.hist(
+        platform_data,
+        bins      = bin_edges,           # <-- explicit aligned edges
+        stacked   = True,
+        label     = platform_labels,
+        color     = [color_dict[p] for p in platforms],
+        edgecolor = 'black',
+        linewidth = 0.4,
+        rwidth    = bar_width,
+    )
+
+    # ── Tick marks now match bin edges exactly ────────────────────────────────
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+    ax.xaxis.set_major_locator(mdates.MonthLocator(interval=interval_months))
+    ax.tick_params(axis='x', rotation=45, labelsize=9)
+    ax.tick_params(axis='y', labelsize=9)
+
+    ax.set_xlabel('Acquisition Date',       fontsize=11, fontweight='bold')
+    ax.set_ylabel('Number of Acquisitions', fontsize=11, fontweight='bold')
+    ax.grid(True, alpha=0.3, linestyle='--', axis='y')
+
+    _title = title or f'Acquisition Timeline  (n={len(df):,})'
+    ax.set_title(_title, fontsize=12, fontweight='bold', pad=10)
+
+    ax.legend(
+        title          = platform_col.capitalize(),
+        loc            = 'upper left',
+        framealpha     = 0.9,
+        fontsize       = 8,
+        title_fontsize = 8
+    )
+
+    if standalone:
+        plt.tight_layout()
+        plt.show()
+        return fig, ax
+
+    return ax
