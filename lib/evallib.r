@@ -2,6 +2,14 @@
 
 # [1] Output from radiometric and geometric teams
 # [2] RSR files from various sensors associated with evaluations
+library(stringr)
+
+# Band order defined inside function so it's always available
+band_order <- c(
+    'Pan', 'Coastal', 'CB', 'Blue', 'B', 'Green', 'G', 'Yellow', 'Y', 
+    'Red', 'R', 'RedEdge', 'RE', 'RedEdge1', 'RE1', 'RedEdge2', 'RE2', 
+    'NIR', 'NIR1', 'NIR2', 'SWIR1', 'SWIR2'
+)
 
 read_evaluation_files <- function(files_list){
 
@@ -12,13 +20,22 @@ read_evaluation_files <- function(files_list){
         #'date', 
         'source_file'
         )
-    
-    # Band order defined inside function so it's always available
-    band_order <- c(
-        'Pan', 'Coastal', 'CB', 'Blue', 'B', 'Green', 'G', 'Yellow', 'Y', 
-        'Red', 'R', 'RedEdge', 'RE', 'RedEdge1', 'RE1', 'RedEdge2', 'RE2', 
-        'NIR', 'NIR1', 'NIR2', 'SWIR1', 'SWIR2'
+
+    site_name_crosswalk <- c(
+    'japan'     = 'Sapporo',
+    'sapporo'   = 'Sapporo',
+    'morocco'   = 'Casablanca',
+    'melbourne' = 'Melbourne',
+    'boston'    = 'Boston',
+    'brazil'    = 'Belo Horizonte',
+    'belohorizonte' = 'Belo Horizonte',
+    'argentina' = 'Rio Gallegos',
+    'newmexico' = 'Albuquerque',
+    'singapore' = 'Singapore',
+    'sicily'    = 'Catania'
     )
+    
+
 
     df = files_list %>%
             set_names() %>%
@@ -91,7 +108,20 @@ read_evaluation_files <- function(files_list){
             ) %>%
             relocate(any_of(ACQ_COLS), .before = everything()) %>%
             relocate(source_file, .after = last_col()) %>%
-            filter(if_any(-source_file, ~ !is.na(.))) # Removes extra rows that are just NA
+            filter(if_any(-c(source_file,evaluation_category), ~ !is.na(.))) %>%   # Removes extra rows that are just NA
+            mutate(
+                # ── Normalize for lookup: lowercase + remove spaces/punctuation ────────────
+                site_key  = str_to_lower(site_name) %>%
+                            #str_replace_all("\\s+|-|_", ""),   # remove spaces, hyphens, underscores
+                            str_replace_all("\\s+|_", ""),
+            
+                # ── Look up standardized name, fall back to original if not in crosswalk ──
+                site_name = coalesce(site_name_crosswalk[site_key], site_name),
+                site_name = str_to_title(site_name),   # ← capitalize after remapping
+                site_name = str_replace_all(site_name, ' De ', '-de-'), # Special case for Salon-de-Provence
+                # ── Drop the temporary key column ─────────────────────────────────────────
+                site_key  = NULL
+             )
 
     return(df)
 }
