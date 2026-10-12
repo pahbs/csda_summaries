@@ -1,0 +1,86 @@
+# Cross-vendor sensor vocabulary for multistac.py
+#
+# Every result row gets three normalized columns, the same across all catalogs:
+#   affiliation    company / agency that owns the data   (Vantor, Planet, ...)
+#   constellation  satellite family                      (Legion, WorldView, ...)
+#   sensor         individual satellite code             (LG01, WV03, SN46, ...)
+#
+# multistac takes the raw identifiers named by a profile's `fields: sensor`
+# (e.g. satl:sat_id, pl:satellite_id, platform) and tests them, in order,
+# against the rules below. The first rule whose `pattern` matches (full match,
+# case-insensitive) wins. `sensor` is a Python format string over the named
+# groups; all-digit groups are passed as integers, so {n:02d} zero-pads.
+# `when_affiliation` limits a rule to rows whose profile affiliation matches
+# (e.g. Planet's 4-hex-digit satellite IDs would otherwise match FF01).
+# Rules may omit `sensor` (then the matched raw value is used) or `affiliation`
+# (then the profile's affiliation for that collection is used).
+#
+# Unmatched values: sensor = the raw value, constellation = the profile's
+# `constellation` field, affiliation = the profile's affiliation.
+#
+# Codes follow sensor_lookup_table.py where it defines them (LG01, WV03, GE01,
+# QB02, FF01, SN03, SPOT6, ...). Maxar is listed under its new name, Vantor.
+
+rules:
+  # --- Vantor (formerly Maxar) ---
+  - {pattern: '(?:LG|LEGION-?)0*(?P<n>\d+)',           affiliation: Vantor, constellation: Legion,    sensor: 'LG{n:02d}'}
+  - {pattern: '(?:WV|WORLDVIEW-?)0*(?P<n>[1-4])',       affiliation: Vantor, constellation: WorldView, sensor: 'WV{n:02d}'}
+  - {pattern: '(?:GE|GEOEYE-?)0*1',                     affiliation: Vantor, constellation: GeoEye,    sensor: GE01}
+  - {pattern: '(?:QB|QUICKBIRD-?)0*2?',                 affiliation: Vantor, constellation: QuickBird, sensor: QB02}
+  - {pattern: 'IK(?:ONOS)?-?0*2?',                      affiliation: Vantor, constellation: IKONOS,    sensor: IKONOS}
+
+  # --- Planet ---
+  - {pattern: 'RapidEye-?(?P<n>\d)',                    affiliation: Planet, constellation: RapidEye,  sensor: 'RE{n}'}
+  - {pattern: '(?:SkySat|SS)[-_]?(?P<n>\d+)',           affiliation: Planet, constellation: SkySat,    sensor: 'SS{n:02d}'}
+  - {pattern: '(?P<id>[0-9a-f]{4})',                    affiliation: Planet, constellation: PlanetScope, sensor: 'PS-{id}', when_affiliation: Planet}
+  - {pattern: 'PlanetScope|PS2(?:\.SD)?|PSB\.SD',       affiliation: Planet, constellation: PlanetScope, sensor: PlanetScope}
+
+  # --- Satellogic ---
+  - {pattern: '(?:newsat|SN)-?0*(?P<n>\d+)',            affiliation: Satellogic, constellation: Aleph-1, sensor: 'SN{n:02d}'}
+  - {pattern: 'NewSat|Aleph-?1',                        affiliation: Satellogic, constellation: Aleph-1, sensor: NewSat}
+
+  # --- Airbus ---
+  - {pattern: 'PNEO-?(?P<n>\d)',                        affiliation: Airbus, constellation: Pleiades Neo, sensor: 'PNEO{n}'}
+  - {pattern: 'PHR-?1(?P<x>[AB])',                      affiliation: Airbus, constellation: Pleiades,     sensor: 'PHR1{x}'}
+  - {pattern: 'SPOT-?(?P<n>\d)',                        affiliation: Airbus, constellation: SPOT,         sensor: 'SPOT{n}'}
+  - {pattern: 'TSX-?1',                                 affiliation: Airbus, constellation: TerraSAR-X,   sensor: TSX-1}
+  - {pattern: 'TDX-?1',                                 affiliation: Airbus, constellation: TanDEM-X,     sensor: TDX-1}
+  - {pattern: 'TDM-?1',                                 affiliation: Airbus, constellation: TanDEM-X,     sensor: TDM-1}
+  - {pattern: 'PAZ-?1',                                 affiliation: Airbus, constellation: PAZ,          sensor: PAZ-1}
+
+  # --- Others in CSDA ---
+  - {pattern: '(?:Pixxel-)?FF0*(?P<n>\d+)',             affiliation: Pixxel,    constellation: Firefly,   sensor: 'FF{n:02d}'}
+  - {pattern: 'Global-(?P<n>\d+)',                      affiliation: BlackSky,  constellation: BlackSky,  sensor: 'BSG-{n:02d}'}
+  - {pattern: 'Umbra-0*(?P<n>\d+)',                     affiliation: Umbra,     constellation: Umbra,     sensor: 'Umbra-{n:02d}'}
+  - {pattern: 'ICEYE-X0*(?P<n>\d+)',                    affiliation: ICEYE,     constellation: ICEYE,     sensor: 'ICEYE-X{n}'}
+  - {pattern: 'capella-0*(?P<n>\d+)',                   affiliation: Capella,   constellation: Capella,   sensor: 'Capella-{n:02d}'}
+  - {pattern: 'Tomorrow-R(?P<n>\d+)',                   affiliation: Tomorrow.io, constellation: Tomorrow, sensor: 'TR{n}'}
+  - {pattern: 'RS0*2|RADARSAT-?2',                      affiliation: MDA,       constellation: RADARSAT,  sensor: RS02}
+  - {pattern: 'GHGSat-(?P<x>[A-Z]\d+)',                affiliation: GHGSat,    constellation: GHGSat,    sensor: 'GHGSat-{x}'}
+  - {pattern: 'DESIS',                                  affiliation: Teledyne,  constellation: DESIS,     sensor: DESIS}
+  - {pattern: 'FM0*(?P<n>\d+)',                         affiliation: Spire,     constellation: LEMUR,     sensor: 'FM{n}', when_affiliation: Spire}
+  - {pattern: '(?:GN|GNOMES-?)?0*(?P<n>\d+)',           affiliation: PlanetiQ,  constellation: GNOMES,    sensor: 'GNOMES-{n}', when_affiliation: PlanetiQ}
+  - {pattern: '(?:CICERO-?)?0*(?P<n>\d+)',              affiliation: GeoOptics, constellation: CICERO,    sensor: 'CICERO-{n}', when_affiliation: GeoOptics}
+  - {pattern: 'vanzyl-0*(?P<n>\d+)',                    affiliation: Hydrosat,  constellation: VanZyl,    sensor: 'VZ{n:02d}'}
+
+# Nominal orbit altitude (km) per constellation, used only to estimate the
+# satellite elevation seen from the target when a catalog gives off-nadir but
+# no incidence/elevation angle. Approximate; refine as needed.
+altitude_km:
+  default: 550
+  Legion: 450
+  WorldView: 617
+  GeoEye: 681
+  QuickBird: 450
+  IKONOS: 681
+  Pleiades Neo: 620
+  Pleiades: 694
+  SPOT: 694
+  PlanetScope: 475
+  RapidEye: 630
+  SkySat: 450
+  Aleph-1: 500
+  Firefly: 550
+  BlackSky: 450
+  VanZyl: 550
+  GHGSat: 500

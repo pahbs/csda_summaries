@@ -1,0 +1,225 @@
+# Catalog profiles for multistac.py (STAC APIs and NASA CMR)
+#
+# api: stac (default) or cmr. CMR granules are converted to STAC-like items, so
+#   every provider produces the same columns. `url` (or `stac_url`) is the base.
+# csda_holdings: true -> rows are CSDA holdings (in_csda = True), and vendor-API
+#   rows are matched against them on (vendor, vendor_item_id).
+# NO SECRETS IN THIS FILE. Auth blocks name a section in the credentials INI
+# (path from $STAC_CREDENTIALS, default /home/pmontesa/code/credentials.ini).
+#
+# display_name: short name used in plots and summaries.
+# affiliation: data owner per collection (`default` for all) - the company,
+#   not the catalog (CSDA serves Planet, Vantor, Airbus, ... data).
+# fields: common column -> list of vendor property names; first non-null wins.
+#   A "90-" prefix turns a zenith angle into an elevation ("90-view:incidence_angle").
+#   sat_azimuth / sat_elevation = the satellite as seen from the target (skyplots).
+#   sat_elevation falls back to an estimate from off_nadir (see multistac.py).
+# sat_azimuth_offset: {collection: 180} where a vendor's azimuth points from the
+#   satellite to the target instead (STAC view:azimuth definition). CSDA copies
+#   vendor values as-is, so the default is 0; verify per vendor.
+#   `sensor` lists raw satellite identifiers; they are resolved to
+#   affiliation / constellation / sensor via sensor_catalog.yaml.
+# collection_fields: per-collection overrides of `fields` (same format).
+# filter_mode: how generic filters (cloud_cover_max) are sent to the server:
+#   query  - STAC 'query' extension, only for properties listed in the
+#            collection's /queryables (checked at runtime)
+#   filter - STAC 'filter' extension (CQL2-JSON), same /queryables check
+#            (for api: cmr, translated to CMR range params; queryables listed
+#            in the profile)
+#   client - nothing sent; filter applied locally
+# Generic filters are ALWAYS re-applied locally after normalization.
+
+csda:
+  label: NASA CSDA
+  display_name: CSDA STAC
+  enabled: true
+  stac_url: https://csdap.earthdata.nasa.gov/stac
+  auth: {type: none}
+  csda_holdings: true
+  # Supports the STAC fields extension (used to drop assets in global searches)
+  fields_extension: true
+  # multistac_download: CSDA download API, Earthdata Login ([EarthData] in the INI)
+  download: {type: csda_api, url: https://csdap.earthdata.nasa.gov}
+  search: {page_size: 250, max_concurrency: 6, timeout: 120}
+  geometry: intersects
+  filter_mode: query
+  default_collections: [satellogic, planet, airbus-optical, maxar-legion]
+  # Data owner of each CSDA collection (CSDA is the provider, not the owner)
+  affiliation:
+    satellogic: Satellogic
+    planet: Planet
+    airbus-optical: Airbus
+    airbus: Airbus
+    airbus-dem: Airbus
+    maxar-legion: Vantor
+    maxar-sdx: Vantor
+    blacksky: BlackSky
+    hydrosat: Hydrosat
+    ororatech: OroraTech
+    pixxel: Pixxel
+    desis: Teledyne
+    umbra: Umbra
+    iceye: ICEYE
+    capellaspace: Capella
+    kuvaspace: Kuva Space
+    ghgsat: GHGSat
+    mda: MDA
+    spire: Spire
+    planetiq: PlanetiQ
+    geooptics: GeoOptics
+    tomorrow: Tomorrow.io
+    pgc-earthdem: PGC
+  fields:
+    cloud_cover: [eo:cloud_cover]
+    processing_level: [processing:level, satl:product_name]
+    product_type: [csda:item_type, pl:item_type, prod_type]
+    platform: [platform, pl:satellite_id, blacksky:sensorName]
+    sensor: [satl:sat_id, pl:satellite_id, blacksky:sensorName, platform, instruments]
+    constellation: [constellation, pl:provider]
+    instrument: [instruments, instrument, eo:instrument]
+    gsd: [gsd, eo:gsd, blacksky:gsd]
+    off_nadir: [view:off_nadir, eo:off_nadir]
+    incidence_angle: [view:incidence_angle]
+    view_azimuth: [view:azimuth, eo:azimuth]
+    sun_elevation: [view:sun_elevation, eo:sun_elevation, blacksky_sunElevation,
+                    '90-ghgsat:sun_zenith_deg', '90-desis_specific_sunZenithAngle']
+    sun_azimuth: [view:sun_azimuth, eo:sun_azimuth, blacksky_sunAzimuth,
+                  'ghgsat:sun_azimuth_deg', desis_specific_sunAzimuthAngle]
+    sat_azimuth: [blacksky_satelliteAzimuth, 'blacksky:satelliteAzimuth', view:azimuth, eo:azimuth,
+                  'ghgsat:los_azimuth_deg', desis_specific_sceneAzimuthAngle]
+    sat_elevation: [blacksky_satelliteElevation, 'blacksky:satelliteElevation',
+                    'maxar_legion:mean_sat_elevation', '90-view:incidence_angle',
+                    '90-ghgsat:los_zenith_deg', '90-desis_specific_sceneIncidenceAngle']
+    # Key shared with the vendor's own API, for flagging CSDA holdings
+    vendor_item_id: [satl:outcome_id, id]
+  collection_fields:
+    airbus-optical:
+      product_type: [airbus-optical:spectral_processing]
+      radiometric_processing: [airbus-optical:radiometric_processing]
+    maxar-legion:
+      product_type: [maxar_legion:product_type]
+      bands: [csda:item_type]
+    planet:
+      quality: [pl:quality_category]
+    desis:
+      sensor: [desis_specific_mission]
+    ghgsat:
+      sensor: ['ghgsat:name']
+    spire:
+      sensor: ['ro:leo_satellite/id']
+    planetiq:
+      sensor: ['planetiq:leo_id']
+    geooptics:
+      sensor: [geooptics_spacecraft_number]
+
+satellogic:
+  label: Satellogic
+  display_name: Satellogic
+  enabled: true
+  stac_url: https://api.satellogic.com/v2/archive
+  auth:
+    type: satellogic
+    credentials_section: Satellogic_STAC_API
+    token_url: https://auth.platform.satellogic.com/oauth/token
+    audience: https://api.satellogic.com/
+    token_header: authorizationToken
+    contracts_url: https://api.satellogic.com/contracts
+  search: {page_size: 1000, max_concurrency: 2, timeout: 120}
+  # Next links are re-POSTed with an empty body (matches SatellogicSTACClient)
+  next_link: post_empty
+  # Smoke test 2026-10-11: intersects accepted; 'query' rejected (HTTP 403,
+  # "use filter extension"); cql2-json filter on eo:cloud_cover works.
+  geometry: intersects
+  filter_mode: filter
+  default_collections: [quickview-visual]
+  affiliation: {default: Satellogic}
+  fields:
+    cloud_cover: [eo:cloud_cover]
+    processing_level: [processing:level, satl:product_name]
+    product_type: [satl:product_name]
+    platform: [platform, satl:sat_id]
+    sensor: [satl:sat_id, platform]
+    constellation: [constellation]
+    instrument: [instruments]
+    gsd: [gsd]
+    off_nadir: [view:off_nadir]
+    incidence_angle: [view:incidence_angle]
+    view_azimuth: [view:azimuth]
+    sun_elevation: [view:sun_elevation]
+    sun_azimuth: [view:sun_azimuth]
+    sat_azimuth: [view:azimuth]
+    sat_elevation: ['90-view:incidence_angle']
+    vendor_item_id: [satl:outcome_id, id]
+
+csda-cmr:
+  label: NASA CMR - CSDA provider (Maxar legacy archive, PlanetScope 3-band)
+  display_name: Earthdata CMR – CSDA
+  api: cmr
+  enabled: true
+  url: https://cmr.earthdata.nasa.gov/search
+  cmr_provider: CSDA
+  # Search is public; downloads need Earthdata Login ([EarthData] in the INI)
+  auth: {type: none}
+  download: {type: earthdata}
+  csda_holdings: true
+  search: {page_size: 1000, max_concurrency: 4, timeout: 180}
+  geometry: intersects
+  filter_mode: filter
+  queryables: [eo:cloud_cover]
+  # Archive, not ongoing: latest granules (checked 2026-10-11) are ~Oct 2024 for
+  # WV01/02/03 + GE01 L1B, Sep 2021 for L2A, Dec 2020 PSScene3Band, Dec 2018 WV04.
+  # Collections with granules as of 2026-10-11. Empty in CMR (add if filled):
+  # IKONOS_MSI_L1B IKONOS_Pan_L1B QB02_MSI_L1B QB02_Pan_L1B WV01_Pan_3D WV03_SWIR_L1B
+  default_collections: [
+    GE01_MSI_L1B, GE01_MSI_L2A, GE01_Pan_L1B, GE01_Pan_L2A,
+    WV01_Pan_L1B, WV01_Pan_L2A,
+    WV02_MSI_L1B, WV02_MSI_L2A, WV02_Pan_L1B, WV02_Pan_L2A,
+    WV03_MSI_L1B, WV03_MSI_L2A, WV03_Pan_L1B, WV03_Pan_L2A,
+    WV04_MSI_L1B, WV04_Pan_L1B,
+    PSScene3Band]
+  affiliation: {default: Vantor, PSScene3Band: Planet}
+  # CMR CloudCover is a 0-1 fraction for the Maxar collections (negative =
+  # unknown) and percent for PlanetScope; multiplied to percent on output.
+  cloud_cover_scale: {default: 100, PSScene3Band: 1}
+  # Extra properties parsed from the granule ID or collection name
+  derived:
+    maxar:catalog_id: {source: id, pattern: '^[A-Z0-9]{4}_\d{14}_([0-9A-F]{16})_'}
+    maxar:product_code: {source: id, pattern: '-([A-Z0-9]{4})-\d{12}_'}
+    planet:item_id: {source: id, pattern: '^PSScene3Band-(.+)$'}
+    processing:level: {source: collection, pattern: '_(L1B|L2A|3D)$'}
+    csda:band_set: {source: collection, pattern: '_(MSI|Pan|SWIR)_'}
+  fields:
+    cloud_cover: [eo:cloud_cover]
+    processing_level: [processing:level]
+    product_type: [csda:band_set, collection]
+    platform: [platform]
+    sensor: [platform]
+    instrument: [instruments]
+    gsd: [cmr:mean_ground_sample_distance]
+    # CMR gives the MAXIMUM off-nadir angle over the scene, not the mean
+    off_nadir: [cmr:maximum_angle_off_nadir]
+    sun_elevation: [cmr:mean_sun_elevation]
+    vendor_item_id: [maxar:catalog_id, planet:item_id, id]
+
+hydrosat:
+  label: Hydrosat
+  display_name: Hydrosat
+  # Disabled until API credentials and the OAuth2 token URL are known
+  enabled: false
+  stac_url: https://stac.hydrosat.com
+  auth:
+    type: oauth2_client_credentials
+    credentials_section: Hydrosat_STAC_API
+    token_url: TBD
+  search: {page_size: 100, max_concurrency: 2, timeout: 120}
+  geometry: intersects
+  filter_mode: client
+  affiliation: {default: Hydrosat}
+  fields:
+    cloud_cover: [eo:cloud_cover]
+    processing_level: [processing:level]
+    platform: [platform]
+    off_nadir: [view:off_nadir]
+    sun_elevation: [view:sun_elevation]
+    sat_azimuth: [view:azimuth]
+    vendor_item_id: [hydrosat:scene_id, id]
