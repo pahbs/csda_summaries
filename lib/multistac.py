@@ -17,6 +17,13 @@ to STAC-like items, so every provider returns the same columns and item dicts.
     res.items  # raw STAC item dicts (pystac.Item.from_dict(...) for downloads)
     res.log    # one row per search task: status, count, server-side filters, error
 
+Global searches (sites=None) stay light: each month is cached as a small
+Parquet table (common columns, footprints simplified to ~1 km, no raw items),
+months outside each collection's catalog dates are skipped, and
+max_items_per_task={"WV01_Pan_L1B": 2000} samples huge collections; sampled
+rows carry a `weight` (matched / returned) so counts and density maps scale
+back to the full total where the API reports it.
+
 Generic filters are pushed to the server where the profile and the collection's
 /queryables allow it, and are always re-applied locally, so a server that
 ignores a filter cannot leak results. Rows missing a filtered field are dropped.
@@ -29,6 +36,7 @@ import json
 import math
 import os
 import re
+import warnings
 import tempfile
 import threading
 import time
@@ -52,7 +60,8 @@ SENSOR_CATALOG_PATH = Path(__file__).with_name("sensor_catalog.yaml")
 
 COMMON_COLUMNS = [
     "provider", "affiliation", "constellation", "sensor", "collection", "id",
-    "datetime", "site_name", "cloud_cover", "processing_level", "product_type",
+    "datetime", "site_name", "site_group", "cloud_cover", "processing_level", "product_type",
+    "spectral_mode", "acquisition_id",
     "platform", "instrument", "gsd", "off_nadir", "incidence_angle",
     "view_azimuth", "sun_elevation", "sun_azimuth", "sat_azimuth", "sat_elevation",
     "sat_elevation_source", "vendor_item_id",
@@ -63,6 +72,9 @@ NUMERIC_COLUMNS = [
     "sun_elevation", "sun_azimuth", "sat_azimuth", "sat_elevation",
 ]
 EARTH_RADIUS_KM = 6371.0
+COMPACT_TOLERANCE_DEG = 0.01   # footprint simplification for compact (global) results, ~1 km
+COMPACT_VERSION = 2            # bump when compact columns change: older compact caches are re-searched
+_CONVERT_SLOTS = threading.Semaphore(2)   # old raw-JSON caches can be large; convert 2 at a time
 
 
 # --------------------------------------------------------------------------
@@ -144,8 +156,11 @@ class Provider:
         features: List[dict] = []
         method, url, body = "POST", f"{self.url}/search", payload
         seen = set()
+        self._local.last_matched = None
         while True:
             page = self.request(method, url, body)
+            if not features:
+                self._local.last_matched = page.get("numberMatched", (page.get("context") or {}).get("matched"))
             batch = page.get("features", [])
             features.extend(batch)
             if not batch or (max_items and len(features) >= max_items):
@@ -247,6 +262,15 @@ class Provider:
         overrides = self.profile.get("collection_fields", {}).get(collection, {})
         fields.update({k: _as_list(v) for k, v in overrides.items()})
         return fields
+
+    def _rule_for(self, key: str, collection: str):
+        rules = self.profile.get(key) or {}
+        return rules.get(collection, rules.get("default"))
+
+    def needs_assets(self, collection: str) -> bool:
+        """True if the collection's spectral_mode rule reads asset keys."""
+        rule = self._rule_for("spectral_mode", collection)
+        return isinstance(rule, dict) and "assets" in rule
 
     def affiliation_for(self, collection: str) -> Optional[str]:
         affiliations = self.profile.get("affiliation", {})
@@ -402,10 +426,13 @@ class CMRProvider(Provider):
         params = self._params(payload)
         page_size = int(payload.get("limit", 1000))
         search_after = None
+        self._local.last_matched = None
         while True:
             headers = {"CMR-Search-After": search_after} if search_after else {}
             response = self._send("POST", f"{self.url}/granules.umm_json",
                                   headers=headers, data=params)
+            if self._local.last_matched is None and response.headers.get("CMR-Hits"):
+                self._local.last_matched = int(response.headers["CMR-Hits"])
             batch = response.json().get("items", [])
             features += [self.to_feature(item) for item in batch]
             search_after = response.headers.get("CMR-Search-After")
@@ -643,6 +670,14 @@ def list_providers() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _provider_collections(name: str, cols) -> List[str]:
+    """Collections to search for one PROVIDERS entry: None -> the profile's default_collections; an empty list ->
+    none (the provider is skipped, e.g. CSDA_INCLUDE = [] for a vendor-only search); otherwise the given IDs."""
+    if cols is None:
+        return list(get_provider(name).profile.get("default_collections", []))
+    return _as_list(cols)
+
+
 def collections(provider: str) -> pd.DataFrame:
     """Collection IDs and titles available from a provider."""
     return get_provider(provider).list_collections()
@@ -662,7 +697,7 @@ def overview(providers: Union[Dict[str, Optional[List[str]]], List[str]],
     if isinstance(providers, (list, tuple)):
         providers = {p: None for p in providers}
     jobs = [(name, c) for name, cols in providers.items()
-            for c in _as_list(cols) or get_provider(name).profile.get("default_collections", [])]
+            for c in _provider_collections(name, cols)]
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         rows = list(pool.map(lambda job: {"provider": job[0], "collection": job[1],
                                           **get_provider(job[0]).overview(job[1])}, jobs))
@@ -691,36 +726,74 @@ def _month_table(long: pd.DataFrame, keys: List[str]) -> pd.DataFrame:
     """long [keys..., year, month, count] -> one row per keys+year, Jan..Dec + total."""
     wide = long.pivot_table(index=keys + ["year"], columns="month", values="count",
                             aggfunc="sum", fill_value=0)
-    wide = wide.reindex(columns=range(1, 13), fill_value=0).astype(int)
+    wide = wide.reindex(columns=range(1, 13), fill_value=0).round().astype(int)
     wide.columns = MONTH_NAMES
     wide["total"] = wide.sum(axis=1)
     return wide.reset_index()
 
 
+COUNT_UNITS = ("products", "acquisitions")
+
+
+def unique_rows(gdf: pd.DataFrame, count: str = "products", per=()) -> pd.DataFrame:
+    """One row per product (catalog item) or per acquisition (acquisition_id:
+    one collect, often delivered as several products: pan / MS / pansharpened,
+    several processing levels or file formats).
+
+    Site searches return one row per item and site; `per` columns among
+    site_name / site_group keep one row per site (group) too, since
+    overlapping sites share items. The first row of each group is kept.
+    """
+    if count not in COUNT_UNITS:
+        raise ValueError(f"count must be one of {COUNT_UNITS}, not {count!r}")
+    key = "id"
+    if count == "acquisitions":
+        gdf = gdf.assign(_acq=gdf["acquisition_id"].fillna(gdf["id"]) if "acquisition_id" in gdf else gdf["id"])
+        key = "_acq"
+    per = [c for c in ("site_name", "site_group") if c in _as_list(per) and c in gdf]
+    out = gdf.drop_duplicates(subset=["provider", key] + per)
+    return out.drop(columns="_acq") if key == "_acq" else out
+
+
 def month_table(gdf: pd.DataFrame, by: Union[str, List[str]] = ("provider", "collection"),
-                unique_items: bool = True) -> pd.DataFrame:
-    """Acquisitions per `by` columns, year and month (Jan..Dec + total).
+                unique_items: bool = True, count: str = "products") -> pd.DataFrame:
+    """Products or acquisitions per `by` columns, year and month (Jan..Dec + total).
+
+    count : "products" counts catalog items; "acquisitions" counts unique
+        acquisition_id (one collect, whose pan / MS / pansharpened products or
+        processing levels are separate items). The unit is kept in
+        table.attrs["count"], so plot_month_heatmap labels it.
+    unique_items counts each product / acquisition once, or once per site /
+    site group when `by` includes site_name / site_group (overlapping sites
+    share items); False counts every row, i.e. a product once per site it covers.
 
     Works on res.gdf or a saved result read back with geopandas. Missing
     values in `by` columns show as "unknown".
     """
     by = _as_list(by)
     if gdf.empty:
-        return pd.DataFrame(columns=by + ["year"] + MONTH_NAMES + ["total"])
+        table = pd.DataFrame(columns=by + ["year"] + MONTH_NAMES + ["total"])
+        table.attrs["count"] = count
+        return table
     g = gdf.copy()
     g["datetime"] = pd.to_datetime(g["datetime"], utc=True, errors="coerce")
     g = g.dropna(subset=["datetime"])
-    if unique_items:
-        g = g.drop_duplicates(subset=["provider", "id"])
+    if unique_items or count == "acquisitions":
+        g = unique_rows(g, count, per=by)
     long = g[by].astype(object).where(g[by].notna(), "unknown")
-    long = long.assign(year=g["datetime"].dt.year, month=g["datetime"].dt.month, count=1)
-    return _month_table(long, by)
+    # Sampled (global) rows stand for `weight` items each
+    n = g["weight"].fillna(1.0) if "weight" in g else 1
+    long = long.assign(year=g["datetime"].dt.year, month=g["datetime"].dt.month, count=n)
+    table = _month_table(long, by)
+    table.attrs["count"] = count
+    return table
 
 
 def overview_by_month(providers: Union[Dict[str, Optional[List[str]]], List[str]],
                       start: Optional[str] = None, end: Optional[str] = None,
                       max_workers: int = 4) -> pd.DataFrame:
-    """Catalog-wide acquisitions per collection, year and month (Jan..Dec + total).
+    """Catalog-wide products (items / granules) per collection, year and month
+    (Jan..Dec + total). Catalogs count items, not acquisitions.
 
     Only for APIs that report counts: CMR (via temporal facets) and STAC APIs
     returning numberMatched. Others (e.g. CSDA STAC) are skipped with a
@@ -750,7 +823,9 @@ def overview_by_month(providers: Union[Dict[str, Optional[List[str]]], List[str]
     if skipped:
         print("No catalog counts from this API (use res.by_month()):", ", ".join(skipped))
     if not rows:
-        return pd.DataFrame(columns=["provider", "collection", "year"] + MONTH_NAMES + ["total"])
+        table = pd.DataFrame(columns=["provider", "collection", "year"] + MONTH_NAMES + ["total"])
+        table.attrs["count"] = "products"
+        return table
     table = _month_table(pd.DataFrame(rows), ["provider", "collection"])
     if start or end:
         # Months outside start/end within the edge years are blanked
@@ -760,6 +835,7 @@ def overview_by_month(providers: Union[Dict[str, Optional[List[str]]], List[str]
                 if (start and ts + pd.offsets.MonthEnd(1) < pd.Timestamp(start)) or (end and ts > pd.Timestamp(end)):
                     table.at[i, name] = 0
         table["total"] = table[MONTH_NAMES].sum(axis=1)
+    table.attrs["count"] = "products"
     return table
 
 
@@ -779,19 +855,41 @@ def sample_item(provider: str, collection: str, **payload) -> Optional[dict]:
 # --------------------------------------------------------------------------
 
 def load_sites(sites, site_name_field: str = "Site_Name",
-               point_buffer_deg: float = 0.1) -> gpd.GeoDataFrame:
+               point_buffer_deg: float = 0.1,
+               filters: Optional[Dict[str, object]] = None) -> gpd.GeoDataFrame:
     """Sites as a GeoDataFrame [site_name, geometry] in EPSG:4326.
 
     `sites` may be a file path/URL, a GeoDataFrame, or a site dict from
     staclib.create_site_dict_from_gdf. Points become boxes of +/- point_buffer_deg.
+
+    filters : keep only sites matching every {field: value} on the site file's
+        own columns (not for site dicts). A str matches if the field contains it
+        (case-insensitive), a list matches exact values, and a callable takes the
+        column and returns a boolean Series. Sites missing the field are dropped.
+        e.g. {"Remote Sensing Domain": "Optical"},
+             {"Priority Level": [1, 2]},
+             {"aoi_size_km": lambda s: s <= 10}
     """
     if isinstance(sites, dict):
+        if filters:
+            raise ValueError("filters need site attributes; pass a sites file or GeoDataFrame")
         gdf = gpd.GeoDataFrame(
             {"site_name": list(sites), "geometry": [box(*v["bbox"]) for v in sites.values()]},
             crs="EPSG:4326",
         )
     else:
         gdf = gpd.read_file(sites) if isinstance(sites, (str, Path)) else sites.copy()
+        for field, value in (filters or {}).items():
+            if field not in gdf:
+                raise KeyError(f"filter field {field!r} not in sites; columns: {list(gdf.columns)}")
+            col = gdf[field]
+            if callable(value):
+                keep = value(col)
+            elif isinstance(value, str):
+                keep = col.astype("string").str.contains(value, case=False, regex=False)
+            else:
+                keep = col.isin(_as_list(value))
+            gdf = gdf[keep.fillna(False).astype(bool)]
         gdf = gdf.to_crs("EPSG:4326") if gdf.crs else gdf.set_crs("EPSG:4326")
         gdf = gdf.rename(columns={site_name_field: "site_name"})[["site_name", "geometry"]]
     gdf = gdf[gdf.geometry.notna() & ~gdf.geometry.is_empty].copy()
@@ -803,6 +901,45 @@ def load_sites(sites, site_name_field: str = "Site_Name",
             for p in gdf.loc[is_point].geometry
         ]
     return gdf.reset_index(drop=True)
+
+
+def site_groups(sites, min_overlap: float = 0.0, site_name_field: str = "Site_Name",
+                point_buffer_deg: float = 0.1) -> pd.DataFrame:
+    """[site_name, site_group, n_sites]: overlapping sites share a group, named
+    after its largest site, or the shortest name among near-equal sizes (e.g.
+    WLEF with wlef-skycam1/2). An image of the
+    overlap would otherwise count once at each site. Two sites are linked when
+    their overlap is more than `min_overlap` of the smaller site's area (0 =
+    any overlap); groups are the linked chains. A site overlapping nothing is
+    its own group."""
+    gdf = load_sites(sites, site_name_field, point_buffer_deg)
+    parent = {n: n for n in gdf.site_name}
+
+    def root(n):
+        while parent[n] != n:
+            parent[n] = parent[parent[n]]
+            n = parent[n]
+        return n
+
+    geom = dict(zip(gdf.site_name, gdf.geometry))
+    pairs = gpd.sjoin(gdf, gdf, predicate="intersects")
+    for a, b in zip(pairs["site_name_left"], pairs["site_name_right"]):
+        if a < b:
+            ga, gb = geom[a], geom[b]
+            small = min(ga.area, gb.area)
+            if small == 0 or ga.intersection(gb).area / small > min_overlap:
+                parent[root(a)] = root(b)
+    area = {n: g.area for n, g in geom.items()}   # degrees: only used to rank sites within a group
+    members: Dict[str, List[str]] = {}
+    for n in gdf.site_name:
+        members.setdefault(root(n), []).append(n)
+    rows = []
+    for names in members.values():
+        # Largest site; near-equal sizes (within 5%) go to the shortest name (WLEF, not wlef-skycam2)
+        biggest = max(area[n] for n in names)
+        group = min((n for n in names if area[n] >= 0.95 * biggest), key=lambda n: (len(n), n))
+        rows += [{"site_name": n, "site_group": group, "n_sites": len(names)} for n in names]
+    return pd.DataFrame(rows).sort_values(["site_group", "site_name"]).reset_index(drop=True)
 
 
 def _intervals(start: str, end: str, months: Optional[Iterable[int]],
@@ -877,7 +1014,7 @@ def _build_payload(prov: Provider, task: dict, cloud_cover_max, extra: dict):
     else:
         payload["bbox"] = list(geom.bounds)
     if task.get("slim") and prov.profile.get("fields_extension"):
-        payload["fields"] = {"exclude": ["assets", "links"]}
+        payload["fields"] = {"exclude": ["links"] if prov.needs_assets(task["collection"]) else ["assets", "links"]}
 
     server_filters = []
     filter_mode = prov.profile.get("filter_mode")
@@ -900,6 +1037,37 @@ def _build_payload(prov: Provider, task: dict, cloud_cover_max, extra: dict):
     return payload, server_filters
 
 
+def _write_parquet(path: Path, df: pd.DataFrame) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=path.parent, delete=False, suffix=".tmp") as f:
+        tmp = f.name
+    df.to_parquet(tmp, index=False)
+    os.replace(tmp, path)
+
+
+def _compact_frame(features: List[dict], prov: Provider, task: dict, matched: Optional[int]) -> pd.DataFrame:
+    """Rows for a compact (global) result: common columns, a footprint simplified
+    to ~1 km (WKB) and `weight` = acquisitions each row stands for (> 1 when the
+    search was capped by max_items_per_task and the API reported the full count)."""
+    rows = []
+    for feature in features:
+        record = normalize(feature, prov.name, task["collection"], task["site_name"], include_assets=False)
+        geom = record.get("geometry")
+        if geom is not None and not geom.is_empty:
+            simple = geom.simplify(COMPACT_TOLERANCE_DEG, preserve_topology=False)
+            geom = simple if not simple.is_empty else geom.envelope
+        rows.append({**{c: record.get(c) for c in COMMON_COLUMNS},
+                     "geometry_wkb": geom.wkb if geom is not None else None})
+    df = pd.DataFrame(rows, columns=COMMON_COLUMNS + ["geometry_wkb"])
+    for col in COMMON_COLUMNS:
+        if col in NUMERIC_COLUMNS:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+        else:   # one type per column for Parquet
+            df[col] = df[col].map(lambda v: None if v is None or (isinstance(v, float) and math.isnan(v)) else str(v))
+    df["weight"] = matched / len(df) if matched and len(df) and matched > len(df) else 1.0
+    return df
+
+
 def _run_task(task: dict, cloud_cover_max, extra: dict, cache_dir: Optional[Path],
               max_items: Optional[int]) -> dict:
     prov = get_provider(task["provider"])
@@ -915,6 +1083,9 @@ def _run_task(task: dict, cloud_cover_max, extra: dict, cache_dir: Optional[Path
                 sort_keys=True, default=str).encode()).hexdigest()[:10]
             cache_file = (Path(cache_dir) / _safe(prov.name) / _safe(task["collection"])
                           / f"{_safe(task['site_name'])}__{_safe(task['interval'])}__{digest}.json")
+        if task.get("compact"):
+            return _run_compact_task(task, prov, payload, result, cache_file, max_items, started)
+        if cache_file is not None:
             if cache_file.exists():
                 try:
                     features = json.loads(cache_file.read_text())["features"]
@@ -931,6 +1102,39 @@ def _run_task(task: dict, cloud_cover_max, extra: dict, cache_dir: Optional[Path
     except Exception as error:
         return {**result, "status": "failed", "count": 0, "features": [],
                 "error": str(error)[:500], "seconds": round(time.time() - started, 1)}
+
+
+def _run_compact_task(task: dict, prov: Provider, payload: dict, result: dict,
+                      json_cache: Optional[Path], max_items: Optional[int], started: float) -> dict:
+    """Compact search task: cached as Parquet; an old raw-JSON cache of the same
+    search is converted instead of searching again."""
+    pq = None
+    if json_cache is not None:
+        pq = json_cache.with_name(json_cache.stem + (f"__max{max_items}" if max_items else "")
+                                  + f"__c{COMPACT_VERSION}.parquet")
+        if pq.exists():
+            try:
+                df = pd.read_parquet(pq)
+                return {**result, "status": "cached", "count": len(df), "matched": round(df["weight"].sum()),
+                        "records": df, "seconds": 0.0}
+            except Exception:
+                pass
+    features, matched, status = None, None, "searched"
+    if json_cache is not None and json_cache.exists() and not max_items:
+        with _CONVERT_SLOTS:
+            try:
+                features, status = json.loads(json_cache.read_text())["features"], "converted"
+            except (OSError, ValueError, KeyError):
+                features = None
+    if features is None:
+        with prov.semaphore:
+            features = prov.search(payload, max_items=max_items)
+        matched = getattr(prov._local, "last_matched", None)
+    df = _compact_frame(features, prov, task, matched)
+    if pq is not None:
+        _write_parquet(pq, df)
+    return {**result, "status": status, "count": len(df), "matched": matched if matched is not None else len(df),
+            "records": df, "seconds": round(time.time() - started, 1)}
 
 
 # --------------------------------------------------------------------------
@@ -957,6 +1161,61 @@ def _first(props: dict, candidates: List[str], feature: dict):
     return None
 
 
+def _rule_source(rule: dict, feature: dict, props: dict, collection: str):
+    source = rule.get("from", "id")
+    value = (feature.get("id") if source == "id" else collection if source == "collection"
+             else props.get(source))
+    if isinstance(value, (list, tuple)):
+        value = ", ".join(map(str, value))
+    return None if value in (None, "") else str(value)
+
+
+def spectral_mode(prov: Provider, collection: str, feature: dict) -> Optional[str]:
+    """pan / ms / pansharpened / pan+ms / ... from the profile's spectral_mode rule."""
+    rule = prov._rule_for("spectral_mode", collection)
+    if rule is None or isinstance(rule, str):
+        return rule
+    if "assets" in rule:
+        keys = list(feature.get("assets") or {})
+        found = [mode for mode, pattern in rule["assets"].items() if any(re.search(pattern, k) for k in keys)]
+        return "+".join(found) or None
+    value = _rule_source(rule, feature, feature.get("properties") or {}, collection)
+    if value is not None:
+        for pattern, mode in rule.get("map", {}).items():
+            if re.search(pattern, value):
+                return mode
+    return None
+
+
+def acquisition_id(prov: Provider, collection: str, feature: dict) -> Optional[str]:
+    """Key shared by the items of one acquisition (e.g. its pan and MS products); default: the item id."""
+    rule = prov._rule_for("acquisition_id", collection)
+    if rule:
+        value = _rule_source(rule, feature, feature.get("properties") or {}, collection)
+        if value is not None and rule.get("pattern"):
+            match = re.search(rule["pattern"], value)
+            value = match.group(1) if match else None
+        if value is not None:
+            return value
+    return feature.get("id")
+
+
+def _pass_acquisitions(df: pd.DataFrame) -> pd.Series:
+    """acquisition_id for collections with a {pass_seconds: N} rule: products of
+    one sensor less than N s apart are one pass, keyed <sensor>_<start time>."""
+    out = df["acquisition_id"].copy()
+    for (name, coll), idx in df.groupby(["provider", "collection"]).groups.items():
+        rule = get_provider(name)._rule_for("acquisition_id", coll)
+        if not (isinstance(rule, dict) and rule.get("pass_seconds")):
+            continue
+        sub = df.loc[idx, ["sensor", "datetime"]].assign(t=lambda d: pd.to_datetime(d["datetime"], utc=True, errors="coerce"))
+        for sensor, s in sub.dropna(subset=["t"]).sort_values("t").groupby("sensor", dropna=False):
+            passes = (s["t"].diff().dt.total_seconds() > rule["pass_seconds"]).cumsum()
+            start = s["t"].groupby(passes).transform("min")
+            out.loc[s.index] = f"{sensor}_" + start.dt.strftime("%Y%m%dT%H%M%S")
+    return out
+
+
 def normalize(feature: dict, provider: str, collection: str, site_name: str,
               include_assets: bool = True) -> dict:
     prov = get_provider(provider)
@@ -977,6 +1236,8 @@ def normalize(feature: dict, provider: str, collection: str, site_name: str,
     raw = [feature.get(k) if k in ("id", "collection") else props.get(k)
            for k in fields.get("sensor", ["platform"])]
     record.update(resolve_sensor(raw, record["affiliation"], record.get("constellation")))
+    record["spectral_mode"] = spectral_mode(prov, collection, feature)
+    record["acquisition_id"] = acquisition_id(prov, collection, feature)
     _satellite_position(record, prov, collection)
     self_link = next((l.get("href") for l in feature.get("links", []) if l.get("rel") == "self"), None)
     record["stac_self_href"] = self_link
@@ -1046,23 +1307,30 @@ class SearchResult:
                 f"{(self.log['status'] == 'failed').sum()} failed tasks)")
 
     def summary(self) -> pd.DataFrame:
-        """Row counts by provider, collection and processing level."""
+        """Counts by provider, collection and processing level: rows (one per
+        product and site), products (unique items), acquisitions (unique
+        acquisition_id: one collect, often several products), sites."""
         if self.gdf.empty:
             return pd.DataFrame()
         cols = ["provider", "collection", "processing_level"]
         g = self.gdf.fillna({"processing_level": "?"})
-        out = g.groupby(cols).agg(rows=("id", "size"), items=("id", "nunique"),
+        g = g.assign(acquisition_id=g["acquisition_id"].fillna(g["id"]))
+        out = g.groupby(cols).agg(rows=("id", "size"), products=("id", "nunique"),
+                                  acquisitions=("acquisition_id", "nunique"),
                                   sites=("site_name", "nunique"))
         if g["in_csda"].notna().any():
             out["in_csda"] = g.groupby(cols)["in_csda"].sum()
+        if "weight" in g and (g["weight"] > 1).any():   # sampled: estimated products in the catalog
+            out["est_products"] = unique_rows(g).groupby(cols)["weight"].sum().round().astype(int)
         return out.reset_index()
 
     def by_month(self, by: Union[str, List[str]] = ("provider", "collection"),
-                 unique_items: bool = True) -> pd.DataFrame:
-        """Acquisitions found by this search per `by` columns, year and month
-        (Jan..Dec + total), e.g. by=["affiliation", "constellation", "sensor"].
-        unique_items=False counts site rows instead of unique items."""
-        return month_table(self.gdf, by, unique_items)
+                 unique_items: bool = True, count: str = "products") -> pd.DataFrame:
+        """Products (count="products") or acquisitions (count="acquisitions")
+        found by this search per `by` columns, year and month (Jan..Dec +
+        total), e.g. by=["affiliation", "constellation", "sensor"].
+        unique_items=False counts site rows instead of unique products."""
+        return month_table(self.gdf, by, unique_items, count)
 
     def pystac_items(self) -> list:
         import pystac
@@ -1102,10 +1370,13 @@ def search(sites, start: str, end: str,
            where: Optional[Callable] = None,
            extra: Optional[Dict[str, dict]] = None,
            cache_dir: Union[str, Path, None] = None,
-           max_items_per_task: Optional[int] = None,
+           max_items_per_task: Union[int, Dict[str, int], None] = None,
            max_workers: int = 8,
            include_assets: Optional[bool] = None,
            split: Optional[str] = None,
+           compact: Optional[bool] = None,
+           trim_to_catalog: Optional[bool] = None,
+           group_min_overlap: float = 0.0,
            progress: bool = True) -> SearchResult:
     """Search sites x dates across providers; see module docstring.
 
@@ -1114,6 +1385,16 @@ def search(sites, start: str, end: str,
         split="month" and skip assets (include_assets=False) to stay light.
     split : "month" or "year" - search each chunk of the date range separately
         (parallel, cached and resumable per chunk).
+    compact : keep only the common columns, ~1 km footprints and no raw items,
+        cached as Parquet (default: True for global searches). An existing
+        raw-JSON cache of the same search is converted, not searched again.
+    trim_to_catalog : skip chunks outside each collection's first..last
+        acquisition (+/- 1 month) from overview() (default: True for global).
+    group_min_overlap : sites overlapping by more than this share of the
+        smaller site get one `site_group` (see site_groups()); 0 = any overlap.
+    max_items_per_task : cap per task, as an int or {collection or provider: n},
+        e.g. {"WV01_Pan_L1B": 2000} to sample a huge CMR collection per month.
+        Compact rows from a capped search get weight = matched / returned.
 
     providers : {"csda": ["planet", ...], "satellogic": None} (None -> profile
         default_collections), or a list of provider names.
@@ -1132,24 +1413,61 @@ def search(sites, start: str, end: str,
         sites_gdf = load_sites(sites, site_name_field, point_buffer_deg)
     if include_assets is None:
         include_assets = not is_global
+    compact = is_global if compact is None else compact
+    trim_to_catalog = is_global if trim_to_catalog is None else trim_to_catalog
     intervals = _intervals(start, end, months, split)
 
-    tasks = []
+    spans = {}
+    if trim_to_catalog:
+        ov = overview(providers)
+        spans = {(r.provider, r.collection): (r.first, r.last) for r in ov.itertuples()
+                 if r.dates_from == "items" and pd.notna(r.first) and pd.notna(r.last)}
+
+    def in_span(name, collection, interval):
+        span = spans.get((name, collection))
+        if not span:
+            return True
+        a, b = interval.split("/")
+        return (pd.Timestamp(b) >= pd.Timestamp(span[0]) - pd.DateOffset(months=1)
+                and pd.Timestamp(a) <= pd.Timestamp(span[1]) + pd.DateOffset(months=1))
+
+    def max_items(t):
+        if isinstance(max_items_per_task, dict):
+            return max_items_per_task.get(t["collection"], max_items_per_task.get(t["provider"]))
+        return max_items_per_task
+
+    tasks, n_skipped = [], 0
     for name, cols in providers.items():
         prov = get_provider(name)
         if not prov.profile.get("enabled", True):
             raise ValueError(f"Provider '{name}' is disabled in stac_providers.yaml")
-        for collection in _as_list(cols) or prov.profile.get("default_collections", []):
+        if _as_list(cols):
+            # an unknown collection ID returns no items without an error from most servers: say so up front
+            try:
+                known = set(prov.list_collections()["id"])
+            except Exception:
+                known = set()
+            unknown = [c for c in _as_list(cols) if known and c not in known]
+            if unknown:
+                warnings.warn(f"{name}: no collection {unknown} (these will return no items). "
+                              f"Available: {sorted(known)}", stacklevel=2)
+        for collection in _provider_collections(name, cols):
             for site in sites_gdf.itertuples():
                 for interval in intervals:
+                    if not in_span(name, collection, interval):
+                        n_skipped += 1
+                        continue
                     tasks.append({"provider": name, "collection": collection,
                                   "site_name": site.site_name, "geometry": site.geometry,
-                                  "interval": interval, "slim": not include_assets})
+                                  "interval": interval, "slim": not include_assets, "compact": compact})
+    if n_skipped:
+        print(f"Skipped {n_skipped:,} of {n_skipped + len(tasks):,} searches outside each collection's "
+              f"catalog dates (trim_to_catalog=False to search them)")
 
     results = []
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = [pool.submit(_run_task, t, cloud_cover_max, (extra or {}).get(t["provider"]),
-                               cache_dir, max_items_per_task) for t in tasks]
+                               cache_dir, max_items(t)) for t in tasks]
         iterator = as_completed(futures)
         if progress:
             try:
@@ -1162,8 +1480,9 @@ def search(sites, start: str, end: str,
 
     site_geoms = dict(zip(sites_gdf.site_name, sites_gdf.geometry))
     records, items = [], {}
+    frames = [r.pop("records") for r in results if r.get("records") is not None]
     for r in results:
-        for feature in r["features"]:
+        for feature in r.get("features", []):
             geom = feature.get("geometry")
             site_geom = site_geoms[r["site_name"]]
             if geom and site_geom is not None and not shape(geom).intersects(site_geom):
@@ -1174,14 +1493,21 @@ def search(sites, start: str, end: str,
 
     log = pd.DataFrame([{k: v for k, v in r.items() if k != "features"} for r in results],
                        columns=["provider", "collection", "site_name", "interval", "status",
-                                "count", "server_filters", "error", "seconds"])
+                                "count", "matched", "server_filters", "error", "seconds"])
     log = log.sort_values(["provider", "collection", "site_name", "interval"]).reset_index(drop=True)
+    frames = [f for f in frames if len(f)]
 
-    if not records:
+    if not records and not frames:
         gdf = gpd.GeoDataFrame(columns=COMMON_COLUMNS + ["geometry"], geometry="geometry", crs="EPSG:4326")
         return SearchResult(gdf, [], log)
 
-    df = pd.DataFrame(records)
+    if frames:
+        df = pd.concat(frames, ignore_index=True)
+        df["geometry"] = gpd.GeoSeries.from_wkb(df.pop("geometry_wkb"), crs="EPSG:4326").values
+        if records:
+            df = pd.concat([df, pd.DataFrame(records)], ignore_index=True)
+    else:
+        df = pd.DataFrame(records)
     for col in COMMON_COLUMNS:
         if col not in df:
             df[col] = None
@@ -1191,6 +1517,12 @@ def search(sites, start: str, end: str,
     # Vendors are inconsistent (CSDA Satellogic has both "L1D" and "l1d")
     df["processing_level"] = df["processing_level"].map(lambda v: v.upper() if isinstance(v, str) else v)
     df = df.drop_duplicates(subset=["provider", "id", "site_name"])
+    if is_global:
+        df["site_group"] = "global"
+    else:
+        groups = site_groups(sites_gdf, group_min_overlap, "site_name")
+        df["site_group"] = df["site_name"].map(dict(zip(groups.site_name, groups.site_group)))
+    df["acquisition_id"] = _pass_acquisitions(df)
     gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
     gdf = apply_filters(gdf, cloud_cover_max, processing_level, product_type, where)
     gdf = flag_csda_holdings(gdf)
