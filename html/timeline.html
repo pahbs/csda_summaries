@@ -201,6 +201,14 @@ tr.done td { opacity: .6; }
 .tip .t { font-weight: 650; font-size: 14px; margin: 3px 0 4px; }
 .tip .dt { font-variant-numeric: tabular-nums; }
 .tip .n { margin-top: 6px; opacity: .85; }
+.tip .lk { margin-top: 8px; font-weight: 550; }
+.tip .hint { font-weight: 400; font-size: 11px; opacity: .65; margin-top: 3px; }
+td .links { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
+td .links a { color: var(--type-0); text-decoration: none; font-weight: 550; }
+td .links a:hover { text-decoration: underline; }
+tr.flash td { animation: flash 1.6s ease-out; }
+@keyframes flash { from { background: color-mix(in srgb, var(--type-0) 22%, transparent); } to { background: transparent; } }
+.bar.has-links, .ms.has-links { cursor: pointer; }
 
 footer { margin-top: 18px; color: var(--text-muted); font-size: 12px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 footer a { color: inherit; }
@@ -273,7 +281,27 @@ const DATA = {
    "start": "2026-09-24",
    "finish": "2026-09-24",
    "notes": "3:00\u20134:30 PM | MS Teams | Airbus & CSDA TEM: sensor capabilities, cal/val, product offerings, file naming, metadata standards, spectral response, geolocation accuracy. Materials handled as CUI.",
-   "flag": null
+   "flag": null,
+   "links": []
+  },
+  {
+   "evaluation": "Airbus",
+   "task": "ESA EDAP Technical Notes released",
+   "type": "Reporting",
+   "start": "2026-10-19",
+   "finish": "2026-10-19",
+   "notes": "ESA EDAP quality assessment Technical Notes for Pleiades and Pleiades Neo released 10/19/26 (per Leo)",
+   "flag": null,
+   "links": [
+    {
+     "label": "EDAP Technical Note: Pleiades Neo",
+     "url": "https://earth.esa.int/eogateway/documents/d/earth-online/technical-note-on-quality-assessment-for-airbus-pleiades-neo"
+    },
+    {
+     "label": "EDAP Technical Note: Pleiades",
+     "url": "https://earth.esa.int/eogateway/documents/d/earth-online/technical-note-on-quality-assessment-for-airbus-pleiades"
+    }
+   ]
   },
   {
    "evaluation": "Airbus",
@@ -282,7 +310,8 @@ const DATA = {
    "start": "2026-09-23",
    "finish": "2026-10-06",
    "notes": "Request to data management for additional radiometric QA data; target finish (fine tune) 10/6/26",
-   "flag": null
+   "flag": null,
+   "links": []
   },
   {
    "evaluation": "Airbus",
@@ -291,7 +320,8 @@ const DATA = {
    "start": "2026-10-06",
    "finish": "2026-12-01",
    "notes": "Estimated receipt by 12/1/26",
-   "flag": null
+   "flag": null,
+   "links": []
   },
   {
    "evaluation": "Airbus",
@@ -300,7 +330,8 @@ const DATA = {
    "start": "2027-01-15",
    "finish": "2027-01-15",
    "notes": "Brief HQ 1/15/27",
-   "flag": null
+   "flag": null,
+   "links": []
   },
   {
    "evaluation": "Airbus",
@@ -309,7 +340,8 @@ const DATA = {
    "start": "2027-01-22",
    "finish": "2027-01-22",
    "notes": "Brief Airbus 1/22/27",
-   "flag": null
+   "flag": null,
+   "links": []
   },
   {
    "evaluation": "Airbus",
@@ -318,7 +350,8 @@ const DATA = {
    "start": "2026-12-01",
    "finish": "2027-02-15",
    "notes": "Quality Assessment Report to Project Manager; estimated 2/15/27",
-   "flag": null
+   "flag": null,
+   "links": []
   },
   {
    "evaluation": "Airbus",
@@ -327,7 +360,8 @@ const DATA = {
    "start": "2027-02-15",
    "finish": "2027-04-01",
    "notes": "Target 4/1/27",
-   "flag": null
+   "flag": null,
+   "links": []
   },
   {
    "evaluation": "Vantor-Legion",
@@ -336,7 +370,8 @@ const DATA = {
    "start": "2026-10-14",
    "finish": "2026-10-14",
    "notes": "NASA briefs Legion results at JACIE Tech Team virtual meeting (10/14/26)",
-   "flag": null
+   "flag": null,
+   "links": []
   },
   {
    "evaluation": "Vantor-Legion",
@@ -345,7 +380,8 @@ const DATA = {
    "start": "2026-09-16",
    "finish": "2026-09-23",
    "notes": "Started 9/16/26; target finish 9/23/26",
-   "flag": null
+   "flag": null,
+   "links": []
   },
   {
    "evaluation": "Vantor-Legion",
@@ -354,7 +390,8 @@ const DATA = {
    "start": "2026-09-23",
    "finish": "2026-11-01",
    "notes": "Estimated receipt by 11/1/26",
-   "flag": null
+   "flag": null,
+   "links": []
   },
   {
    "evaluation": "Vantor-Legion",
@@ -363,16 +400,18 @@ const DATA = {
    "start": "2026-10-05",
    "finish": "2026-10-05",
    "notes": "Delayed due to data delays, vacations, and HQ availability. Invite Chris Neigh.",
-   "flag": null
+   "flag": null,
+   "links": []
   },
   {
    "evaluation": "Vantor-Legion",
    "task": "Brief Vendor",
    "type": "Briefing",
-   "start": "2026-10-15",
-   "finish": "2026-10-31",
-   "notes": "Fritz to coordinate timing with Amy",
-   "flag": "pending"
+   "start": "2026-10-19",
+   "finish": "2026-10-19",
+   "notes": "Vantor briefed 10/19/26",
+   "flag": null,
+   "links": []
   },
   {
    "evaluation": "Vantor-Legion",
@@ -381,7 +420,8 @@ const DATA = {
    "start": "2026-11-01",
    "finish": "2027-01-15",
    "notes": "Estimated delivery 1/15/27",
-   "flag": null
+   "flag": null,
+   "links": []
   }
  ],
  "events": [
@@ -497,8 +537,8 @@ function bar(t) {
   const flip = end > 82;
   const whenStyle = flip ? `left:calc(${t.milestone ? end : pct(t.s)}% - ${t.milestone ? 14 : 8}px)` : `left:calc(${end}% + ${t.milestone ? 14 : 8}px)`;
   const mark = t.milestone
-    ? `<div class="ms ${cls}" style="left:${end}%;--c:${c}" tabindex="0" data-id="${t.id}" aria-label="${esc(t.task)}, ${dateRange(t)}"></div>`
-    : `<div class="bar ${cls}" style="left:${pct(t.s)}%;width:${pct(t.e) - pct(t.s)}%;--c:${c}" tabindex="0" data-id="${t.id}" aria-label="${esc(t.task)}, ${dateRange(t)}">${
+    ? `<div class="ms ${cls}${t.links?.length ? ' has-links' : ''}" style="left:${end}%;--c:${c}" tabindex="0" data-id="${t.id}" aria-label="${esc(t.task)}, ${dateRange(t)}"></div>`
+    : `<div class="bar ${cls}${t.links?.length ? ' has-links' : ''}" style="left:${pct(t.s)}%;width:${pct(t.e) - pct(t.s)}%;--c:${c}" tabindex="0" data-id="${t.id}" aria-label="${esc(t.task)}, ${dateRange(t)}">${
         t.status === 'active' ? `<span class="elapsed" style="width:${((TODAY - t.s) / (t.e - t.s)) * 100}%"></span>` : ''}</div>`;
   return `${mark}<span class="when ${flip ? 'flip' : ''}" style="${whenStyle}">${dateRange(t)}</span>`;
 }
@@ -540,18 +580,21 @@ function renderChart() {
     <div class="body"><div class="overlay">${bands}${lines}${todayIn ? `<span class="now" style="left:${pct(TODAY + DAY / 2)}%"></span>` : ''}</div>${rows}</div>`;
 }
 
+const linksHTML = t => t.links?.length
+  ? `<div class="links">${t.links.map(l => `<a href="${esc(l.url)}" target="_blank" rel="noopener">↗ ${esc(l.label)}</a>`).join('')}</div>` : '';
+
 function renderTable() {
   const ts = tasks.filter(t => evals().includes(t.evaluation)).sort(byStart);
   const evRows = events.map(e => ({ ...e, evaluation: '—', type: 'Meetings & conferences', status: e.e <= TODAY ? 'done' : 'upcoming', isEv: true }));
   const rowsAll = [...ts, ...evRows].sort(byStart);
   document.getElementById('tableView').innerHTML = `<table>
     <thead><tr><th>Evaluation</th><th>Activity</th><th>Type</th><th>Start</th><th>Finish</th><th>Status</th><th>Notes</th></tr></thead>
-    <tbody>${rowsAll.map(t => `<tr class="${t.status}">
+    <tbody>${rowsAll.map(t => `<tr class="${t.status}"${t.isEv ? '' : ` id="row-${t.id}"`}>
       <td>${esc(t.evaluation)}</td><td>${esc(t.task)}</td>
       <td><span class="tp"><i style="--c:${t.isEv ? 'var(--event-bar)' : typeColor(t.type)}"></i>${esc(t.type)}</span></td>
       <td class="date">${fmtY(t.s)}</td><td class="date">${fmtY(t.f)}</td>
       <td class="date">${t.isEv ? (t.status === 'done' ? '✓ Done' : 'Upcoming') : statusLabel[t.status]}</td>
-      <td class="notes">${esc(t.notes)}</td></tr>`).join('')}</tbody></table>`;
+      <td class="notes">${esc(t.notes)}${linksHTML(t)}</td></tr>`).join('')}</tbody></table>`;
 }
 
 function render() { renderCards(); renderChart(); renderTable(); }
@@ -571,7 +614,8 @@ function tipHTML(el) {
     <div class="t">${esc(t.task)}</div>
     <div class="dt">${t.milestone ? fmtY(t.s) : `${fmtY(t.s)} → ${fmtY(t.f)} · ${dur} days`}</div>
     <div class="dt">${statusLabel[t.status]}${t.status === 'upcoming' || t.status === 'active' ? ` · ${relDays(t)}` : ''}</div>
-    ${t.notes ? `<div class="n">${esc(t.notes)}</div>` : ''}`;
+    ${t.notes ? `<div class="n">${esc(t.notes)}</div>` : ''}
+    ${t.links?.length ? `<div class="lk">${t.links.map(l => `↗ ${esc(l.label)}`).join('<br>')}<div class="hint">Click to open links in List view</div></div>` : ''}`;
 }
 function place(x, y) {
   const r = tip.getBoundingClientRect(), pad = 14;
@@ -586,6 +630,15 @@ document.addEventListener('mousemove', e => { if (target(e)) place(e.clientX, e.
 document.addEventListener('mouseout', e => { if (target(e) && !target({ target: e.relatedTarget || document.body })) tip.classList.remove('show'); });
 document.addEventListener('focusin', e => { const el = target(e); if (!el) return; tip.innerHTML = tipHTML(el); tip.classList.add('show'); const r = el.getBoundingClientRect(); place(r.left, r.bottom); });
 document.addEventListener('focusout', () => tip.classList.remove('show'));
+function openLinks(el) {
+  if (!el?.classList.contains('has-links')) return;
+  tip.classList.remove('show');
+  document.querySelector('[data-view="table"]').click();
+  const row = document.getElementById(`row-${el.dataset.id}`);
+  if (row) { row.scrollIntoView({ behavior: 'smooth', block: 'center' }); row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash'); }
+}
+document.addEventListener('click', e => openLinks(target(e)));
+document.addEventListener('keydown', e => { if (e.key === 'Enter') openLinks(target(e)); });
 </script>
 </body>
 </html>
