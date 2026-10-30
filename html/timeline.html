@@ -265,7 +265,8 @@ const DATA = {
  "updated": "2026-10-30",
  "evaluations": [
   "Airbus",
-  "Vantor-Legion"
+  "Vantor-Legion",
+  "HydroSat"
  ],
  "types": [
   "Data Acq./Analysis",
@@ -422,6 +423,16 @@ const DATA = {
    "notes": "Estimated delivery 1/15/27",
    "flag": null,
    "links": []
+  },
+  {
+   "evaluation": "HydroSat",
+   "task": "HydroSat Tech. Exchange Mtg. (TEM)",
+   "type": "Tech. Exchange Mtg. (TEM)",
+   "start": "2026-10-09",
+   "finish": "2026-10-09",
+   "notes": "HydroSat & CSDA technical exchange meeting (Fri 10/9/26)",
+   "flag": null,
+   "links": []
   }
  ],
  "events": [
@@ -512,6 +523,7 @@ document.getElementById('legend').innerHTML =
 
 const evals = () => state.eval === 'All' ? DATA.evaluations : [state.eval];
 const byStart = (a, b) => a.s - b.s || a.f - b.f;
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
 function renderCards() {
   document.getElementById('cards').innerHTML = evals().map(ev => {
@@ -521,12 +533,12 @@ function renderCards() {
     const last = ts.reduce((m, t) => t.f > m.f ? t : m, ts[0]);
     return `<article class="card">
       <h2>${esc(ev)}</h2>
-      <div class="meta">${done} of ${ts.length} activities complete · wraps up ${fmtY(last.f)}</div>
+      <div class="meta">${done} of ${plural(ts.length, 'activity', 'activities')} complete · ${next.length ? `wraps up ${fmtY(last.f)}` : 'next steps not yet scheduled'}</div>
       <div class="progress" aria-hidden="true"><span style="width:${(done / ts.length) * 100}%"></span></div>
       <ul class="next">${next.map(t => `
         <li><span class="dot" style="--c:${typeColor(t.type)}"></span>
           <span><span class="t">${esc(t.task)}</span><br><span class="d">${dateRange(t)}${t.status === 'tbd' ? ' (TBD)' : ''}</span></span>
-          <span class="in">${t.status === 'tbd' ? 'TBD' : relDays(t)}</span></li>`).join('') || '<li><span></span><span class="d">All activities complete</span></li>'}
+          <span class="in">${t.status === 'tbd' ? 'TBD' : relDays(t)}</span></li>`).join('') || '<li><span></span><span class="d">No upcoming activities scheduled yet</span></li>'}
       </ul></article>`;
   }).join('');
 }
@@ -565,7 +577,7 @@ function renderChart() {
   evals().forEach(ev => {
     const ts = tasks.filter(t => t.evaluation === ev).sort(byStart);
     rows += `<div class="lane-sep"></div><div class="lane-head"><div class="cell-label"><h3>${esc(ev)}</h3>
-      <div class="meta">${ts.length} activities</div></div><div class="track"></div></div>`;
+      <div class="meta">${plural(ts.length, 'activity', 'activities')}</div></div><div class="track"></div></div>`;
     ts.forEach(t => {
       rows += `<div class="row ${t.status}"><div class="cell-label"><span class="swatch" style="--c:${typeColor(t.type)}"></span>
         <span class="name" title="${esc(t.task)}">${esc(t.task)}</span><span class="pill ${t.status}">${statusLabel[t.status]}</span></div>
