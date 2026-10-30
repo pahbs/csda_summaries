@@ -169,6 +169,9 @@ def parse_metadata(metadata_path, profile):
                     if isinstance(spec, dict) and spec.get('cast') == 'int':
                         try: value = int(value)
                         except: pass
+                    elif isinstance(spec, dict) and spec.get('cast') == 'float':
+                        try: value = float(value)
+                        except: pass
                     break
             extracted[std_key] = value
 
@@ -378,6 +381,36 @@ def derive_acquisition_id(record, profile):
             break
     return f'FALLBACK_{sensor}_{date_str or "nodate"}'
 
+def derive_satellite_geometry(record, profile):
+    """
+    Satellite elevation and azimuth as seen from the target (for skyplots).
+
+    - satellite_elevation = 90 - incidence_angle when the profile reports incidence
+      (a zenith angle), e.g. Airbus DIMAP INCIDENCE_ANGLE, Satellogic view:incidence_angle.
+    - Airbus Pleiades 1A/1B DIMAP: AZIMUTH_ANGLE is the along-track direction (~180 on
+      north-up products), so the satellite azimuth is that direction rotated by the
+      along/across-track incidence components. PNEO and SPOT report it directly.
+    """
+    def num(key):
+        try:
+            return float(record.get(key))
+        except (TypeError, ValueError):
+            return None
+
+    out = {}
+    incidence = num('incidence_angle')
+    if profile.get('satellite_elevation_from_incidence') and incidence is not None:
+        out['satellite_elevation'] = 90.0 - incidence
+
+    track_az = num('satellite_azimuth')
+    along, across = num('incidence_angle_along_track'), num('incidence_angle_across_track')
+    mission = str(record.get('mission') or '').strip().upper()
+    if (mission in profile.get('track_azimuth_missions', [])
+            and None not in (track_az, along, across)):
+        offset = np.degrees(np.arctan2(np.tan(np.radians(across)), np.tan(np.radians(along))))
+        out['satellite_azimuth'] = (track_az - offset) % 360
+    return out
+
 def derive_scene_id(file_path):
     """Extract the tile/scene identifier from filename (R#C# pattern)."""
     fn = Path(file_path).name
@@ -469,6 +502,7 @@ def process_file(file_path, profiles=SENSOR_PROFILES):
         'tier':         extracted.get('tier'),
         **{k: v for k, v in extracted.items() if not k.startswith('_')},
     }
+    record.update(derive_satellite_geometry(record, profile))
 
     # Geometry
     geom_src = profile['geometry_source']
