@@ -208,7 +208,11 @@ td .links a { color: var(--type-0); text-decoration: none; font-weight: 550; }
 td .links a:hover { text-decoration: underline; }
 tr.flash td { animation: flash 1.6s ease-out; }
 @keyframes flash { from { background: color-mix(in srgb, var(--type-0) 22%, transparent); } to { background: transparent; } }
-.bar.has-links, .ms.has-links { cursor: pointer; }
+.bar.has-links, .ms.has-links, .evbar.has-links { cursor: pointer; }
+.ms.evms { top: 10px; }
+.quick-links { margin: 10px 0 0; display: flex; gap: 8px; flex-wrap: wrap; }
+.quick-links a { font-size: 13px; color: var(--text-primary); text-decoration: none; border: 1px solid var(--border); background: var(--surface-1); border-radius: 999px; padding: 4px 12px; }
+.quick-links a:hover { border-color: var(--text-secondary); }
 
 footer { margin-top: 18px; color: var(--text-muted); font-size: 12px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 footer a { color: inherit; }
@@ -234,6 +238,7 @@ footer a { color: inherit; }
       <p class="eyebrow">NASA CSDA · Optical SME</p>
       <h1>Optical Evaluation Timeline</h1>
       <p class="sub" id="sub"></p>
+      <p class="quick-links" id="quickLinks"></p>
     </div>
     <div class="controls">
       <div class="seg" role="group" aria-label="Evaluation filter" id="filter"></div>
@@ -320,9 +325,14 @@ const DATA = {
    "type": "Data Acq./Analysis",
    "start": "2026-10-06",
    "finish": "2026-12-01",
-   "notes": "Estimated receipt by 12/1/26",
+   "notes": "Estimated receipt by 12/1/26. As of 10/29/26: 99 tracked acquisitions in CSDA STAC (218 products, 8 sites), all downloaded to ADAPT. Since the 9/23 request: 17 new tasked acquisitions (10/5-10/26: Baotou 7, WLEF 7, Golmud 2, Valencia 1) fill 22 of 93 new-tasking slots; 71 slots still waiting.",
    "flag": null,
-   "links": []
+   "links": [
+    {
+     "label": "Footprints map of data on ADAPT",
+     "url": "https://pahbs.github.io/csda_summaries/notebooks/footprints_csda_map.html"
+    }
+   ]
   },
   {
    "evaluation": "Airbus",
@@ -386,13 +396,28 @@ const DATA = {
   },
   {
    "evaluation": "Vantor-Legion",
+   "task": "Supplemental tasking windows (WLEF, Valencia)",
+   "type": "Data Acq./Analysis",
+   "start": "2026-09-17",
+   "finish": "2026-10-31",
+   "notes": "VantorLegion_Supp tab: 30 tasking orders (15 per site), 3-day windows 9/17-11/1/26; min 5 / ideal 15 scenes per site",
+   "flag": null,
+   "links": []
+  },
+  {
+   "evaluation": "Vantor-Legion",
    "task": "Receive additional data (radiometric)",
    "type": "Data Acq./Analysis",
    "start": "2026-09-23",
    "finish": "2026-11-01",
-   "notes": "Estimated receipt by 11/1/26",
+   "notes": "Estimated receipt by 11/1/26. As of 10/30/26: no supplemental tasking delivered yet; Valencia 0 and WLEF 0 of 5 min / 15 ideal scenes in CSDA STAC (0 on ADAPT); 14 of 15 windows closed per site.",
    "flag": null,
-   "links": []
+   "links": [
+    {
+     "label": "Footprints map of data on ADAPT",
+     "url": "https://pahbs.github.io/csda_summaries/notebooks/footprints_csda_map.html"
+    }
+   ]
   },
   {
    "evaluation": "Vantor-Legion",
@@ -440,13 +465,33 @@ const DATA = {
    "task": "VH-RODA 2026",
    "start": "2026-11-16",
    "finish": "2026-11-20",
-   "notes": "VH-RODA 2026 | Frascati, Italy"
+   "notes": "VH-RODA 2026 | Frascati, Italy",
+   "links": []
   },
   {
    "task": "AGU26 Annual Meeting",
    "start": "2026-12-07",
    "finish": "2026-12-11",
-   "notes": "AGU26 Annual Meeting | Moscone Center, San Francisco, CA"
+   "notes": "AGU26 Annual Meeting | Moscone Center, San Francisco, CA",
+   "links": []
+  },
+  {
+   "task": "Data Quality Statement template (ESA)",
+   "start": "2026-10-29",
+   "finish": "2026-10-29",
+   "notes": "Fritz shared Leo's (ESA) data quality statement template (10/29/26); saved to CSDA/sme/multispec/joint",
+   "links": [
+    {
+     "label": "Template - Data Quality Statement (OneDrive; NASA login)",
+     "url": "https://nasa-my.sharepoint.com/:w:/r/personal/pmontesa_ndc_nasa_gov/Documents/CSDA/sme/multispec/joint/Template%20-%20Data%20Quality%20Statement.docx?d=w340658803aad4e4986cc8006d57a388f&csf=1&web=1&e=D5ygQm"
+    }
+   ]
+  }
+ ],
+ "page_links": [
+  {
+   "label": "Footprints map: data on ADAPT for evaluation",
+   "url": "https://pahbs.github.io/csda_summaries/notebooks/footprints_csda_map.html"
   }
  ]
 };
@@ -467,7 +512,9 @@ const tasks = DATA.tasks.map((t, i) => {
   const status = t.flag === 'pending' ? 'tbd' : e <= TODAY ? 'done' : s <= TODAY ? 'active' : 'upcoming';
   return { ...t, id: i, s, f, e, milestone: s === f, status };
 });
-const events = DATA.events.map(t => ({ ...t, s: parse(t.start), f: parse(t.finish), e: parse(t.finish) + DAY }));
+const events = DATA.events.map(t => ({ ...t, s: parse(t.start), f: parse(t.finish), e: parse(t.finish) + DAY }))
+  .sort((a, b) => a.s - b.s || a.f - b.f).map((t, i) => ({ ...t, ev: i, milestone: t.start === t.finish }));
+const EV_LABEL = 'Meetings, conferences & joint activities';
 
 const statusLabel = { done: '✓ Done', active: '● In progress', upcoming: 'Upcoming', tbd: 'Date TBD' };
 const dateRange = t => t.milestone ? fmt(t.s) : `${fmt(t.s)} – ${fmt(t.f)}`;
@@ -490,6 +537,9 @@ let state = { eval: 'All', view: 'chart' };
 document.getElementById('sub').textContent =
   `${DATA.evaluations.join(' · ')} — ${fmtY(d0)} to ${fmt(d1 - DAY, { month: 'short', year: 'numeric' })}`;
 document.getElementById('asof').textContent = `Schedule as of ${fmtY(parse(DATA.updated))} · viewed ${fmtY(TODAY)}`;
+
+document.getElementById('quickLinks').innerHTML = (DATA.page_links || []).map(l =>
+  `<a href="${esc(l.url)}" target="_blank" rel="noopener">↗ ${esc(l.label)}</a>`).join('');
 
 const filterEl = document.getElementById('filter');
 filterEl.innerHTML = ['All', ...DATA.evaluations].map(e =>
@@ -518,7 +568,7 @@ document.getElementById('legend').innerHTML =
   `<span class="spacer"></span>` +
   `<span class="k"><span class="sw dia" style="--c:var(--text-secondary)"></span>Single-day</span>` +
   `<span class="k"><span class="sw tbd"></span>Date TBD</span>` +
-  `<span class="k"><span class="sw ev"></span>Meetings &amp; conferences</span>` +
+  `<span class="k"><span class="sw ev"></span>${esc(EV_LABEL)}</span>` +
   `<span class="k"><span class="sw today"></span>Today</span>`;
 
 const evals = () => state.eval === 'All' ? DATA.evaluations : [state.eval];
@@ -568,11 +618,14 @@ function renderChart() {
   const bands = events.map(e => `<span class="band" style="left:${pct(e.s)}%;width:${pct(e.e) - pct(e.s)}%"></span>`).join('');
 
   let rows = '';
-  rows += `<div class="lane-head ev-head"><div class="cell-label"><h3>Meetings &amp; conferences</h3></div><div class="track"></div></div>`;
-  events.slice().sort(byStart).forEach((e, i) => {
-    rows += `<div class="row ev"><div class="cell-label"><span class="swatch" style="--c:var(--event-bar)"></span><span class="name">${esc(e.task)}</span></div>
-      <div class="track"><div class="evbar" style="left:${pct(e.s)}%;width:${pct(e.e) - pct(e.s)}%" data-ev="${i}"></div>
-      <span class="when" style="left:calc(${pct(e.e)}% + 8px)">${fmt(e.s)} – ${fmt(e.f)}</span></div></div>`;
+  rows += `<div class="lane-head ev-head"><div class="cell-label"><h3>${esc(EV_LABEL)}</h3></div><div class="track"></div></div>`;
+  events.forEach(e => {
+    const lk = e.links?.length ? ' has-links' : '', x = pct(e.s + DAY / 2);
+    const mark = e.milestone
+      ? `<div class="ms evms${lk}" style="left:${x}%;--c:var(--event-bar)" tabindex="0" data-ev="${e.ev}" aria-label="${esc(e.task)}, ${fmt(e.s)}"></div>`
+      : `<div class="evbar${lk}" style="left:${pct(e.s)}%;width:${pct(e.e) - pct(e.s)}%" tabindex="0" data-ev="${e.ev}" aria-label="${esc(e.task)}"></div>`;
+    rows += `<div class="row ev"><div class="cell-label"><span class="swatch" style="--c:var(--event-bar)"></span><span class="name" title="${esc(e.task)}">${esc(e.task)}</span></div>
+      <div class="track">${mark}<span class="when" style="left:calc(${e.milestone ? x : pct(e.e)}% + ${e.milestone ? 14 : 8}px)">${e.milestone ? fmt(e.s) : `${fmt(e.s)} – ${fmt(e.f)}`}</span></div></div>`;
   });
   evals().forEach(ev => {
     const ts = tasks.filter(t => t.evaluation === ev).sort(byStart);
@@ -597,11 +650,11 @@ const linksHTML = t => t.links?.length
 
 function renderTable() {
   const ts = tasks.filter(t => evals().includes(t.evaluation)).sort(byStart);
-  const evRows = events.map(e => ({ ...e, evaluation: '—', type: 'Meetings & conferences', status: e.e <= TODAY ? 'done' : 'upcoming', isEv: true }));
+  const evRows = events.map(e => ({ ...e, evaluation: 'Joint / all', type: 'Meeting / joint activity', status: e.e <= TODAY ? 'done' : 'upcoming', isEv: true }));
   const rowsAll = [...ts, ...evRows].sort(byStart);
   document.getElementById('tableView').innerHTML = `<table>
     <thead><tr><th>Evaluation</th><th>Activity</th><th>Type</th><th>Start</th><th>Finish</th><th>Status</th><th>Notes</th></tr></thead>
-    <tbody>${rowsAll.map(t => `<tr class="${t.status}"${t.isEv ? '' : ` id="row-${t.id}"`}>
+    <tbody>${rowsAll.map(t => `<tr class="${t.status}" id="${t.isEv ? `ev-${t.ev}` : `row-${t.id}`}">
       <td>${esc(t.evaluation)}</td><td>${esc(t.task)}</td>
       <td><span class="tp"><i style="--c:${t.isEv ? 'var(--event-bar)' : typeColor(t.type)}"></i>${esc(t.type)}</span></td>
       <td class="date">${fmtY(t.s)}</td><td class="date">${fmtY(t.f)}</td>
@@ -614,11 +667,13 @@ render();
 
 // ── Tooltip ─────────────────────────────────────────────────────────────────
 const tip = document.getElementById('tip');
+const linksTip = t => t.links?.length
+  ? `<div class="lk">${t.links.map(l => `↗ ${esc(l.label)}`).join('<br>')}<div class="hint">Click to open links in List view</div></div>` : '';
 function tipHTML(el) {
   if (el.dataset.ev !== undefined) {
-    const e = events.slice().sort(byStart)[+el.dataset.ev];
-    return `<div class="k" style="--c:var(--event-bar)"><i></i>Meeting / conference</div><div class="t">${esc(e.task)}</div>
-      <div class="dt">${fmtY(e.s)} – ${fmtY(e.f)}</div>${e.notes ? `<div class="n">${esc(e.notes)}</div>` : ''}`;
+    const e = events[+el.dataset.ev];
+    return `<div class="k" style="--c:var(--event-bar)"><i></i>${esc(EV_LABEL)}</div><div class="t">${esc(e.task)}</div>
+      <div class="dt">${e.milestone ? fmtY(e.s) : `${fmtY(e.s)} – ${fmtY(e.f)}`}</div>${e.notes ? `<div class="n">${esc(e.notes)}</div>` : ''}${linksTip(e)}`;
   }
   const t = tasks[+el.dataset.id];
   const dur = Math.round((t.e - t.s) / DAY);
@@ -627,7 +682,7 @@ function tipHTML(el) {
     <div class="dt">${t.milestone ? fmtY(t.s) : `${fmtY(t.s)} → ${fmtY(t.f)} · ${dur} days`}</div>
     <div class="dt">${statusLabel[t.status]}${t.status === 'upcoming' || t.status === 'active' ? ` · ${relDays(t)}` : ''}</div>
     ${t.notes ? `<div class="n">${esc(t.notes)}</div>` : ''}
-    ${t.links?.length ? `<div class="lk">${t.links.map(l => `↗ ${esc(l.label)}`).join('<br>')}<div class="hint">Click to open links in List view</div></div>` : ''}`;
+    ${linksTip(t)}`;
 }
 function place(x, y) {
   const r = tip.getBoundingClientRect(), pad = 14;
@@ -646,7 +701,7 @@ function openLinks(el) {
   if (!el?.classList.contains('has-links')) return;
   tip.classList.remove('show');
   document.querySelector('[data-view="table"]').click();
-  const row = document.getElementById(`row-${el.dataset.id}`);
+  const row = document.getElementById(el.dataset.ev !== undefined ? `ev-${el.dataset.ev}` : `row-${el.dataset.id}`);
   if (row) { row.scrollIntoView({ behavior: 'smooth', block: 'center' }); row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash'); }
 }
 document.addEventListener('click', e => openLinks(target(e)));
