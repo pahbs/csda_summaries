@@ -364,6 +364,16 @@ def completeness(df: pd.DataFrame) -> pd.DataFrame:
 # Colors: dataviz reference palette, categorical slots 1-2 (validated all-pairs for
 # scatter forms); text in ink tokens, recessive grid.
 SECTOR_COLORS = {"Commercial": "#2a78d6", "Government": "#eb6834"}
+# Data-owner colors: the palette of csda_specs_multispec_smry.ipynb (RColorBrewer Set1 + Dark2, BlackSky black,
+# US Agency blue), so plots stay familiar; owners added since get unused Dark2 colors.
+AFFILIATION_COLORS = {
+    "Airbus": "#E41A1C", "BlackSky": "#000000", "DLR / Teledyne": "#4DAF4A", "Earth Fire Alliance / Muon": "#984EA3",
+    "EarthDaily": "#FF7F00", "ESA": "#FFFF33", "HydroSat": "#A65628", "ImageSat": "#F781BF", "JAXA": "#1B9E77",
+    "Kuva": "#C16610", "OroraTech": "#8D6B86", "Planet Labs": "#BC4399", "Satellogic": "#A66753",
+    "Satlantis": "#96A713", "SatVu": "#D59D08", "US Agency": "#0000FF", "Vantor": "#666666",
+    "OrbitalSideKick": "#7570B3",   # added (not in the sheet when the R palette was made)
+}
+EXTRA_COLORS = ["#E7298A", "#66A61E", "#E6AB02", "#D95F02", "#A6761D", "#377EB8"]   # for owners new to the sheet
 SURFACE, INK, INK_2, INK_3, GRID = "#fcfcfb", "#0b0b0b", "#52514e", "#8a8984", "#e8e7e2"
 # Marker size bins for the number of MS / spectral bands
 BAND_BINS = [(1, 4, "1–4 bands", 45), (5, 9, "5–9", 95), (10, 40, "10–40", 170), (41, 10_000, "> 40 (hyperspectral)", 280)]
@@ -649,6 +659,14 @@ def _rows(spec: str) -> List[int]:
     return out
 
 
+def affiliation_colors(owners) -> Dict[str, str]:
+    """AFFILIATION_COLORS for the given owners; owners not in it take EXTRA_COLORS in turn."""
+    out, extra = {}, iter(EXTRA_COLORS)
+    for a in sorted(owners):
+        out[a] = AFFILIATION_COLORS.get(a) or next(extra, "#999999")
+    return out
+
+
 def load_edits(path: str) -> pd.DataFrame:
     """Proposed edits from a public-source check (specs/public_check_*.csv)."""
     return pd.read_csv(path, dtype=str).fillna("")
@@ -718,14 +736,16 @@ def write_dashboard(raw: pd.DataFrame, groups: pd.DataFrame, issues: pd.DataFram
         f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit?gid={GID['Vendor Specs']}",
         n_sensors=len(raw), pct_filled=float(comp.to_numpy().mean() * 100), n_issues=len(issues),
         groups=out, sensors=sensors, footprint_max_km=footprint_max_km, edits_date=edits_date,
+        affiliation_colors=affiliation_colors(raw["Affiliation"].dropna().unique()),
         edits=edits.to_dict("records"),
         completeness=[dict(letter=column_letter(i), field=f, pct=float(comp[f].mean() * 100))
                       for i, f in enumerate(comp.columns)],
         qa_summary=qa_sum.to_dict("records"),
         footer=("Built by csda_summaries/notebooks/csda_specs_compare.ipynb (lib/vendor_specs.py). Constellation groups merge "
                 "sensors of one data owner with the same GSD, swath and band count. Numbers are parsed from the sheet text "
-                "(ranges -> first value). Band counts: Total Bands (MS) includes the pan band. Colors: commercial blue, "
-                "government orange; black ring = has a panchromatic band."))
+                "(ranges -> first value). Band counts: Total Bands (MS) includes the pan band. Data-owner colors follow "
+                "csda_specs_multispec_smry.ipynb (Set1 + Dark2); sector colors: commercial blue, government orange. "
+                "Black ring = has a panchromatic band."))
     html = Path(template).read_text().replace("/*__DATA__*/null",
                                               json.dumps(payload, default=str).replace("</", "<\\/"))
     Path(out_path).write_text(html)
