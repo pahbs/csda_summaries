@@ -165,6 +165,14 @@ class Provider:
             features.extend(batch)
             if not batch or (max_items and len(features) >= max_items):
                 break
+            if self.profile.get("pagination") == "page_number":
+                # No next links (Vantor Discovery): ask for page 2, 3, ... until a short page
+                first_ids = (batch[0].get("id"), batch[-1].get("id"))
+                if len(batch) < int(payload.get("limit", self.search_cfg.get("page_size", 100))) or first_ids in seen:
+                    break
+                seen.add(first_ids)        # server ignoring `page` would return the same page forever
+                body = {**payload, "page": int(body.get("page", 1)) + 1}
+                continue
             link = next((l for l in page.get("links", []) if l.get("rel") == "next"), None)
             if not link:
                 break
@@ -272,6 +280,10 @@ class Provider:
         rule = self._rule_for("spectral_mode", collection)
         return isinstance(rule, dict) and "assets" in rule
 
+    def _per_collection(self, key: str, collection: str, default=None):
+        values = self.profile.get(key, {})
+        return values.get(collection, values.get("default", default))
+
     def affiliation_for(self, collection: str) -> Optional[str]:
         affiliations = self.profile.get("affiliation", {})
         return affiliations.get(collection, affiliations.get("default"))
@@ -372,10 +384,6 @@ class CMRProvider(Provider):
         except Exception as error:
             row["error"] = str(error)[:200]
         return row
-
-    def _per_collection(self, key: str, collection: str, default=None):
-        values = self.profile.get(key, {})
-        return values.get(collection, values.get("default", default))
 
     def _params(self, payload: dict) -> list:
         params = [("provider", self.profile["cmr_provider"]),
@@ -1022,13 +1030,16 @@ def _build_payload(prov: Provider, task: dict, cloud_cover_max, extra: dict):
         queryable = prov.queryables(task["collection"]) or set()
         prop = next((p for p in prov.fields_for(task["collection"]).get("cloud_cover", [])
                      if p in queryable), None)
+        bound = cloud_cover_max
+        if not isinstance(prov, CMRProvider):   # CMR applies its scale when translating the filter
+            bound = cloud_cover_max / prov._per_collection("cloud_cover_scale", task["collection"], 1)
         if prop and filter_mode == "query":
-            payload.setdefault("query", {})[prop] = {"lte": cloud_cover_max}
-            server_filters.append(f"{prop}<={cloud_cover_max}")
+            payload.setdefault("query", {})[prop] = {"lte": bound}
+            server_filters.append(f"{prop}<={bound}")
         elif prop:
             payload["filter-lang"] = "cql2-json"
-            payload["filter"] = {"op": "<=", "args": [{"property": prop}, cloud_cover_max]}
-            server_filters.append(f"{prop}<={cloud_cover_max} (cql2)")
+            payload["filter"] = {"op": "<=", "args": [{"property": prop}, bound]}
+            server_filters.append(f"{prop}<={bound} (cql2)")
     for key, value in (extra or {}).items():
         if key == "query" and isinstance(value, dict):
             payload.setdefault("query", {}).update(value)
@@ -1233,6 +1244,9 @@ def normalize(feature: dict, provider: str, collection: str, site_name: str,
     for column, candidates in fields.items():
         if column != "sensor":
             record[column] = _first(props, candidates, feature)
+    if record.get("cloud_cover") is not None and not isinstance(prov, CMRProvider):
+        # vendor fraction (0-1) -> percent; CMR granules are scaled when converted
+        record["cloud_cover"] = record["cloud_cover"] * prov._per_collection("cloud_cover_scale", collection, 1)
     raw = [feature.get(k) if k in ("id", "collection") else props.get(k)
            for k in fields.get("sensor", ["platform"])]
     record.update(resolve_sensor(raw, record["affiliation"], record.get("constellation")))

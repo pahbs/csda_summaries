@@ -20,6 +20,8 @@
 #   `sensor` lists raw satellite identifiers; they are resolved to
 #   affiliation / constellation / sensor via sensor_catalog.yaml.
 # collection_fields: per-collection overrides of `fields` (same format).
+# cloud_cover_scale: {collection: factor} turning the vendor's cloud cover into percent (e.g. 100 for a
+#   0-1 fraction); default 1.
 # filter_mode: how generic filters (cloud_cover_max) are sent to the server:
 #   query  - STAC 'query' extension, only for properties listed in the
 #            collection's /queryables (checked at runtime)
@@ -44,6 +46,9 @@ csda:
   geometry: intersects
   filter_mode: query
   default_collections: [satellogic, planet, airbus-optical, maxar-legion]
+  # eo:cloud_cover is a 0-1 fraction in CSDA's Legion items (checked 2026-11-01 against Vantor's percent for the
+  # same strips): x100 to percent; server-side cloud filters are divided by the same scale
+  cloud_cover_scale: {maxar-legion: 100}
   # Data owner of each CSDA collection (CSDA is the provider, not the owner)
   affiliation:
     satellogic: Satellogic
@@ -223,3 +228,43 @@ hydrosat:
     sun_elevation: [view:sun_elevation]
     sat_azimuth: [view:azimuth]
     vendor_item_id: [hydrosat:scene_id, id]
+
+vantor:
+  label: Vantor Hub (Discovery API)
+  display_name: Vantor
+  # Vantor Hub API key (no prefix) in a maxar-api-key header; no Authorization header. Keys expire 180 days after
+  # creation. https://developers.maxar.com/docs/discovery/guides/VantorCatalogSearchTutorial
+  enabled: true
+  # Smoke test 2026-10-30: key works (71 collections incl. lg01-lg06); intersects, cql2-json eo:cloud_cover
+  # filter and `page` paging (101 items over 2 pages) work.
+  stac_url: https://api.maxar.com/discovery/v1
+  auth:
+    type: api_key_header
+    credentials_section: Vantor_STAC_API
+    header: maxar-api-key
+  # /search has no STAC next links: pages are requested with `page` (from 1), fixed 100 items per page
+  pagination: page_number
+  # 30 s server timeout per query (HTTP 504); keep searches split by site and month
+  search: {page_size: 100, max_concurrency: 2, timeout: 60}
+  geometry: intersects
+  filter_mode: filter
+  default_collections:  [ik02, qb02, wv01, wv02, wv03-vnir, wv04, ge01, lg01, lg02, lg03, lg04, lg05, lg06]
+  affiliation: {default: Vantor}
+  # One item = one catalog strip (catalog ID), with pan and MS resolutions
+  spectral_mode: {default: pan+ms}
+  fields:
+    cloud_cover: [eo:cloud_cover]
+    platform: [platform]
+    sensor: [platform]
+    constellation: [constellation]
+    instrument: [instruments, eo:instrument]
+    gsd: [gsd]
+    off_nadir: [view:off_nadir, off_nadir_avg]
+    sun_elevation: [view:sun_elevation]
+    sun_azimuth: [view:sun_azimuth]
+    # view:azimuth = spacecraft_to_target_azimuth_avg; skyplots need the satellite seen from the target
+    sat_azimuth: [target_to_spacecraft_azimuth_avg]
+    sat_elevation: [target_to_spacecraft_elevation_avg]
+    view_azimuth: [view:azimuth]
+    # item id = Vantor catalog ID
+    vendor_item_id: [id]

@@ -23,7 +23,8 @@
 
 rules:
   # --- Vantor (formerly Maxar) ---
-  - {pattern: '(?:LG|LEGION-?)0*(?P<n>\d+)',           affiliation: Vantor, constellation: Legion,    sensor: 'LG{n:02d}'}
+  # Vantor Discovery API platform: worldview-legion-02
+  - {pattern: '(?:LG|(?:WORLDVIEW-?)?LEGION-?)0*(?P<n>\d+)', affiliation: Vantor, constellation: Legion, sensor: 'LG{n:02d}'}
   - {pattern: '(?:WV|WORLDVIEW-?)0*(?P<n>[1-4])',       affiliation: Vantor, constellation: WorldView, sensor: 'WV{n:02d}'}
   - {pattern: '(?:GE|GEOEYE-?)0*1',                     affiliation: Vantor, constellation: GeoEye,    sensor: GE01}
   - {pattern: '(?:QB|QUICKBIRD-?)0*2?',                 affiliation: Vantor, constellation: QuickBird, sensor: QB02}
