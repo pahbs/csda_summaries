@@ -1,0 +1,141 @@
+edit_id,date,batch,cell,sheet_row,label,column,field,before,after,source,source_url,note
+1,2026-11-02,public_check_2026-11-02,CI2,2,PleiadesNeo PNEO3,CI,Total Bands (MS),6,7,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-airbus/,"6 MS (deep blue, blue, green, red, red edge, NIR) + pan"
+2,2026-11-02,public_check_2026-11-02,CI3,3,PleiadesNeo PNEO4,CI,Total Bands (MS),6,7,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-airbus/,"6 MS (deep blue, blue, green, red, red edge, NIR) + pan"
+3,2026-11-02,public_check_2026-11-02,CJ2,2,PleiadesNeo PNEO3,CJ,Total Bands,6,7,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-airbus/,
+4,2026-11-02,public_check_2026-11-02,CJ3,3,PleiadesNeo PNEO4,CJ,Total Bands,6,7,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-airbus/,
+5,2026-11-02,public_check_2026-11-02,AV2,2,PleiadesNeo PNEO3,AV,Coastal Min (nm),(empty),400,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-airbus/,deep blue 400-450 nm missing from the band ranges
+6,2026-11-02,public_check_2026-11-02,AV3,3,PleiadesNeo PNEO4,AV,Coastal Min (nm),(empty),400,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-airbus/,deep blue 400-450 nm missing from the band ranges
+7,2026-11-02,public_check_2026-11-02,AW2,2,PleiadesNeo PNEO3,AW,Coastal Max (nm),(empty),450,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-airbus/,
+8,2026-11-02,public_check_2026-11-02,AW3,3,PleiadesNeo PNEO4,AW,Coastal Max (nm),(empty),450,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-airbus/,
+9,2026-11-02,public_check_2026-11-02,L2,2,PleiadesNeo PNEO3,L,Weight Range (kg),350,~900-920,secondary,https://eoportal.org/satellite-missions/pleiades-neo,sources give 900 (S950 bus) to 920 kg; not on the CSDA page
+10,2026-11-02,public_check_2026-11-02,L3,3,PleiadesNeo PNEO4,L,Weight Range (kg),350,~900-920,secondary,https://eoportal.org/satellite-missions/pleiades-neo,sources give 900 (S950 bus) to 920 kg; not on the CSDA page
+11,2026-11-02,public_check_2026-11-02,K2,2,PleiadesNeo PNEO3,K,Satellite Size Class,Mini,Medium,computed,,follows from ~900 kg
+12,2026-11-02,public_check_2026-11-02,K3,3,PleiadesNeo PNEO4,K,Satellite Size Class,Mini,Medium,computed,,follows from ~900 kg
+13,2026-11-02,public_check_2026-11-02,AH2,2,PleiadesNeo PNEO3,AH,"Geolocation Accuracy (CE90, m)",3.5,<5 (3.5 expected),agency page,https://earth.esa.int/eogateway/missions/pleiades-neo,spec <5 m CE90; 3.5 m with refined orbit data
+14,2026-11-02,public_check_2026-11-02,AH3,3,PleiadesNeo PNEO4,AH,"Geolocation Accuracy (CE90, m)",3.5,<5 (3.5 expected),agency page,https://earth.esa.int/eogateway/missions/pleiades-neo,spec <5 m CE90; 3.5 m with refined orbit data
+15,2026-11-02,public_check_2026-11-02,CI31,31,Legion LG-1,CI,Total Bands (MS),8,9,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-vantor/,pan + 8 MS
+16,2026-11-02,public_check_2026-11-02,CI32,32,Legion LG-2,CI,Total Bands (MS),8,9,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-vantor/,pan + 8 MS
+17,2026-11-02,public_check_2026-11-02,CI33,33,Legion LG-3,CI,Total Bands (MS),8,9,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-vantor/,pan + 8 MS
+18,2026-11-02,public_check_2026-11-02,CI34,34,Legion LG-4,CI,Total Bands (MS),8,9,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-vantor/,pan + 8 MS
+19,2026-11-02,public_check_2026-11-02,CI35,35,Legion LG-5,CI,Total Bands (MS),8,9,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-vantor/,pan + 8 MS
+20,2026-11-02,public_check_2026-11-02,CI36,36,Legion LG-6,CI,Total Bands (MS),8,9,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-vantor/,pan + 8 MS
+21,2026-11-02,public_check_2026-11-02,O31,31,Legion LG-1,O,Orbit Period (min),~97,~95,computed,,518 km circular orbit = 95.0 min
+22,2026-11-02,public_check_2026-11-02,O32,32,Legion LG-2,O,Orbit Period (min),~97,~95,computed,,518 km circular orbit = 95.0 min
+23,2026-11-02,public_check_2026-11-02,O33,33,Legion LG-3,O,Orbit Period (min),~97,~95,computed,,518 km circular orbit = 95.0 min
+24,2026-11-02,public_check_2026-11-02,O34,34,Legion LG-4,O,Orbit Period (min),~97,~95,computed,,518 km circular orbit = 95.0 min
+25,2026-11-02,public_check_2026-11-02,O35,35,Legion LG-5,O,Orbit Period (min),~97,~95,computed,,518 km circular orbit = 95.0 min
+26,2026-11-02,public_check_2026-11-02,O36,36,Legion LG-6,O,Orbit Period (min),~97,~95,computed,,518 km circular orbit = 95.0 min
+27,2026-11-02,public_check_2026-11-02,AD31,31,Legion LG-1,AD,Pan GSD Off-Nadir Min (m),0.32,>= 0.34,computed,,off-nadir GSD cannot be finer than nadir 0.34 m
+28,2026-11-02,public_check_2026-11-02,AD32,32,Legion LG-2,AD,Pan GSD Off-Nadir Min (m),0.32,>= 0.34,computed,,off-nadir GSD cannot be finer than nadir 0.34 m
+29,2026-11-02,public_check_2026-11-02,AD33,33,Legion LG-3,AD,Pan GSD Off-Nadir Min (m),0.32,>= 0.34,computed,,off-nadir GSD cannot be finer than nadir 0.34 m
+30,2026-11-02,public_check_2026-11-02,AD34,34,Legion LG-4,AD,Pan GSD Off-Nadir Min (m),0.32,>= 0.34,computed,,off-nadir GSD cannot be finer than nadir 0.34 m
+31,2026-11-02,public_check_2026-11-02,AD35,35,Legion LG-5,AD,Pan GSD Off-Nadir Min (m),0.32,>= 0.34,computed,,off-nadir GSD cannot be finer than nadir 0.34 m
+32,2026-11-02,public_check_2026-11-02,AD36,36,Legion LG-6,AD,Pan GSD Off-Nadir Min (m),0.32,>= 0.34,computed,,off-nadir GSD cannot be finer than nadir 0.34 m
+33,2026-11-02,public_check_2026-11-02,AF31,31,Legion LG-1,AF,MS GSD Off-Nadir Min (m),1.2,>= 1.36,computed,,off-nadir GSD cannot be finer than nadir 1.36 m
+34,2026-11-02,public_check_2026-11-02,AF32,32,Legion LG-2,AF,MS GSD Off-Nadir Min (m),1.2,>= 1.36,computed,,off-nadir GSD cannot be finer than nadir 1.36 m
+35,2026-11-02,public_check_2026-11-02,AF33,33,Legion LG-3,AF,MS GSD Off-Nadir Min (m),1.2,>= 1.36,computed,,off-nadir GSD cannot be finer than nadir 1.36 m
+36,2026-11-02,public_check_2026-11-02,AF34,34,Legion LG-4,AF,MS GSD Off-Nadir Min (m),1.2,>= 1.36,computed,,off-nadir GSD cannot be finer than nadir 1.36 m
+37,2026-11-02,public_check_2026-11-02,AF35,35,Legion LG-5,AF,MS GSD Off-Nadir Min (m),1.2,>= 1.36,computed,,off-nadir GSD cannot be finer than nadir 1.36 m
+38,2026-11-02,public_check_2026-11-02,AF36,36,Legion LG-6,AF,MS GSD Off-Nadir Min (m),1.2,>= 1.36,computed,,off-nadir GSD cannot be finer than nadir 1.36 m
+39,2026-11-02,public_check_2026-11-02,CI40,40,WorldView WV-3,CI,Total Bands (MS),20,17,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-vantor/,pan + 8 MS + 8 SWIR; CAVIS (12 bands) is a separate instrument
+40,2026-11-02,public_check_2026-11-02,CJ40,40,WorldView WV-3,CJ,Total Bands,29,17,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-vantor/,29 only if the 12 CAVIS bands count; say which in Notes
+41,2026-11-02,public_check_2026-11-02,AH40,40,WorldView WV-3,AH,"Geolocation Accuracy (CE90, m)",3,<3.5,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-vantor/,predicted <3.5 m CE90 without ground control
+42,2026-11-02,public_check_2026-11-02,CI39,39,WorldView WV-2,CI,Total Bands (MS),8,9,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-vantor/,pan + 8 MS
+43,2026-11-02,public_check_2026-11-02,AH39,39,WorldView WV-2,AH,"Geolocation Accuracy (CE90, m)",4,<3.5,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-vantor/,demonstrated <3.5 m CE90 without ground control
+44,2026-11-02,public_check_2026-11-02,AH41,41,WorldView WV-4,AH,"Geolocation Accuracy (CE90, m)",3,<3.5,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-vantor/,demonstrated <3.5 m CE90 without ground control
+45,2026-11-02,public_check_2026-11-02,Z37,37,QuickBird QB-2,Z,Pan GSD Nadir (m),0.65,0.55,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-vantor/,QuickBird GSD changed with orbit raising; 0.61 m at the original 450 km
+46,2026-11-02,public_check_2026-11-02,AA37,37,QuickBird QB-2,AA,MS GSD Nadir (m),2.62,2.16,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-vantor/,2.44 m at the original 450 km
+47,2026-11-02,public_check_2026-11-02,AH37,37,QuickBird QB-2,AH,"Geolocation Accuracy (CE90, m)",4,23,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-vantor/,23 m CE90 without ground control
+48,2026-11-02,public_check_2026-11-02,AA30,30,IKONOS OSA,AA,MS GSD Nadir (m),3.28,3.2,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-vantor/,
+49,2026-11-02,public_check_2026-11-02,AA50,50,PlanetScope SuperDove,AA,MS GSD Nadir (m),3,3.7,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-planet/,3.7 m approximate (sun-synchronous Doves)
+50,2026-11-02,public_check_2026-11-02,Q50,50,PlanetScope SuperDove,Q,Swath Width (km),20,32.5,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-planet/,frame ~32.5 x 19.6 km; check which side is cross-track
+51,2026-11-02,public_check_2026-11-02,N50,50,PlanetScope SuperDove,N,Orbit Altitude (km),475,475-525,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-planet/,
+52,2026-11-02,public_check_2026-11-02,AA47,47,PlanetScope Dove-R,AA,MS GSD Nadir (m),3,3.7,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-planet/,
+53,2026-11-02,public_check_2026-11-02,Q47,47,PlanetScope Dove-R,Q,Swath Width (km),16,24,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-planet/,frame ~24 x 16 km
+54,2026-11-02,public_check_2026-11-02,Q46,46,PlanetScope Dove-Classic,Q,Swath Width (km),8,24,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-planet/,frame ~24 x 8 km
+55,2026-11-02,public_check_2026-11-02,L43,43,SkySat A/B,L,Weight Range (kg),100,110,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-planet/,
+56,2026-11-02,public_check_2026-11-02,AH43,43,SkySat A/B,AH,"Geolocation Accuracy (CE90, m)",5,30 (knowledge),CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-planet/,"page gives ""geolocation knowledge 30 m CE90 at 500 km""; sheet has 5"
+57,2026-11-02,public_check_2026-11-02,AA44,44,SkySat C1,AA,MS GSD Nadir (m),0.8,1.0,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-planet/,"SkySat-3 to -13: pan 0.72 m, MS 1.0 m"
+58,2026-11-02,public_check_2026-11-02,L44,44,SkySat C1,L,Weight Range (kg),100,110,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-planet/,
+59,2026-11-02,public_check_2026-11-02,CI44,44,SkySat C1,CI,Total Bands (MS),(empty),5,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-planet/,4 MS + pan
+60,2026-11-02,public_check_2026-11-02,CJ44,44,SkySat C1,CJ,Total Bands,(empty),5,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-planet/,
+61,2026-11-02,public_check_2026-11-02,Z45,45,SkySat C2,Z,Pan GSD Nadir (m),0.72,0.57,agency page,https://dragon3.esa.int/eogateway/missions/skysat,"SkySat-16 to -21 (C2 block): pan 0.57 m, MS 0.75 m, swath 5.5 km"
+62,2026-11-02,public_check_2026-11-02,L45,45,SkySat C2,L,Weight Range (kg),100,110,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-planet/,
+63,2026-11-02,public_check_2026-11-02,CI45,45,SkySat C2,CI,Total Bands (MS),(empty),5,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-planet/,4 MS + pan
+64,2026-11-02,public_check_2026-11-02,CJ45,45,SkySat C2,CJ,Total Bands,(empty),5,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-planet/,
+65,2026-11-02,public_check_2026-11-02,AA42,42,RapidEye 1-5,AA,MS GSD Nadir (m),5,6.5,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-planet/,page table 6.5 m; its intro says ~5 m (resampled product)
+66,2026-11-02,public_check_2026-11-02,Z48,48,Pelican Gen 1,Z,Pan GSD Nadir (m),0.3,0.5,vendor page,https://planet.com/constellations/pelican,"Gen 1: 50 cm, 8 km swath"
+67,2026-11-02,public_check_2026-11-02,CI48,48,Pelican Gen 1,CI,Total Bands (MS),(empty),7,vendor page,https://planet.com/constellations/pelican,"6 MS (blue, green, red, red edge, NIR wide, NIR narrow) + pan"
+68,2026-11-02,public_check_2026-11-02,CI49,49,Pelican Gen 2,CI,Total Bands (MS),(empty),7,vendor page,https://planet.com/constellations/pelican,"Gen 2 listed as planned (30 cm, 6 km) on Planet's page; check status vs the 2025 launch"
+69,2026-11-02,public_check_2026-11-02,CI8,8,Global Gen 1,CI,Total Bands (MS),3,4,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-blacksky/,"pan + red, green, blue"
+70,2026-11-02,public_check_2026-11-02,CI9,9,Global Gen 2,CI,Total Bands (MS),3,4,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-blacksky/,"pan + red, green, blue"
+71,2026-11-02,public_check_2026-11-02,AH8,8,Global Gen 1,AH,"Geolocation Accuracy (CE90, m)",5,<10,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-blacksky/,"""less than 10 m CE90 globally"""
+72,2026-11-02,public_check_2026-11-02,AH9,9,Global Gen 2,AH,"Geolocation Accuracy (CE90, m)",5,<10,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-blacksky/,"""less than 10 m CE90 globally"""
+73,2026-11-02,public_check_2026-11-02,AA54,54,NewSat Mark IV,AA,MS GSD Nadir (m),0.7,0.99,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-satellogic/,Mark-IV L1 Ortho 99 cm (native); 0.7 m is Mark-V
+74,2026-11-02,public_check_2026-11-02,AA55,55,NewSat Mark V,AA,MS GSD Nadir (m),0.73,0.70,vendor page,https://satellogic.com/2024/03/20/newsat-mark-v-satellite-enhancements-overview/,"native 70 cm, 6.5 km swath"
+75,2026-11-02,public_check_2026-11-02,CJ54,54,NewSat Mark IV,CJ,Total Bands,5,4,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-satellogic/,"RGB + NIR, no pan (Mark-IV also carries a 29-band, 25 m hyperspectral camera: record separately)"
+76,2026-11-02,public_check_2026-11-02,CJ55,55,NewSat Mark V,CJ,Total Bands,5,4,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-satellogic/,"RGB + NIR, no pan (Mark-IV also carries a 29-band, 25 m hyperspectral camera: record separately)"
+77,2026-11-02,public_check_2026-11-02,J22,22,HydroSat VanZyl-1,J,Mission Status,(empty),Operational,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-hydrosat/,
+78,2026-11-02,public_check_2026-11-02,J23,23,HydroSat VanZyl-2,J,Mission Status,(empty),Operational,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-hydrosat/,
+79,2026-11-02,public_check_2026-11-02,CI22,22,HydroSat VanZyl-1,CI,Total Bands (MS),(empty),7,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-hydrosat/,"7 VNIR (blue to NIR incl. 3 red edge), no pan"
+80,2026-11-02,public_check_2026-11-02,CI23,23,HydroSat VanZyl-2,CI,Total Bands (MS),(empty),7,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-hydrosat/,"7 VNIR (blue to NIR incl. 3 red edge), no pan"
+81,2026-11-02,public_check_2026-11-02,CJ22,22,HydroSat VanZyl-1,CJ,Total Bands,(empty),9,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-hydrosat/,7 VNIR + 2 LWIR
+82,2026-11-02,public_check_2026-11-02,CJ23,23,HydroSat VanZyl-2,CJ,Total Bands,(empty),9,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-hydrosat/,7 VNIR + 2 LWIR
+83,2026-11-02,public_check_2026-11-02,N22,22,HydroSat VanZyl-1,N,Orbit Altitude (km),500,500-600,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-hydrosat/,
+84,2026-11-02,public_check_2026-11-02,N23,23,HydroSat VanZyl-2,N,Orbit Altitude (km),552,500-600,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-hydrosat/,
+85,2026-11-02,public_check_2026-11-02,Z71,71,FOREST SAFIRE-2,Z,Pan GSD Nadir (m),0.75,(empty),CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-ororatech/,thermal only: no pan or MS bands
+86,2026-11-02,public_check_2026-11-02,AA71,71,FOREST SAFIRE-2,AA,MS GSD Nadir (m),3,(empty),CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-ororatech/,
+87,2026-11-02,public_check_2026-11-02,AC71,71,FOREST SAFIRE-2,AC,TIR GSD Nadir (m),(empty),200,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-ororatech/,"design 200 / 210 m, threshold 250 m"
+88,2026-11-02,public_check_2026-11-02,Q71,71,FOREST SAFIRE-2,Q,Swath Width (km),12,420,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-ororatech/,2 SAFIRE instruments x 210 km (design; threshold 170 km each)
+89,2026-11-02,public_check_2026-11-02,N71,71,FOREST SAFIRE-2,N,Orbit Altitude (km),515,525-550,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-ororatech/,
+90,2026-11-02,public_check_2026-11-02,V71,71,FOREST SAFIRE-2,V,n satellites,39,9,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-ororatech/,F002 (1) + OTC-P1 (8) operational; 100-200 planned
+91,2026-11-02,public_check_2026-11-02,CJ71,71,FOREST SAFIRE-2,CJ,Total Bands,(empty),2,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-ororatech/,"MWIR 3.4-4.2 um, LWIR 10.4-12.5 um"
+92,2026-11-02,public_check_2026-11-02,AH71,71,FOREST SAFIRE-2,AH,"Geolocation Accuracy (CE90, m)",7,(empty),CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-ororatech/,"CE90, agility, stereo, bit depth, SNR not on the page; current values look copied from an optical row"
+93,2026-11-02,public_check_2026-11-02,B82,82,GHOSt-3,B,Constellation/Platform,(empty),GHOSt,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-orbital-sidekick/,
+94,2026-11-02,public_check_2026-11-02,B83,83,GHOSt-4,B,Constellation/Platform,(empty),GHOSt,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-orbital-sidekick/,
+95,2026-11-02,public_check_2026-11-02,B84,84,GHOSt-5,B,Constellation/Platform,(empty),GHOSt,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-orbital-sidekick/,
+96,2026-11-02,public_check_2026-11-02,B85,85,GHOSt-6,B,Constellation/Platform,(empty),GHOSt,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-orbital-sidekick/,
+97,2026-11-02,public_check_2026-11-02,AA82,82,GHOSt-3,AA,MS GSD Nadir (m),(empty),8.3,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-orbital-sidekick/,"hyperspectral, native ~8.3 m; delivered at 10 m (NOAA license)"
+98,2026-11-02,public_check_2026-11-02,AA83,83,GHOSt-4,AA,MS GSD Nadir (m),(empty),8.3,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-orbital-sidekick/,"hyperspectral, native ~8.3 m; delivered at 10 m (NOAA license)"
+99,2026-11-02,public_check_2026-11-02,AA84,84,GHOSt-5,AA,MS GSD Nadir (m),(empty),8.3,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-orbital-sidekick/,"hyperspectral, native ~8.3 m; delivered at 10 m (NOAA license)"
+100,2026-11-02,public_check_2026-11-02,Q82,82,GHOSt-3,Q,Swath Width (km),4.4,4.3,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-orbital-sidekick/,minimum collection ~4.3 x 12 km
+101,2026-11-02,public_check_2026-11-02,Q83,83,GHOSt-4,Q,Swath Width (km),4.4,4.3,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-orbital-sidekick/,minimum collection ~4.3 x 12 km
+102,2026-11-02,public_check_2026-11-02,Q84,84,GHOSt-5,Q,Swath Width (km),4.4,4.3,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-orbital-sidekick/,minimum collection ~4.3 x 12 km
+103,2026-11-02,public_check_2026-11-02,AH82,82,GHOSt-3,AH,"Geolocation Accuracy (CE90, m)",(empty),<20,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-orbital-sidekick/,post-geocorrection; not stated as CE90
+104,2026-11-02,public_check_2026-11-02,AH83,83,GHOSt-4,AH,"Geolocation Accuracy (CE90, m)",(empty),<20,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-orbital-sidekick/,post-geocorrection; not stated as CE90
+105,2026-11-02,public_check_2026-11-02,AH84,84,GHOSt-5,AH,"Geolocation Accuracy (CE90, m)",(empty),<20,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-orbital-sidekick/,post-geocorrection; not stated as CE90
+106,2026-11-02,public_check_2026-11-02,AJ82,82,GHOSt-3,AJ,"Agility (off-nadir, ± degrees )",(empty),25,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-orbital-sidekick/,
+107,2026-11-02,public_check_2026-11-02,AJ83,83,GHOSt-4,AJ,"Agility (off-nadir, ± degrees )",(empty),25,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-orbital-sidekick/,
+108,2026-11-02,public_check_2026-11-02,AJ84,84,GHOSt-5,AJ,"Agility (off-nadir, ± degrees )",(empty),25,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-orbital-sidekick/,
+109,2026-11-02,public_check_2026-11-02,CJ82,82,GHOSt-3,CJ,Total Bands,(empty),472,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-orbital-sidekick/,"400-2500 nm, ~10 nm FWHM"
+110,2026-11-02,public_check_2026-11-02,CJ83,83,GHOSt-4,CJ,Total Bands,(empty),472,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-orbital-sidekick/,"400-2500 nm, ~10 nm FWHM"
+111,2026-11-02,public_check_2026-11-02,CJ84,84,GHOSt-5,CJ,Total Bands,(empty),472,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-orbital-sidekick/,"400-2500 nm, ~10 nm FWHM"
+112,2026-11-02,public_check_2026-11-02,B80,80,Hyperfield-1A,B,Constellation/Platform,(empty),Hyperfield,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-kuva-space/,
+113,2026-11-02,public_check_2026-11-02,B81,81,Hyperfield-1B,B,Constellation/Platform,(empty),Hyperfield,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-kuva-space/,
+114,2026-11-02,public_check_2026-11-02,C81,81,Hyperfield-1B,C,Launch Date,2024-08-16,2025-06-23,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-kuva-space/,"HF-1A 2024-08-16, HF-1B 2025-06-23"
+115,2026-11-02,public_check_2026-11-02,Q80,80,Hyperfield-1A,Q,Swath Width (km),50,52,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-kuva-space/,
+116,2026-11-02,public_check_2026-11-02,Q81,81,Hyperfield-1B,Q,Swath Width (km),50,52,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-kuva-space/,
+117,2026-11-02,public_check_2026-11-02,CI80,80,Hyperfield-1A,CI,Total Bands (MS),(empty),22,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-kuva-space/,"22 VNIR bands routinely (configurable to 60), 475-880 nm"
+118,2026-11-02,public_check_2026-11-02,CI81,81,Hyperfield-1B,CI,Total Bands (MS),(empty),22,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-kuva-space/,"22 VNIR bands routinely (configurable to 60), 475-880 nm"
+119,2026-11-02,public_check_2026-11-02,AA74,74,GEISAT GEISAT-P,AA,MS GSD Nadir (m),7,2.0,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-satlantis/,"iSIM 90: pan 2.0 m, VNIR 2.0 m, SWIR 7.0 m; swath 13 km (SWIR 8.3 km)"
+120,2026-11-02,public_check_2026-11-02,AB74,74,GEISAT GEISAT-P,AB,SWIR GSD Nadir (m),(empty),7.0,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-satlantis/,
+121,2026-11-02,public_check_2026-11-02,AC74,74,GEISAT GEISAT-P,AC,TIR GSD Nadir (m),2,(empty),CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-satlantis/,no TIR on the page
+122,2026-11-02,public_check_2026-11-02,CI74,74,GEISAT GEISAT-P,CI,Total Bands (MS),965,5,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-satlantis/,pan + 4 VNIR
+123,2026-11-02,public_check_2026-11-02,CJ74,74,GEISAT GEISAT-P,CJ,Total Bands,1551,10,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-satlantis/,pan + 4 VNIR + 5 SWIR
+124,2026-11-02,public_check_2026-11-02,AJ73,73,GEISAT HORACIO,AJ,"Agility (off-nadir, ± degrees )",45,30,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-satlantis/,"±30 nominal, ±45 emergency; cells from AH on look shifted"
+125,2026-11-02,public_check_2026-11-02,AJ74,74,GEISAT GEISAT-P,AJ,"Agility (off-nadir, ± degrees )",Yes,30,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-satlantis/,"±30 nominal, ±45 emergency; cells from AH on look shifted"
+126,2026-11-02,public_check_2026-11-02,Z77,77,ImageSat EROS-C2,Z,Pan GSD Nadir (m),(empty),0.43,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-imagesat/,
+127,2026-11-02,public_check_2026-11-02,Z78,78,ImageSat EROS-C3,Z,Pan GSD Nadir (m),(empty),0.43,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-imagesat/,
+128,2026-11-02,public_check_2026-11-02,AA78,78,ImageSat EROS-C3,AA,MS GSD Nadir (m),(empty),0.86,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-imagesat/,
+129,2026-11-02,public_check_2026-11-02,Q77,77,ImageSat EROS-C2,Q,Swath Width (km),13.5,12.5,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-imagesat/,
+130,2026-11-02,public_check_2026-11-02,Q78,78,ImageSat EROS-C3,Q,Swath Width (km),13.5,12.5,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-imagesat/,
+131,2026-11-02,public_check_2026-11-02,M77,77,ImageSat EROS-C2,M,Orbit Type,mid-inclination LEO,Mid-inclination LEO,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-imagesat/,
+132,2026-11-02,public_check_2026-11-02,M78,78,ImageSat EROS-C3,M,Orbit Type,mid-inclination LEO,Mid-inclination LEO,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-imagesat/,
+133,2026-11-02,public_check_2026-11-02,CI78,78,ImageSat EROS-C3,CI,Total Bands (MS),(empty),5,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-imagesat/,4 MS + pan
+134,2026-11-02,public_check_2026-11-02,C78,78,ImageSat EROS-C3,C,Launch Date,2022-12-01,2022-12-30,secondary,https://www.nasaspaceflight.com/2022/12/eros-c3-launch/,
+135,2026-11-02,public_check_2026-11-02,Z76,76,ImageSat EROS-B,Z,Pan GSD Nadir (m),(empty),0.50,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-imagesat/,eoPortal gives 0.7 m
+136,2026-11-02,public_check_2026-11-02,J76,76,ImageSat EROS-B,J,Mission Status,Operational,Retired,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-imagesat/,"CSDA page: ""2006 - Feb 2026 (historical archive)"""
+137,2026-11-02,public_check_2026-11-02,E75,75,ImageSat EROS-A,E,End Date,(empty),2016-12-01,computed,,the date in Start Date looks like the end date
+138,2026-11-02,public_check_2026-11-02,T61,61,Landsat 7 (ETM+),T,Scanner Type,Pushbroom,Whiskbroom,agency page,https://www.usgs.gov/landsat-missions/landsat-7,ETM+ is a whiskbroom scanner
+139,2026-11-02,public_check_2026-11-02,CI61,61,Landsat 7 (ETM+),CI,Total Bands (MS),(empty),7,definition (MS counts pan),,"6 reflective + pan, if TIR is not counted as MS (as for Landsat 5)"
+140,2026-11-02,public_check_2026-11-02,CJ61,61,Landsat 7 (ETM+),CJ,Total Bands,(empty),8,agency page,https://www.usgs.gov/landsat-missions/landsat-7,6 reflective + 1 TIR + pan
