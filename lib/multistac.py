@@ -711,7 +711,7 @@ def overview(providers: Union[Dict[str, Optional[List[str]]], List[str]],
                                           **get_provider(job[0]).overview(job[1])}, jobs))
     df = pd.DataFrame(rows)
     for col in ("first", "last"):
-        df[col] = pd.to_datetime(df[col], utc=True, errors="coerce").dt.date
+        df[col] = _to_utc(df[col]).dt.date
     # Display string, e.g. "6,846,674"; "n/a" where the API reports no count
     df["total"] = [f"{int(t):,}" if pd.notna(t) else "n/a" for t in df["total"]]
     cols = ["provider", "collection", "title", "first", "last", "total", "dates_from"]
@@ -784,7 +784,7 @@ def month_table(gdf: pd.DataFrame, by: Union[str, List[str]] = ("provider", "col
         table.attrs["count"] = count
         return table
     g = gdf.copy()
-    g["datetime"] = pd.to_datetime(g["datetime"], utc=True, errors="coerce")
+    g["datetime"] = _to_utc(g["datetime"])
     g = g.dropna(subset=["datetime"])
     if unique_items or count == "acquisitions":
         g = unique_rows(g, count, per=by)
@@ -990,6 +990,14 @@ def _as_list(value) -> list:
     if isinstance(value, (list, tuple, set)):
         return list(value)
     return [value]
+
+
+def _to_utc(values):
+    """ISO datetimes -> UTC, NaT where unparseable. pandas >= 2 otherwise takes one
+    format from the first value, so '...T04:35:47Z' after '...T04:35:47.100Z'
+    (CSDA STAC has both) silently becomes NaT under errors="coerce"."""
+    iso = {"format": "ISO8601"} if int(pd.__version__.split(".")[0]) >= 2 else {}
+    return pd.to_datetime(values, utc=True, errors="coerce", **iso)
 
 
 # --------------------------------------------------------------------------
@@ -1219,7 +1227,7 @@ def _pass_acquisitions(df: pd.DataFrame) -> pd.Series:
         rule = get_provider(name)._rule_for("acquisition_id", coll)
         if not (isinstance(rule, dict) and rule.get("pass_seconds")):
             continue
-        sub = df.loc[idx, ["sensor", "datetime"]].assign(t=lambda d: pd.to_datetime(d["datetime"], utc=True, errors="coerce"))
+        sub = df.loc[idx, ["sensor", "datetime"]].assign(t=lambda d: _to_utc(d["datetime"]))
         for sensor, s in sub.dropna(subset=["t"]).sort_values("t").groupby("sensor", dropna=False):
             passes = (s["t"].diff().dt.total_seconds() > rule["pass_seconds"]).cumsum()
             start = s["t"].groupby(passes).transform("min")
@@ -1527,7 +1535,7 @@ def search(sites, start: str, end: str,
             df[col] = None
     for col in NUMERIC_COLUMNS:
         df[col] = pd.to_numeric(df[col], errors="coerce")
-    df["datetime"] = pd.to_datetime(df["datetime"], utc=True, errors="coerce")
+    df["datetime"] = _to_utc(df["datetime"])
     # Vendors are inconsistent (CSDA Satellogic has both "L1D" and "l1d")
     df["processing_level"] = df["processing_level"].map(lambda v: v.upper() if isinstance(v, str) else v)
     df = df.drop_duplicates(subset=["provider", "id", "site_name"])

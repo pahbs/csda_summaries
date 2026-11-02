@@ -20,6 +20,17 @@
 #   `sensor` lists raw satellite identifiers; they are resolved to
 #   affiliation / constellation / sensor via sensor_catalog.yaml.
 # collection_fields: per-collection overrides of `fields` (same format).
+# spectral_mode: what an item holds, per collection (`default` for all), so
+#   pan, multispectral and pansharpened products of one acquisition are not
+#   mixed. Values: pan, ms, pansharpened, pan+ms (one item with both), swir,
+#   hyperspectral, tir, ms+tir, sar, dem, microwave, radio-occultation.
+#   A rule is a fixed value, {from: <property|id|collection>, map: {regex: value}}
+#   (first regex that matches wins), or {assets: {value: regex}} (every value
+#   with a matching asset key, joined with "+"; global searches then keep assets).
+# acquisition_id: groups the items of one acquisition (e.g. a PAN and an MS
+#   product): {from: <property|id>, pattern: regex with one group}, or
+#   {pass_seconds: N}: products of one sensor less than N s apart (one pass).
+#   Default: id.
 # cloud_cover_scale: {collection: factor} turning the vendor's cloud cover into percent (e.g. 100 for a
 #   0-1 fraction); default 1.
 # filter_mode: how generic filters (cloud_cover_max) are sent to the server:
@@ -97,6 +108,40 @@ csda:
                     '90-ghgsat:los_zenith_deg', '90-desis_specific_sceneIncidenceAngle']
     # Key shared with the vendor's own API, for flagging CSDA holdings
     vendor_item_id: [satl:outcome_id, id]
+  spectral_mode:
+    # Airbus codes: P/PAN, MS, MS-N, MS-X, MS-FS (full spectrum), PMS* (pansharpened)
+    airbus-optical: {from: 'airbus-optical:spectral_processing',
+                     map: {'^PMS': pansharpened, '^(P|PAN)$': pan, '^MS': ms}}
+    maxar-legion: {from: 'csda:item_type', map: {'^PAN$': pan, '^MUL$': ms, '^PSH$': pansharpened}}
+    # One BlackSky item holds the pan band and/or the colour image as separate assets
+    blacksky: {assets: {pan: '_pan_(tif|ntf)$', ms: '^(?!.*(_pan_|mask)).*_(tif|ntf)$'}}
+    satellogic: ms
+    planet: ms
+    hydrosat: {from: instruments, map: {'liri.*viri|viri.*liri': ms+tir, 'liri': tir, 'viri': ms}}
+    ororatech: tir
+    desis: hyperspectral
+    pixxel: hyperspectral
+    kuvaspace: hyperspectral
+    ghgsat: hyperspectral
+    umbra: sar
+    iceye: sar
+    capellaspace: sar
+    airbus: sar
+    mda: sar
+    airbus-dem: dem
+    maxar-sdx: dem
+    pgc-earthdem: dem
+    tomorrow: microwave
+    spire: radio-occultation
+    planetiq: radio-occultation
+    geooptics: radio-occultation
+  acquisition_id:
+    # Pan and MS of one collect can come in different orders (no catalog ID in CSDA's Legion
+    # items), so one acquisition = one satellite pass: same sensor, products within 120 s
+    maxar-legion: {pass_seconds: 120}
+    airbus-optical: {from: id, pattern: '^([A-Z0-9]+_\d{15})_'}      # PNEO4_202201170911126
+    blacksky: {from: id, pattern: '^(BSG-.*?\d{8}-\d{6}-\d+)-'}    # BSG-104-20200116-135937-791866
+    satellogic: {from: 'satl:outcome_id'}
   collection_fields:
     airbus-optical:
       product_type: [airbus-optical:spectral_processing]
@@ -138,6 +183,8 @@ satellogic:
   filter_mode: filter
   default_collections: [quickview-visual]
   affiliation: {default: Satellogic}
+  spectral_mode: {default: ms}
+  acquisition_id: {default: {from: 'satl:outcome_id'}}
   fields:
     cloud_cover: [eo:cloud_cover]
     processing_level: [processing:level, satl:product_name]
@@ -183,6 +230,13 @@ csda-cmr:
     WV04_MSI_L1B, WV04_Pan_L1B,
     PSScene3Band]
   affiliation: {default: Vantor, PSScene3Band: Planet}
+  spectral_mode:
+    default: {from: collection, map: {'_Pan_': pan, '_MSI_': ms, '_SWIR_': swir}}
+    PSScene3Band: ms
+  # The Maxar catalog ID is shared by the pan and MS products of one strip
+  acquisition_id:
+    default: {from: 'maxar:catalog_id'}
+    PSScene3Band: {from: 'planet:item_id'}
   # CMR CloudCover is a 0-1 fraction for the Maxar collections (negative =
   # unknown) and percent for PlanetScope; multiplied to percent on output.
   cloud_cover_scale: {default: 100, PSScene3Band: 1}
