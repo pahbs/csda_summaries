@@ -486,7 +486,8 @@ def plot_density_maps(gdf: pd.DataFrame, facet_by=None, max_facets: int = 8, nco
 
     One map per `facet_by` value(s), e.g. "affiliation" or "constellation".
     Extra kwargs go to staclib.plot_stac_acquisition_density (bin_method,
-    gridsize, cmap, vmax, ...). `sites`: optional GeoDataFrame to annotate
+    gridsize, cmap, vmax, ...). All panels share one color scale (vmax from
+    the densest panel unless given). `sites`: optional GeoDataFrame to annotate
     (column 'Site Name' or pass site_name_col=). Returns fig.
     """
     import staclib
@@ -501,6 +502,11 @@ def plot_density_maps(gdf: pd.DataFrame, facet_by=None, max_facets: int = 8, nco
     axes = axes.ravel()
     kwargs.setdefault("show_sites", sites is not None)
     kwargs.setdefault("count_label", count.capitalize())
+    # One color scale for every panel, so a color means the same count everywhere
+    if kwargs.get("vmax") is None:
+        kwargs["vmax"] = max(staclib.density_vmax(sub[sub.geometry.notna()], **{
+            k: kwargs[k] for k in ("bin_method", "gridsize", "projection_crs", "lon_col", "lat_col") if k in kwargs})
+            for _, sub in facets)
     for ax, (label, sub) in zip(axes, facets):
         sub = sub[sub.geometry.notna()]
         staclib.plot_stac_acquisition_density(sub, sites_gdf=sites, ax=ax,
@@ -528,35 +534,37 @@ COLUMN_LABELS = {"cloud_cover": "Cloud cover (%)", "gsd": "GSD (m)", "off_nadir"
                  "incidence_angle": "Incidence (°)"}
 
 
-def plot_distributions(gdf: pd.DataFrame, by: str = "constellation",
+def plot_distributions(gdf: pd.DataFrame, by="constellation",
                        columns: Optional[List[str]] = None, max_groups: int = 20,
                        title: Optional[str] = None, count: str = "products"):
     """Box plots of product or acquisition properties (columns) for each group (`by`).
 
-    One panel per column, groups as rows (largest first), with n per group.
+    by : one column or a list, e.g. "constellation" or ["site_name",
+        "constellation"] (rows labeled "WLEF · Legion"), as facet_by in
+        plot_skyplot / plot_density_maps.
+    One panel per column, groups as rows (largest first, at most max_groups;
+    the title says how many were left out), with n per group.
     count : "products" (default; GSD differs between the pan and MS products
         of one acquisition) or "acquisitions" (one row per acquisition_id,
         e.g. for cloud and angles). Each is counted once, or once per site
-        when `by` is site_name / site_group.
+        when `by` includes site_name / site_group.
     Shows the inherent variation (cloud, GSD, view and sun angles) across
     vendors, constellations or sensors. Returns fig.
     """
     columns = columns or DEFAULT_DISTRIBUTION_COLUMNS
     df = _unique(gdf, count, by).copy()
-    df[by] = df[by].fillna("unknown").astype(str)
-    if by == "provider":
-        names = multistac.display_names()
-        df[by] = df[by].map(lambda p: names.get(p, p))
     for c in columns:
         df[c] = pd.to_numeric(df.get(c), errors="coerce")
     columns = [c for c in columns if df[c].notna().any()]
     if not columns:
         raise ValueError("None of the columns have values")
-    groups = list(df[by].value_counts().index[:max_groups])[::-1]
+    facets, hidden = _facets(df, by, max_groups)         # largest first
+    facets = facets[::-1]                                 # largest at the top of the plot
+    groups = [label for label, _ in facets]
     fig, axes = plt.subplots(1, len(columns), figsize=(2.6 * len(columns) + 2.2, 0.32 * len(groups) + 1.6),
                              sharey=True, facecolor=SURFACE, squeeze=False)
     for ax, col in zip(axes[0], columns):
-        data = [df.loc[df[by] == g, col].dropna().to_numpy() for g in groups]
+        data = [sub[col].dropna().to_numpy() for _, sub in facets]
         pos = [i for i, d in enumerate(data) if len(d)]
         bp = ax.boxplot([data[i] for i in pos], positions=pos, vert=False, widths=0.55, patch_artist=True,
                         showfliers=False, medianprops=dict(color=INK, linewidth=1.2),
@@ -569,11 +577,12 @@ def plot_distributions(gdf: pd.DataFrame, by: str = "constellation",
         for spine in ax.spines.values():
             spine.set_visible(False)
     axes[0][0].set_yticks(range(len(groups)))
-    counts = df[by].value_counts()
-    axes[0][0].set_yticklabels([f"{g}  ({counts[g]:,})" for g in groups], fontsize=8.5, color=INK)
-    fig.suptitle((f"{title}  ·  n = {count}" if title else
-                  f"{count[:-1].capitalize()} properties by {by}, n = {count}  "
-                  "(box = middle 50%, line = median, whiskers = 1.5 IQR)"),
+    axes[0][0].set_yticklabels([f"{g}  ({len(sub):,})" for g, sub in facets], fontsize=8.5, color=INK)
+    by_txt = by if isinstance(by, str) else " × ".join(by)
+    more = f"  ·  {hidden} more groups not shown (max_groups={max_groups})" if hidden else ""
+    fig.suptitle((f"{title}  ·  n = {count}{more}" if title else
+                  f"{count[:-1].capitalize()} properties by {by_txt}, n = {count}  "
+                  f"(box = middle 50%, line = median, whiskers = 1.5 IQR){more}"),
                  x=0.01, ha="left", fontsize=11, color=INK)
     fig.tight_layout()
     return fig
