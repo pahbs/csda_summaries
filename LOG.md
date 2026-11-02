@@ -373,6 +373,9 @@ only if needed), never a separate search API.
   Chromium (Playwright installed in the session scratchpad): no JS errors in light or dark. Not linked from the
   timeline yet.
 - Static scatter (`plot_gsd_swath`) also draws the black pan ring.
+- Dashboard: **launch timeline** (one mark per sensor row: launch date vs orbit altitude; shape = orbit type
+  (sun-synchronous, mid-inclination / inclined, near-polar, not in sheet), size = satellite size class, color = sector,
+  open = planned, line to the end date or today; labels = constellation group). Year-only launch dates are placed mid-year.
 
 ### 2026-11-02 · Vendor Specs database: QA, update loop, constellation comparison (`csda_specs_compare.ipynb`)
 - Sheet `13MrpqFt...` tab *Vendor Specs* (gid 1094438485), read live; 84 sensor rows. `lib/vendor_specs.py`: `load`,
