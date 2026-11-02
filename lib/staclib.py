@@ -832,6 +832,48 @@ def create_interactive_heatmap(gdf, collection_name=None, grid_size=0.1,
 eckert_vi_crs  = '+proj=eck6  +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs'
 robinson_crs   = '+proj=robin +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs'
 
+_WORLD_CACHE = {}
+
+def _get_world(projection_crs):
+    if projection_crs not in _WORLD_CACHE:
+        try:
+            world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
+        except AttributeError:          # geopandas >= 1.0 removed gpd.datasets
+            world = gpd.read_file(
+                'https://naciscdn.org/naturalearth/110m/cultural/'
+                'ne_110m_admin_0_countries.zip')
+        _WORLD_CACHE[projection_crs] = world.to_crs(projection_crs)
+    return _WORLD_CACHE[projection_crs]
+    
+def density_vmax(stac_gdf, bin_method='hexbin', gridsize=50, projection_crs=robinson_crs,
+                 lon_col='longitude', lat_col='latitude'):
+    """Top of the density color scale for plot_stac_acquisition_density: the
+    99th percentile of the non-empty cell counts (at least 2). Compute it over
+    all rows of several maps and pass it as vmax to give them one scale."""
+    import numpy as np
+    from pyproj import Transformer
+    if len(stac_gdf) == 0:
+        return 2
+    if bin_method == 'hexbin':
+        gdf = stac_gdf if stac_gdf.crs is not None else stac_gdf.set_crs('EPSG:4326')
+        pts = gdf.to_crs(projection_crs).geometry.centroid
+        # bounds of the whole projected globe, as the hex grid uses
+        t = Transformer.from_crs('EPSG:4326', projection_crs, always_xy=True)
+        xs, _ = t.transform([-180, 180], [0, 0])
+        _, ys = t.transform([0, 0], [-90, 90])
+        w = stac_gdf['weight'].fillna(1.0).to_numpy() if 'weight' in stac_gdf.columns else None
+        counts = np.histogram2d(pts.x.values, pts.y.values, bins=gridsize,
+                                range=[[min(xs), max(xs)], [min(ys), max(ys)]], weights=w)[0]
+        return max(2, int(np.percentile(counts[counts > 0], 99)) + 1)
+    if lon_col in stac_gdf.columns and lat_col in stac_gdf.columns:
+        lons, lats = stac_gdf[lon_col].values, stac_gdf[lat_col].values
+    else:
+        c = stac_gdf.to_crs('EPSG:4326').geometry.centroid
+        lons, lats = c.x.values, c.y.values
+    counts = np.histogram2d(lons, lats, bins=[np.arange(-180, 181, 1), np.arange(-90, 91, 1)])[0]
+    return max(2, float(np.quantile(counts[counts > 0], 0.99)))
+
+
 def plot_stac_acquisition_density(
     stac_gdf,
     sites_gdf        = None,
@@ -848,7 +890,11 @@ def plot_stac_acquisition_density(
     site_name_col    = 'Site Name',
     lon_col          = 'longitude',
     lat_col          = 'latitude',
-):
+    show_colorbar    = True,
+    count_label      = 'Acquisitions',   # what one point is, e.g. 'Products'
+    ax               = None
+    ):
+
     import geopandas as gpd
     import numpy as np
     import pandas as pd
@@ -906,7 +952,11 @@ def plot_stac_acquisition_density(
     n_pts = len(stac_gdf)
 
     # ── Figure and axes ───────────────────────────────────────────────────────
-    fig, ax = plt.subplots(figsize=figsize, facecolor='white')
+    standalone = ax is None
+    if standalone:
+        fig, ax = plt.subplots(figsize=figsize, facecolor='white')
+    else:
+        fig = ax.figure
     ax.set_aspect('equal')
     ax.axis('off')
 
@@ -919,14 +969,19 @@ def plot_stac_acquisition_density(
 
     # ── 3. Bin and plot acquisitions ──────────────────────────────────────────
     if bin_method == 'hexbin':
-        _vmax = vmax or max(2, int(np.percentile(
-            [v for v in np.histogram2d(x, y, bins=gridsize)[0].flatten() if v > 0],
-            99
-        )) + 1)
+        # Hex grid over the whole map, not the data extent: otherwise points at one
+        # site get hexes a few hundred metres wide, invisible on a global map
+        xmin, ymin, xmax, ymax = proj_boundary.bounds
+        # Sampled (multistac global) rows stand for `weight` acquisitions each
+        w = stac_gdf['weight'].fillna(1.0).to_numpy() if 'weight' in stac_gdf.columns else None
+        _vmax = vmax or density_vmax(stac_gdf, 'hexbin', gridsize, projection_crs)
 
         hb = ax.hexbin(
             x, y,
+            C          = w,
+            reduce_C_function = np.sum,
             gridsize   = gridsize,
+            extent     = (xmin, xmax, ymin, ymax),
             cmap       = cmap,
             mincnt     = 1,
             norm       = LogNorm(vmin=vmin, vmax=_vmax),
@@ -935,7 +990,7 @@ def plot_stac_acquisition_density(
             zorder     = 2
         )
         mappable   = hb
-        cbar_label = 'Acquisitions per cell (log scale)'
+        cbar_label = f'{count_label} per cell (log scale)'
 
     elif bin_method == 'grid':
         if lon_col in stac_gdf.columns and lat_col in stac_gdf.columns:
@@ -972,7 +1027,7 @@ def plot_stac_acquisition_density(
             crs = 'EPSG:4326'
         ).to_crs(projection_crs)
 
-        _vmax  = vmax or cells['count'].quantile(0.99)
+        _vmax  = vmax or density_vmax(stac_gdf, 'grid', lon_col=lon_col, lat_col=lat_col)
         norm   = LogNorm(vmin=vmin, vmax=_vmax)
         sm     = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
         sm.set_array([])
@@ -990,7 +1045,7 @@ def plot_stac_acquisition_density(
             linewidths = 0
         )
         mappable   = sm
-        cbar_label = 'Acquisitions per 1° cell (log scale)'
+        cbar_label = f'{count_label} per 1° cell (log scale)'
 
     # ── 4. Projection boundary outline (on top of everything) ─────────────────
     proj_boundary_gdf.plot(ax=ax, facecolor='none', edgecolor='black',
@@ -1028,34 +1083,38 @@ def plot_stac_acquisition_density(
                 bbox              = dict(boxstyle='round', facecolor='white',
                                          alpha=0.85, edgecolor='#aaaaaa'))
 
-    # ── 7. Horizontal colorbar at bottom ──────────────────────────────────────
-    cbar = fig.colorbar(
-        mappable,
-        ax          = ax,
-        orientation = 'horizontal',
-        location    = 'bottom',          # <-- move to top
-        fraction    = 0.025,
-        pad         = 0.02,
-        shrink      = 0.45,
-        aspect      = 35
-    )
-    cbar.set_label(cbar_label, fontweight='bold', fontsize=9)
-    cbar.ax.tick_params(labelsize=7)
+    # ── 7. Colorbar ───────────────────────────────────────────────────────────
+    if show_colorbar:
+        cbar = fig.colorbar(
+            mappable, ax=ax, orientation='horizontal', location='bottom',
+            fraction=0.025, pad=0.02, shrink=0.45, aspect=35)
+        cbar.set_label(cbar_label, fontweight='bold', fontsize=9)
+        # Plain whole numbers at 1-2-5 steps: matplotlib's log axis otherwise switches between
+        # 10^n labels and overlapping minor labels (2x10^0, 3x10^0) depending on the range
+        from matplotlib.ticker import FixedLocator, FuncFormatter, NullFormatter
+        lo, hi = mappable.norm.vmin, mappable.norm.vmax
+        steps = [m * 10 ** e for e in range(0, 9) for m in (1, 2, 5)]
+        ticks = [t for t in steps if lo <= t <= hi]
+        if len(ticks) > 6:
+            ticks = [t for t in ticks if str(int(t))[0] in '15'] if len(ticks) <= 12 else [t for t in ticks if str(int(t))[0] == '1']
+        cbar.ax.xaxis.set_major_locator(FixedLocator(ticks))
+        cbar.ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f'{v:,.0f}'))
+        cbar.ax.xaxis.set_minor_formatter(NullFormatter())
+        cbar.ax.tick_params(labelsize=7)
 
     # ── 8. Title ──────────────────────────────────────────────────────────────
     _title = title or f'Global Acquisition Density  (n={n_pts:,})'
     ax.set_title(_title, fontsize=13, fontweight='bold', pad=12)
 
-    # ── 9. Clip axes to projection boundary so nothing bleeds outside ─────────
+    # ── 9. Clip axes to projection boundary ───────────────────────────────────
     xmin, ymin, xmax, ymax = proj_boundary.bounds
     pad = (xmax - xmin) * 0.01
     ax.set_xlim(xmin - pad, xmax + pad)
     ax.set_ylim(ymin - pad, ymax + pad)
 
-    plt.tight_layout()
-    plt.show()
-
-    return fig, ax
+    if standalone:
+        fig.tight_layout()        # method form, never the pyplot global
+    return fig, ax                # NOTE: tuple — unpack at the call site
 
 
 def plot_acquisition_timeline(
