@@ -267,7 +267,7 @@ footer a { color: inherit; }
 
 <script>
 const DATA = {
- "updated": "2026-11-01",
+ "updated": "2026-11-02",
  "evaluations": [
   "Airbus",
   "Vantor-Legion",
@@ -477,6 +477,46 @@ const DATA = {
    "start": "2026-10-06",
    "finish": "2026-10-06",
    "notes": "Started with API access to the Satellogic STAC (Aleph v2 archive, ~10/6/26). Archive search at the v2 request sites via multistac (10/11); quickview = L1B processing level, 1 capture = many 2 km tiles (10/15).",
+   "flag": null,
+   "links": []
+  },
+  {
+   "evaluation": "Satellogic",
+   "task": "Initial STAC analysis of v2 data",
+   "type": "Data Acq./Analysis",
+   "start": "2026-10-27",
+   "finish": "2026-10-27",
+   "notes": "Built multistac_site_analysis_satellogic.ipynb for a first look at the v2 archive through the Satellogic STAC API: what imagery exists at our sites, when, and with what viewing geometry (10/27/26).",
+   "flag": null,
+   "links": []
+  },
+  {
+   "evaluation": "Satellogic",
+   "task": "Confirm STAC API search type with vendor",
+   "type": "Data Acq./Analysis",
+   "start": "2026-11-02",
+   "finish": "2026-11-06",
+   "notes": "Confirm with Satellogic which type of STAC API search we should use to find v2 archive images (planned 11/2-11/6/26).",
+   "flag": null,
+   "links": []
+  },
+  {
+   "evaluation": "Satellogic",
+   "task": "Build list of geometric/radiometric sites for v2",
+   "type": "Data Acq./Analysis",
+   "start": "2026-11-02",
+   "finish": "2026-11-06",
+   "notes": "Choose the geometric and radiometric test sites for the Satellogic v2 evaluation (planned 11/2-11/6/26).",
+   "flag": null,
+   "links": []
+  },
+  {
+   "evaluation": "Satellogic",
+   "task": "Request v2 data from archive at sites",
+   "type": "Data Acq./Analysis",
+   "start": "2026-11-09",
+   "finish": "2026-11-20",
+   "notes": "Request v2 images at the chosen sites from the Satellogic archive (planned 11/9-11/20/26).",
    "flag": null,
    "links": []
   }

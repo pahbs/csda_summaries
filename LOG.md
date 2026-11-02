@@ -31,6 +31,7 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-02 · [6] Timeline: Satellogic v2 plan: confirm STAC API search type with vendor and build the geometric/radiometric site list (2-6 Nov), request v2 archive data at the sites (9-20 Nov); initial STAC analysis notebook milestone (27 Oct).
 - 2026-11-01 · [3][6] Vantor's archive vs CSDA since the 14 Sep Legion request: Vantor collected 55 Legion images at the 9 sites, only 19 in CSDA (36 not delivered, 9 of them meeting the request); new section 8 of `vantor_legion_supp_tracking.ipynb` writes the timeline notes.
 - 2026-11-01 · [6][4] Timeline: joint event "ESA site list confirmed" (24 Sep 2026): the `ESA_misc_20260924` tab of the site request sheet (14 sites) is the reference site list for all vendors going forward.
 - 2026-11-01 · [6] Timeline: Vantor-Legion notes rewritten in plain language with the 1 Nov status (18 supplemental images arrived; 23 of 65 Legion images meet the request).
@@ -346,6 +347,13 @@ only if needed), never a separate search API.
 ---
 
 ## 6 · Evaluation results, RadCalNet and spectral response
+
+### 2026-11-02 · Timeline: Satellogic v2 plan
+- Three Satellogic tasks (type Data Acq./Analysis, work weeks Mon-Fri): *Confirm STAC API search type with vendor* and
+  *Build list of geometric/radiometric sites for v2* (2-6 Nov 2026); *Request v2 data from archive at sites*
+  (9-20 Nov 2026).
+- *Initial STAC analysis of v2 data* milestone on 27 Oct 2026: `multistac_site_analysis_satellogic.ipynb` built (date =
+  the notebook's last save and checkpoint; not in git, creation date unknown).
 
 ### 2026-11-01 · Timeline: ESA reference site list (joint event)
 - New joint event "ESA site list confirmed" on **24 Sep 2026** (date from the tab name), shown in every evaluation
