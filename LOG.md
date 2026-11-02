@@ -31,6 +31,8 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-02 · [6] Vendor Specs: rule *Total Bands (MS)* counts pan; public-source check (87 proposed edits, 71 from CSDA vendor pages, `specs/public_check_2026-11-02.csv`); interactive dashboard `html/vendor_specs.html` (hover details, sector / status filters, light / dark).
+- 2026-11-02 · [6] Vendor Specs DB: `lib/vendor_specs.py` + `csda_specs_compare.ipynb`: live load, QA checks on columns A–AS (76 suspect cells in 50 of 84 rows), completeness grid (A–AS 56% filled), NASA Chat extraction prompt + diff, and footprint / GSD / band-count comparison figures.
 - 2026-11-02 · [6] Timeline: joint evaluation comparison sheet shared with ESA & USGS on 29 Oct 2026 (was planned, placeholder 30 Nov).
 - 2026-11-02 · [6] Timeline: Planet-Tanager added as an evaluation (own panel) with the Planet Tanager TEM (28 Aug 2026).
 - 2026-11-02 · [6] Timeline joint events: CSDA Evaluation Results dB (Jul 2026, ongoing) and the planned sharing of the joint evaluation comparison sheet with ESA & USGS (placeholder 30 Nov); both link to the CSDA Evaluation Results slides.
@@ -351,6 +353,43 @@ only if needed), never a separate search API.
 ---
 
 ## 6 · Evaluation results, RadCalNet and spectral response
+
+### 2026-11-02 · Vendor Specs: public-source check and interactive dashboard
+- **Rule**: *Total Bands (MS)* counts the pan band (decided 2 Nov). QA check now flags rows that leave pan out (12: Legion,
+  WorldView-2, BlackSky, FireSat, ALOS-3).
+- **Public-source check** (`specs/public_check_2026-11-02.csv`, built by a script from the live sheet; not
+  applied to the sheet): 87 proposed cell edits with current value, proposed value, source and note. Sources: CSDA vendor
+  pages on science.nasa.gov (71; Airbus, Vantor, Planet, BlackSky, Satellogic, Hydrosat, OroraTech, Orbital Sidekick,
+  Kuva, Satlantis, ImageSat), vendor / agency pages, 2 secondary, 5 computed. Main ones: OroraTech is thermal only
+  (200 m TIR, 2 x 210 km swath; the 0.75 / 3 m GSDs were wrong); Satellogic Mark IV MS 0.99 m (0.7 m is Mark V);
+  SuperDove / Dove-R MS 3.7 m and wider frames; Pelican Gen 1 pan 0.5 m; WorldView-3 17 bands; Hydrosat 7 VNIR + 2 LWIR;
+  ImageSat EROS-C 0.43 / 0.86 m, 12.5 km; Kuva HF-1B launched 2025-06-23, 52 km, 22 bands; Satlantis VNIR 2 m, SWIR 7 m.
+  The CSDA Vantor page's second "WorldView-1" table (0.41 / 1.65 m) looks like GeoEye-1. Not covered yet: launch dates,
+  masses, altitudes for most vendors, EarthDaily, government sensors (except Landsat 7), columns AM on.
+- **Dashboard** `html/vendor_specs.html` (template `lib/vendor_specs_dashboard.html`, `vs.write_dashboard`, notebook
+  section 7): one self-contained page, no external libraries; scatter (black ring = has pan), aligned strips, footprints
+  at true scale, completeness, checks, proposed edits, sortable table; hover tooltips with specs, open checks and
+  proposed edits; sector / status / owner / text filters; light and dark (OS setting or toggle). Checked in headless
+  Chromium (Playwright installed in the session scratchpad): no JS errors in light or dark. Not linked from the
+  timeline yet.
+- Static scatter (`plot_gsd_swath`) also draws the black pan ring.
+
+### 2026-11-02 · Vendor Specs database: QA, update loop, constellation comparison (`csda_specs_compare.ipynb`)
+- Sheet `13MrpqFt...` tab *Vendor Specs* (gid 1094438485), read live; 84 sensor rows. `lib/vendor_specs.py`: `load`,
+  `qa_checks`, `constellations` (sensors with the same owner, GSD, swath and band count merged, e.g. Legion LG-1..6,
+  VIIRS on 4 platforms), `extraction_prompt` / `compare_extracted` (NASA Chat loop for SharePoint vendor documents),
+  `completeness`, and plots `plot_gsd_swath`, `plot_spec_strips`, `plot_footprints`, `plot_completeness`.
+- QA (2 Nov): 76 suspect cells in 50 rows: shifted cells (FireSat, Satlantis HORACIO / GEISAT-P), Legion off-nadir GSD
+  min < nadir and period 97 min vs ~95 min at 518 km, EROS-A Start Date looks like its End Date, status vocabulary
+  ('Deorbited 2015'), Sentinel-3D 'Planned' after its launch date, empty Constellation for Kuva / OSK, and *Total Bands
+  (MS)* counting pan for some rows but not others (definition needed). Suspected from outside knowledge, unverified:
+  OroraTech GSDs copied from a VHR row, WorldView-3 MS bands 16 not 20, Pléiades Neo ~920 kg / 7 bands, Landsat 7 ETM+
+  whiskbroom.
+- Completeness: A–AS 56% filled; X, Y, AI, AR, AS empty for every sensor; R, S nearly empty; 25 of 84 rows have a
+  Reference.
+- Figures (`notebooks/vendor_specs_out/`, not in git): GSD vs swath (log-log, marker size = band bins, diagonals =
+  pixels across the swath: most sensors sit at ~3,000-30,000), aligned GSD / swath / bands strips, footprints at true
+  scale (small multiples, one km scale). Colors: dataviz reference palette slots 1-2 (commercial / government).
 
 ### 2026-11-02 · Timeline: Planet-Tanager TEM
 - `evaluations_list` now has **Planet-Tanager** (9 panels; named like Vantor-Legion), after OroraTech. First entry:

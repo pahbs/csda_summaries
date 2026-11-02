@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CSDA Vendor Specs: constellation comparison</title>
+<style>
+.viz-root {
+  color-scheme: light;
+  --surface: #fcfcfb; --surface-2: #f3f2ee; --ink: #0b0b0b; --ink-2: #52514e; --ink-3: #8a8984;
+  --grid: #e6e5e0; --com: #2a78d6; --gov: #eb6834; --ring: #0b0b0b; --bar: #256abf; --bar-bg: #e9edf3;
+  --link: #1c5cab;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root {
+    color-scheme: dark;
+    --surface: #1a1a19; --surface-2: #232322; --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #8f8e86;
+    --grid: #30302d; --com: #3987e5; --gov: #d95926; --ring: #f0efec; --bar: #3987e5; --bar-bg: #2b2f36;
+    --link: #86b6ef;
+  }
+}
+:root[data-theme="dark"] .viz-root {
+  color-scheme: dark;
+  --surface: #1a1a19; --surface-2: #232322; --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #8f8e86;
+  --grid: #30302d; --com: #3987e5; --gov: #d95926; --ring: #f0efec; --bar: #3987e5; --bar-bg: #2b2f36;
+  --link: #86b6ef;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+.viz-root { background: var(--surface); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh; padding: 24px 20px 48px; }
+.wrap { max-width: 1240px; margin: 0 auto; }
+h1 { font-size: 24px; margin: 0 0 4px; font-weight: 650; }
+h2 { font-size: 17px; margin: 0 0 4px; font-weight: 620; }
+.sub, .note { color: var(--ink-2); }
+.note { font-size: 12.5px; }
+a { color: var(--link); }
+.tiles { display: flex; flex-wrap: wrap; gap: 12px; margin: 18px 0 14px; }
+.tile { background: var(--surface-2); border-radius: 10px; padding: 10px 14px; min-width: 150px; }
+.tile .v { font-size: 22px; font-weight: 650; }
+.tile .k { font-size: 12px; color: var(--ink-2); }
+.filters { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; padding: 10px 0 14px;
+  border-bottom: 1px solid var(--grid); margin-bottom: 18px; position: sticky; top: 0; background: var(--surface); z-index: 5; }
+.filters label { font-size: 13px; color: var(--ink-2); display: inline-flex; gap: 6px; align-items: center; }
+.chip { border: 1px solid var(--grid); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 3px 11px;
+  font: inherit; font-size: 13px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.chip[aria-pressed="true"] { background: var(--surface-2); border-color: var(--ink-3); }
+.sw { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+select, input[type=search] { font: inherit; font-size: 13px; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--grid);
+  background: var(--surface); color: var(--ink); }
+.card { background: var(--surface); border: 1px solid var(--grid); border-radius: 12px; padding: 16px 16px 10px; margin-bottom: 18px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--ink-2); margin: 6px 0 4px; align-items: center; }
+.legend svg { vertical-align: middle; }
+svg text { fill: var(--ink); }
+svg .muted { fill: var(--ink-2); }
+svg .faint { fill: var(--ink-3); }
+.axis line, .axis path { stroke: var(--ink-3); }
+.gridline { stroke: var(--grid); stroke-width: 1; }
+.diag { stroke: var(--ink-3); stroke-dasharray: 4 3; stroke-width: 1; fill: none; }
+.pt { transition: opacity .15s; }
+.dim { opacity: .18; }
+#tip { position: fixed; pointer-events: none; z-index: 20; background: var(--surface); color: var(--ink); border: 1px solid var(--ink-3);
+  border-radius: 8px; padding: 9px 11px; font-size: 12.5px; max-width: 380px; box-shadow: 0 4px 16px rgba(0,0,0,.18); display: none; }
+#tip b { font-size: 13.5px; }
+#tip table { border-collapse: collapse; margin-top: 5px; }
+#tip td { padding: 1px 8px 1px 0; vertical-align: top; }
+#tip td:first-child { color: var(--ink-2); white-space: nowrap; }
+#tip .flags { margin-top: 6px; color: var(--ink-2); }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+@media (max-width: 900px) { .two { grid-template-columns: 1fr; } }
+table.data { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+table.data th, table.data td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+table.data th { font-weight: 600; color: var(--ink-2); cursor: pointer; position: sticky; top: 0; background: var(--surface); }
+table.data td.n { text-align: right; font-variant-numeric: tabular-nums; }
+.scroll { max-height: 460px; overflow: auto; }
+.barrow { display: grid; grid-template-columns: 34px 1fr 120px 38px; gap: 6px; align-items: center; font-size: 12px; padding: 1px 0; }
+.barrow .bg { background: var(--bar-bg); height: 9px; border-radius: 3px; }
+.barrow .fg { background: var(--bar); height: 9px; border-radius: 3px; }
+.barrow .lt { color: var(--ink-3); }
+.barrow .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.right { text-align: right; font-variant-numeric: tabular-nums; }
+.pill { display: inline-block; border-radius: 4px; padding: 0 5px; background: var(--surface-2); color: var(--ink-2); font-size: 11.5px; }
+footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
+.theme { float: right; }
+</style>
+</head>
+<body>
+<div class="viz-root">
+<div class="wrap">
+  <button class="chip theme" id="theme" title="Switch light / dark">◐ Theme</button>
+  <h1>CSDA Vendor Specs: constellation comparison</h1>
+  <div class="sub" id="subtitle"></div>
+  <div class="tiles" id="tiles"></div>
+
+  <div class="filters" role="group" aria-label="Filters">
+    <label>Sector <span id="f-sector"></span></label>
+    <label>Status <span id="f-scope"></span></label>
+    <label>Highlight <select id="f-aff"><option value="">all data owners</option></select></label>
+    <label>Find <input type="search" id="f-q" placeholder="constellation, owner…"></label>
+  </div>
+
+  <section class="card" aria-labelledby="h-scatter">
+    <h2 id="h-scatter">Image footprint vs. detail</h2>
+    <div class="note">Multispectral GSD at nadir (x) against swath width (y), both log scales. Dashed lines count the pixels across the
+      swath (swath ÷ GSD): most sensors sit between about 3,000 and 30,000, so finer detail comes with a narrower footprint.
+      Hover a point for its specs.</div>
+    <div class="legend" id="lg-scatter"></div>
+    <svg id="scatter" viewBox="0 0 1180 640" width="100%" role="img" aria-label="Scatter of multispectral GSD against swath width"></svg>
+    <div class="note" id="scatter-left"></div>
+  </section>
+
+  <section class="card" aria-labelledby="h-strips">
+    <h2 id="h-strips">Key specs side by side</h2>
+    <div class="note">One row per constellation, sorted by multispectral GSD; each panel has its own log axis. Filled dot = multispectral GSD,
+      open dot = panchromatic GSD. Hover a row.</div>
+    <svg id="strips" width="100%" role="img" aria-label="GSD, swath and number of bands by constellation"></svg>
+  </section>
+
+  <section class="card" aria-labelledby="h-foot">
+    <h2 id="h-foot">Image footprints at true scale</h2>
+    <div class="note">One panel per constellation, all on the same km scale (square side = swath width; a nominal scene; pushbroom strips can be
+      much longer). Wider swaths than <span id="foot-max"></span> km are listed below.</div>
+    <div id="foot"></div>
+    <div class="note" id="foot-left"></div>
+  </section>
+
+  <div class="two">
+    <section class="card" aria-labelledby="h-comp">
+      <h2 id="h-comp">Core fields filled (columns A–AS)</h2>
+      <div class="note">Share of the sheet's sensors with each field filled.</div>
+      <div id="comp" style="margin-top:8px"></div>
+    </section>
+    <section class="card" aria-labelledby="h-qa">
+      <h2 id="h-qa">Automated checks</h2>
+      <div class="note">Suspect cells by check (structure and consistency only; a passing value is not proof it is right).</div>
+      <div id="qa" style="margin-top:8px"></div>
+    </section>
+  </div>
+
+  <section class="card" aria-labelledby="h-edits">
+    <h2 id="h-edits">Proposed edits from the public-source check</h2>
+    <div class="note" id="edits-note"></div>
+    <div class="scroll"><table class="data" id="edits"></table></div>
+  </section>
+
+  <section class="card" aria-labelledby="h-table">
+    <h2 id="h-table">Table view</h2>
+    <div class="note">The constellations shown above, with the plotted values. Click a column header to sort.</div>
+    <div class="scroll"><table class="data" id="tbl"></table></div>
+  </section>
+
+  <footer id="footer"></footer>
+</div>
+<div id="tip" role="tooltip"></div>
+</div>
+
+<script>
+const D = /*__DATA__*/null;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt = v => v == null ? '–' : (+v).toLocaleString(undefined, {maximumFractionDigits: 2});
+const NS = 'http://www.w3.org/2000/svg';
+const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (parent) parent.appendChild(e); return e; };
+const css = v => getComputedStyle(document.querySelector('.viz-root')).getPropertyValue(v).trim();
+const color = g => g.sector === 'Government' ? 'var(--gov)' : 'var(--com)';
+const BINS = [[1, 4, '1–4', 4.5], [5, 9, '5–9', 6.5], [10, 40, '10–40', 9], [41, 1e9, '> 40 (hyperspectral)', 12]];
+const radius = n => n == null ? 4.5 : BINS.find(b => n >= b[0] && n <= b[1])[3];
+
+// ---------- state & filters ----------
+const S = { sectors: new Set(['Commercial', 'Government']), scope: 'current', aff: '', q: '' };
+function chips(target, items, isOn, onClick) {
+  const box = $(target); box.innerHTML = '';
+  items.forEach(([key, label, sw]) => {
+    const b = document.createElement('button'); b.className = 'chip'; b.type = 'button';
+    b.setAttribute('aria-pressed', isOn(key)); b.innerHTML = (sw ? `<span class="sw" style="background:${sw}"></span>` : '') + esc(label);
+    b.onclick = () => { onClick(key); chips(target, items, isOn, onClick); render(); }; box.appendChild(b);
+  });
+}
+function shown() {
+  const q = S.q.toLowerCase();
+  return D.groups.filter(g => S.sectors.has(g.sector) && (S.scope === 'all' || g.current) &&
+    (!q || [g.group, g.affiliation, g.sensors, g.constellation].join(' ').toLowerCase().includes(q)));
+}
+const lit = g => !S.aff || g.affiliation === S.aff;
+
+// ---------- tooltip ----------
+const tip = $('#tip');
+function showTip(ev, g) {
+  const rows = [
+    ['Data owner', `${esc(g.affiliation)} · ${esc(g.sector)}`], ['Status', esc(g.status)], ['Sensors', esc(g.sensors)],
+    ['First launch', esc(g.first_launch || '–')], ['Satellites', fmt(g.n_satellites)],
+    ['Pan GSD', g.pan_gsd != null ? fmt(g.pan_gsd) + ' m' : '–'], ['MS GSD', g.ms_gsd != null ? fmt(g.ms_gsd) + ' m' : '–'],
+    ['SWIR / TIR GSD', `${g.swir_gsd != null ? fmt(g.swir_gsd) + ' m' : '–'} / ${g.tir_gsd != null ? fmt(g.tir_gsd) + ' m' : '–'}`],
+    ['Swath', g.swath_km != null ? fmt(g.swath_km) + ' km' : '–'],
+    ['Pixels across', g.swath_km && g.ms_gsd ? Math.round(g.swath_km * 1000 / g.ms_gsd).toLocaleString() : '–'],
+    ['Bands', `${fmt(g.ms_bands)} MS (incl. pan) · ${fmt(g.total_bands)} total`],
+    ['Revisit', g.revisit_days != null ? fmt(g.revisit_days) + ' days' : '–'],
+    ['Geolocation', g.ce90_m != null ? fmt(g.ce90_m) + ' m CE90' : '–'],
+    ['Scanner · tasking', `${esc(g.scanner || '–')} · ${esc(g.acquisition || '–')}`], ['Sheet rows', esc(g.sheet_rows)],
+  ];
+  let flags = '';
+  if (g.edits.length) flags += `<div class="flags"><b>${g.edits.length} proposed edit${g.edits.length > 1 ? 's' : ''}</b>: ` +
+    g.edits.slice(0, 4).map(e => `${esc(e.field)} ${esc(e.current)} → ${esc(e.proposed)}`).join('; ') + (g.edits.length > 4 ? '; …' : '') + '</div>';
+  if (g.qa.length) flags += `<div class="flags"><b>${g.qa.length} check${g.qa.length > 1 ? 's' : ''} flagged</b>: ` +
+    [...new Set(g.qa)].slice(0, 3).map(esc).join('; ') + (g.qa.length > 3 ? '; …' : '') + '</div>';
+  tip.innerHTML = `<b>${esc(g.group)}</b><table>${rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</table>${flags}`;
+  tip.style.display = 'block'; moveTip(ev);
+}
+function moveTip(ev) {
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = ev.clientX + 14, y = ev.clientY + 14;
+  if (x + w > innerWidth - 8) x = ev.clientX - w - 14;
+  if (y + h > innerHeight - 8) y = Math.max(8, innerHeight - h - 8);
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
+}
+const hideTip = () => tip.style.display = 'none';
+function hover(node, g) { node.addEventListener('mouseenter', e => showTip(e, g)); node.addEventListener('mousemove', moveTip);
+  node.addEventListener('mouseleave', hideTip); node.setAttribute('tabindex', 0);
+  node.addEventListener('focus', e => { const r = node.getBoundingClientRect(); showTip({clientX: r.right, clientY: r.top}, g); });
+  node.addEventListener('blur', hideTip); }
+
+// ---------- log scale helpers ----------
+const logScale = (d0, d1, r0, r1) => v => r0 + (Math.log10(v) - Math.log10(d0)) / (Math.log10(d1) - Math.log10(d0)) * (r1 - r0);
+function logTicks(d0, d1) {
+  const t = []; for (let e = Math.floor(Math.log10(d0)); e <= Math.ceil(Math.log10(d1)); e++)
+    for (const m of [1, 2, 5]) { const v = m * 10 ** e; if (v >= d0 * 0.999 && v <= d1 * 1.001) t.push(+v.toPrecision(3)); }
+  return t;
+}
+const tickLabel = v => v >= 1000 ? v.toLocaleString() : String(v);
+
+// ---------- scatter ----------
+function drawScatter(G) {
+  const svg = $('#scatter'); svg.innerHTML = '';
+  const W = 1180, H = 640, m = {l: 64, r: 16, t: 14, b: 50};
+  const all = D.groups.filter(g => g.ms_gsd && g.swath_km);
+  const x0 = Math.min(...all.map(g => g.ms_gsd)) / 1.6, x1 = Math.max(...all.map(g => g.ms_gsd)) * 1.8;
+  const y0 = Math.min(...all.map(g => g.swath_km)) / 1.5, y1 = Math.max(...all.map(g => g.swath_km)) * 1.6;
+  const X = logScale(x0, x1, m.l, W - m.r), Y = logScale(y0, y1, H - m.b, m.t);
+  const gr = el('g', {}, svg);
+  for (const v of logTicks(x0, x1)) { el('line', {x1: X(v), x2: X(v), y1: m.t, y2: H - m.b, class: 'gridline'}, gr);
+    el('text', {x: X(v), y: H - m.b + 16, 'text-anchor': 'middle', 'font-size': 11, class: 'muted'}, gr).textContent = tickLabel(v); }
+  for (const v of logTicks(y0, y1)) { el('line', {x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v), class: 'gridline'}, gr);
+    el('text', {x: m.l - 6, y: Y(v) + 4, 'text-anchor': 'end', 'font-size': 11, class: 'muted'}, gr).textContent = tickLabel(v); }
+  el('text', {x: (m.l + W - m.r) / 2, y: H - 10, 'text-anchor': 'middle', 'font-size': 12.5, class: 'muted'}, gr).textContent =
+    'Multispectral GSD at nadir (m, log)  —  finer detail ←';
+  el('text', {x: 14, y: (m.t + H - m.b) / 2, 'text-anchor': 'middle', 'font-size': 12.5, class: 'muted',
+    transform: `rotate(-90 14 ${(m.t + H - m.b) / 2})`}, gr).textContent = 'Swath width (km, log)  —  larger footprint ↑';
+  // pixels-across diagonals (their labels are registered so point labels avoid them)
+  const placed = [];
+  const clip = el('clipPath', {id: 'plotclip'}, svg); el('rect', {x: m.l, y: m.t, width: W - m.l - m.r, height: H - m.t - m.b}, clip);
+  for (const n of [1000, 10000, 100000]) {
+    const a = [x0, n * x0 / 1000], b = [x1, n * x1 / 1000];
+    el('line', {x1: X(a[0]), y1: Y(a[1]), x2: X(b[0]), y2: Y(b[1]), class: 'diag', 'clip-path': 'url(#plotclip)'}, gr);
+    const lx = Math.min(x1 / 1.5, y1 / 1.4 * 1000 / n);
+    if (lx > x0 && n * lx / 1000 > y0) {
+      const t = `${n.toLocaleString()} pixels across`, tx = X(lx) - 4, ty = Y(n * lx / 1000) - 4;
+      el('text', {x: tx, y: ty, 'text-anchor': 'end', 'font-size': 11, class: 'faint'}, gr).textContent = t;
+      placed.push({x0: tx - t.length * 5.8, x1: tx, y0: ty - 11, y1: ty + 2});
+    }
+  }
+  const pts = G.filter(g => g.ms_gsd && g.swath_km).sort((a, b) => radius(b.ms_bands) - radius(a.ms_bands));
+  const labels = el('g', {}, svg), marks = el('g', {}, svg);
+  for (const g of pts) {
+    const cx = X(g.ms_gsd), cy = Y(g.swath_km), r = radius(g.ms_bands), c = color(g);
+    const node = el('g', {class: 'pt' + (lit(g) ? '' : ' dim')}, marks);
+    if (g.pan_gsd != null) el('circle', {cx, cy, r: r + 3.2, fill: 'none', stroke: 'var(--ring)', 'stroke-width': 1.3}, node);
+    el('circle', {cx, cy, r, fill: g.ms_bands == null ? 'var(--surface)' : c, stroke: g.ms_bands == null ? c : 'var(--surface)',
+      'stroke-width': g.ms_bands == null ? 2 : 1, 'fill-opacity': .92}, node);
+    el('circle', {cx, cy, r: r + 9, fill: 'transparent'}, node);
+    const rr = r + (g.pan_gsd != null ? 4.5 : 1);     // marker incl. ring
+    hover(node, g); placed.push({x0: cx - rr, x1: cx + rr, y0: cy - rr, y1: cy + rr});
+  }
+  // selective direct labels: right, then left, above, below; skipped when nothing fits (hover still works)
+  for (const g of [...pts].sort((a, b) => b.swath_km - a.swath_km)) {
+    if (!lit(g)) continue;
+    const cx = X(g.ms_gsd), cy = Y(g.swath_km), r = radius(g.ms_bands) + (g.pan_gsd != null ? 4.5 : 1), w = g.group.length * 6.3 + 2, h = 13;
+    const cands = [[cx + r + 3, cy + 4, 'start'], [cx - r - 3, cy + 4, 'end'], [cx, cy - r - 4, 'middle'], [cx, cy + r + 13, 'middle'],
+                   [cx + r + 1, cy - r - 1, 'start'], [cx + r + 1, cy + r + 11, 'start'], [cx - r - 1, cy - r - 1, 'end'], [cx - r - 1, cy + r + 11, 'end']];
+    for (const [tx, ty, anchor] of cands) {
+      const bx0 = anchor === 'start' ? tx : anchor === 'end' ? tx - w : tx - w / 2, box = {x0: bx0, x1: bx0 + w, y0: ty - h + 3, y1: ty + 1};
+      if (box.x0 < m.l || box.x1 > W - m.r || box.y0 < m.t || box.y1 > H - m.b) continue;
+      if (placed.some(p => !(box.x1 < p.x0 || box.x0 > p.x1 || box.y1 < p.y0 || box.y0 > p.y1))) continue;
+      el('text', {x: tx, y: ty, 'text-anchor': anchor, 'font-size': 11.5}, labels).textContent = g.group; placed.push(box); break;
+    }
+  }
+  const left = G.filter(g => !(g.ms_gsd && g.swath_km)).map(g => g.group);
+  $('#scatter-left').textContent = left.length ? 'Not plotted (no MS GSD or swath in the sheet): ' + left.join(', ') : '';
+}
+function scatterLegend() {
+  const sw = (fill, stroke, r, ring) => `<svg width="${2 * r + 10}" height="${2 * r + 10}"><circle cx="${r + 5}" cy="${r + 5}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${fill === 'var(--surface)' ? 2 : 0}"/>${ring ? `<circle cx="${r + 5}" cy="${r + 5}" r="${r + 3}" fill="none" stroke="var(--ring)" stroke-width="1.3"/>` : ''}</svg>`;
+  $('#lg-scatter').innerHTML =
+    `<span>${sw('var(--com)', 'none', 5)} Commercial</span><span>${sw('var(--gov)', 'none', 5)} Government</span>` +
+    `<span style="margin-left:8px">Number of bands (MS incl. pan):</span>` +
+    BINS.map(b => `<span>${sw('var(--ink-3)', 'none', b[3])} ${b[2]}</span>`).join('') +
+    `<span>${sw('var(--surface)', 'var(--ink-3)', 4.5)} not in sheet</span><span>${sw('var(--ink-3)', 'none', 5, true)} has a panchromatic band</span>`;
+}
+
+// ---------- strips ----------
+function drawStrips(G) {
+  const svg = $('#strips'); svg.innerHTML = '';
+  const rows = [...G].sort((a, b) => (a.ms_gsd ?? 1e9) - (b.ms_gsd ?? 1e9) || (a.pan_gsd ?? 1e9) - (b.pan_gsd ?? 1e9));
+  const rh = 21, top = 26, lw = 270, W = 1180, gap = 26, n = rows.length, H = top + n * rh + 28;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const panels = [['GSD at nadir (m)', g => [g.ms_gsd, g.pan_gsd], 1.25], ['Swath width (km)', g => [g.swath_km], 1], ['Number of bands (MS incl. pan)', g => [g.ms_bands], .9]];
+  const tw = panels.reduce((s, p) => s + p[2], 0), pw = (W - lw - gap * 2) / tw;
+  let x = lw;
+  rows.forEach((g, i) => { const y = top + i * rh;
+    if (i % 2 === 0) el('rect', {x: 0, y, width: W, height: rh, fill: 'var(--surface-2)', 'fill-opacity': .55}, svg);
+    el('text', {x: lw - 10, y: y + rh / 2 + 4, 'text-anchor': 'end', 'font-size': 11.5, class: lit(g) ? '' : 'faint'}, svg).textContent = g.group;
+    el('text', {x: 6, y: y + rh / 2 + 4, 'font-size': 10.5, class: 'faint'}, svg).textContent = g.affiliation;
+  });
+  for (const [title, get, wr] of panels) {
+    const w = pw * wr, vals = D.groups.flatMap(get).filter(v => v != null && v > 0);
+    const d0 = Math.min(...vals) / 1.4, d1 = Math.max(...vals) * 1.4, X = logScale(d0, d1, x + 6, x + w - 34);
+    el('text', {x: x + 6, y: 15, 'font-size': 12, 'font-weight': 600}, svg).textContent = title;
+    for (const v of logTicks(d0, d1).filter(v => /^[15]/.test(String(v)))) {
+      el('line', {x1: X(v), x2: X(v), y1: top, y2: top + n * rh, class: 'gridline'}, svg);
+      el('text', {x: X(v), y: top + n * rh + 14, 'text-anchor': 'middle', 'font-size': 10.5, class: 'muted'}, svg).textContent = tickLabel(v);
+    }
+    rows.forEach((g, i) => { const cy = top + i * rh + rh / 2, [v, p] = get(g), c = color(g), node = el('g', {class: 'pt' + (lit(g) ? '' : ' dim')}, svg);
+      if (p != null && v != null) el('line', {x1: X(p), x2: X(v), y1: cy, y2: cy, stroke: c, 'stroke-width': 1.5, 'stroke-opacity': .5}, node);
+      if (p != null) el('circle', {cx: X(p), cy, r: 4.3, fill: 'var(--surface)', stroke: c, 'stroke-width': 1.6}, node);
+      if (v != null) { el('circle', {cx: X(v), cy, r: 4.6, fill: c, stroke: 'var(--surface)', 'stroke-width': 1}, node);
+        el('text', {x: X(v) + 8, y: cy + 4, 'font-size': 10.5, class: 'muted'}, node).textContent = fmt(v); }
+      else el('text', {x: x + w - 10, y: cy + 4, 'font-size': 11, class: 'faint', 'text-anchor': 'end'}, node).textContent = '–';
+    });
+    x += w + gap;
+  }
+  rows.forEach((g, i) => { const hit = el('rect', {x: 0, y: top + i * rh, width: W, height: rh, fill: 'transparent'}, svg); hover(hit, g); });
+}
+
+// ---------- footprints ----------
+function drawFoot(G) {
+  const MAX = D.footprint_max_km, box = $('#foot'); box.innerHTML = ''; $('#foot-max').textContent = MAX;
+  const d = G.filter(g => g.swath_km != null && g.swath_km <= MAX).sort((a, b) => a.swath_km - b.swath_km || a.group.localeCompare(b.group));
+  const side = Math.max(...d.map(g => g.swath_km), 10) * 1.06, cell = 132, cols = Math.max(1, Math.floor(1180 / cell));
+  const rowsN = Math.ceil((d.length + 1) / cols), H = rowsN * (cell + 34);
+  const svg = el('svg', {viewBox: `0 0 ${cols * cell} ${H}`, width: '100%', role: 'img', 'aria-label': 'Footprints at true scale'}, box);
+  const k = (cell - 18) / side;
+  d.forEach((g, i) => {
+    const cx = (i % cols) * cell + cell / 2, ty = Math.floor(i / cols) * (cell + 34), node = el('g', {class: 'pt' + (lit(g) ? '' : ' dim')}, svg);
+    el('text', {x: cx, y: ty + 12, 'text-anchor': 'middle', 'font-size': 11}, node).textContent = g.group.length > 22 ? g.group.slice(0, 21) + '…' : g.group;
+    el('text', {x: cx, y: ty + 25, 'text-anchor': 'middle', 'font-size': 10.5, class: 'muted'}, node).textContent = fmt(g.swath_km) + ' km';
+    const fy = ty + 32, s = g.swath_km * k;
+    el('rect', {x: cx - side * k / 2, y: fy, width: side * k, height: side * k, fill: 'none', stroke: 'var(--grid)'}, node);
+    el('rect', {x: cx - s / 2, y: fy + (side * k - s) / 2, width: s, height: s, fill: color(g), 'fill-opacity': .85, rx: 1}, node);
+    const hit = el('rect', {x: cx - cell / 2, y: ty, width: cell, height: cell + 32, fill: 'transparent'}, node); hover(hit, g);
+  });
+  // scale bar in the next free cell
+  const i = d.length, cx = (i % cols) * cell + cell / 2, ty = Math.floor(i / cols) * (cell + 34) + 32 + side * k / 2;
+  const bar = side > 60 ? 20 : 10;
+  el('line', {x1: cx - bar * k / 2, x2: cx + bar * k / 2, y1: ty, y2: ty, stroke: 'var(--ink)', 'stroke-width': 2.5}, svg);
+  el('text', {x: cx, y: ty - 7, 'text-anchor': 'middle', 'font-size': 11}, svg).textContent = `${bar} km`;
+  el('text', {x: cx, y: ty + 16, 'text-anchor': 'middle', 'font-size': 10, class: 'muted'}, svg).textContent = `panel = ${Math.round(side)} km`;
+  const wide = G.filter(g => g.swath_km > MAX).sort((a, b) => a.swath_km - b.swath_km);
+  $('#foot-left').textContent = wide.length ? `Wider than ${MAX} km: ` + wide.map(g => `${g.group} (${fmt(g.swath_km)} km)`).join(', ') : '';
+}
+
+// ---------- data quality ----------
+function drawQuality() {
+  $('#comp').innerHTML = D.completeness.map(c => `<div class="barrow"><span class="lt">${esc(c.letter)}</span>` +
+    `<span class="nm" title="${esc(c.field)}">${esc(c.field)}</span><span class="bg"><span class="fg" style="display:block;width:${c.pct}%"></span></span>` +
+    `<span class="right">${Math.round(c.pct)}%</span></div>`).join('');
+  const mx = Math.max(...D.qa_summary.map(q => q.cells));
+  $('#qa').innerHTML = D.qa_summary.map(q => `<div class="barrow" style="grid-template-columns:1fr 120px 38px"><span class="nm" title="${esc(q.detail)}">${esc(q.check)}` +
+    ` <span class="pill">${q.rows} rows</span></span><span class="bg"><span class="fg" style="display:block;width:${100 * q.cells / mx}%"></span></span>` +
+    `<span class="right">${q.cells}</span></div>`).join('') + `<div class="note" style="margin-top:8px">Full list: <code>vendor_specs_qa.csv</code> from the notebook.</div>`;
+}
+function drawEdits() {
+  const q = S.q.toLowerCase(), E = D.edits.filter(e => !q || [e.sensors, e.field, e.note].join(' ').toLowerCase().includes(q));
+  $('#edits-note').innerHTML = `${D.edits.length} proposed changes from ${esc(D.edits_date)} (rule: <i>Total Bands (MS)</i> counts the pan band). ` +
+    `Sources: CSDA vendor pages on science.nasa.gov first, then vendor / agency pages; "computed" = derived from other fields. Not yet applied to the sheet.`;
+  $('#edits').innerHTML = '<thead><tr><th>Rows</th><th>Sensors</th><th>Col</th><th>Field</th><th>Current</th><th>Proposed</th><th>Source</th><th>Note</th></tr></thead><tbody>' +
+    E.map(e => `<tr><td>${esc(e.sheet_rows)}</td><td>${esc(e.sensors)}</td><td>${esc(e.column)}</td><td>${esc(e.field)}</td><td>${esc(e.current)}</td>` +
+      `<td><b>${esc(e.proposed)}</b></td><td>${e.source_url ? `<a href="${esc(e.source_url)}" target="_blank" rel="noopener">${esc(e.source)}</a>` : esc(e.source)}</td>` +
+      `<td>${esc(e.note)}</td></tr>`).join('') + '</tbody>';
+}
+const TCOLS = [['group', 'Constellation'], ['affiliation', 'Owner'], ['sector', 'Sector'], ['status', 'Status'], ['pan_gsd', 'Pan GSD (m)', 1],
+  ['ms_gsd', 'MS GSD (m)', 1], ['swath_km', 'Swath (km)', 1], ['ms_bands', 'MS bands', 1], ['total_bands', 'Total bands', 1],
+  ['revisit_days', 'Revisit (d)', 1], ['ce90_m', 'CE90 (m)', 1], ['n_flags', 'Flags', 1]];
+let sortKey = 'ms_gsd', sortDir = 1;
+function drawTable(G) {
+  const rows = [...G].sort((a, b) => { const x = a[sortKey], y = b[sortKey]; if (x == null) return 1; if (y == null) return -1;
+    return (typeof x === 'number' ? x - y : String(x).localeCompare(String(y))) * sortDir; });
+  const t = $('#tbl');
+  t.innerHTML = '<thead><tr>' + TCOLS.map(([k, l]) => `<th data-k="${k}">${esc(l)}${k === sortKey ? (sortDir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('') + '</tr></thead><tbody>' +
+    rows.map(g => '<tr>' + TCOLS.map(([k, , num]) => `<td class="${num ? 'n' : ''}">${num ? fmt(g[k]) : esc(g[k])}</td>`).join('') + '</tr>').join('') + '</tbody>';
+  t.querySelectorAll('th').forEach(th => th.onclick = () => { const k = th.dataset.k; sortDir = k === sortKey ? -sortDir : 1; sortKey = k; drawTable(shown()); });
+}
+
+// ---------- page ----------
+function render() {
+  const G = shown();
+  drawScatter(G); drawStrips(G); drawFoot(G); drawEdits(); drawTable(G);
+  const comm = G.filter(g => g.sector === 'Commercial').length;
+  $('#tiles').innerHTML = [[G.length, `constellations shown (${comm} commercial)`], [D.n_sensors, 'sensors in the sheet'],
+    [Math.round(D.pct_filled) + '%', 'of core fields (A–AS) filled'], [D.n_issues, 'cells flagged by the checks'], [D.edits.length, 'proposed edits']]
+    .map(([v, k]) => `<div class="tile"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join('');
+}
+function init() {
+  $('#subtitle').innerHTML = `Read from the <a href="${esc(D.sheet_url)}" target="_blank" rel="noopener">CSDA Vendor Specs sheet</a> on ${esc(D.asof)}. ` +
+    `Preliminary: values are being checked against vendor documents (see the proposed edits below).`;
+  chips('#f-sector', [['Commercial', 'Commercial', 'var(--com)'], ['Government', 'Government', 'var(--gov)']], k => S.sectors.has(k),
+    k => { S.sectors.has(k) ? S.sectors.delete(k) : S.sectors.add(k); if (!S.sectors.size) S.sectors.add(k); });
+  chips('#f-scope', [['current', 'Current'], ['all', 'All (incl. retired, planned)']], k => S.scope === k, k => S.scope = k);
+  const affs = [...new Set(D.groups.map(g => g.affiliation))].sort();
+  $('#f-aff').innerHTML += affs.map(a => `<option>${esc(a)}</option>`).join('');
+  $('#f-aff').onchange = e => { S.aff = e.target.value; render(); };
+  $('#f-q').oninput = e => { S.q = e.target.value; render(); };
+  $('#theme').onclick = () => { const r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === 'dark' :
+    matchMedia('(prefers-color-scheme: dark)').matches; r.dataset.theme = dark ? 'light' : 'dark'; };
+  $('#footer').innerHTML = esc(D.footer);
+  scatterLegend(); drawQuality(); render();
+}
+init();
+</script>
+</body>
+</html>
