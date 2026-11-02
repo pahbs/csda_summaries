@@ -566,7 +566,7 @@ def plot_spec_strips(groups: pd.DataFrame, title: Optional[str] = None, flagged=
 
 def plot_footprints(groups: pd.DataFrame, max_swath_km: float = 100, title: Optional[str] = None, flagged=(),
                     ncols: int = 8, cell_in: float = 1.5):
-    """Nominal image footprints at true scale: small multiples, one panel per
+    """Cross-track swath width (nominal image footprints at true scale): small multiples, one panel per
     constellation (smallest swath first), all panels on one km scale. Each
     footprint is a square of side = swath width (a nominal scene; pushbroom
     strips can be much longer). Groups with a wider swath than `max_swath_km`
@@ -597,7 +597,7 @@ def plot_footprints(groups: pd.DataFrame, max_swath_km: float = 100, title: Opti
     ax.plot([(side - bar) / 2, (side + bar) / 2], [side / 2] * 2, color=INK, lw=2)
     ax.text(side / 2, side / 2 + side * 0.06, f"{bar} km", ha="center", va="bottom", fontsize=8, color=INK)
     ax.text(side / 2, side / 2 - side * 0.08, f"panel = {side:.0f} km", ha="center", va="top", fontsize=7, color=INK_2)
-    fig.suptitle(title or "Nominal image footprints at true scale (square of side = swath width)", x=0.01, ha="left",
+    fig.suptitle(title or "Cross-track swath width (square of side = swath width, true scale)", x=0.01, ha="left",
                  fontsize=13, color=INK)
     notes = []
     if len(wide):
@@ -672,25 +672,95 @@ def load_edits(path: str) -> pd.DataFrame:
     return pd.read_csv(path, dtype=str).fillna("")
 
 
-def write_dashboard(raw: pd.DataFrame, groups: pd.DataFrame, issues: pd.DataFrame, edits: Optional[pd.DataFrame],
-                    out_path: str, template: Optional[str] = None, edits_date: str = "",
+# Edit record: one row per sheet cell, kept in the repo (specs/edits_log.csv). New batches are appended;
+# rows are never rewritten, so the file is the full history of what was changed, from what, and why.
+EDIT_LOG_COLUMNS = ["edit_id", "date", "batch", "cell", "sheet_row", "label", "column", "field", "before", "after",
+                    "source", "source_url", "note"]
+EMPTY = "(empty)"
+
+
+def _cell_text(v) -> str:
+    return EMPTY if v is None or (isinstance(v, float) and np.isnan(v)) or str(v).strip() == "" else str(v).strip()
+
+
+def load_edit_log(path: str) -> pd.DataFrame:
+    """The edit record (empty frame with the log columns if the file does not exist yet)."""
+    from pathlib import Path
+    if not Path(path).exists():
+        return pd.DataFrame(columns=EDIT_LOG_COLUMNS)
+    return pd.read_csv(path, dtype=str).fillna("")
+
+
+def record_edits(raw: pd.DataFrame, edits: pd.DataFrame, log_path: str, batch: str, date: str) -> pd.DataFrame:
+    """Add a batch of proposed edits (public_check_*.csv: one row per field and row span) to the edit record as
+    one row per sheet cell, with the cell address and the sheet value it replaces. Rows with change != True are
+    left out. A batch already in the record is not added again. Returns the full record."""
+    log = load_edit_log(log_path)
+    if batch in set(log["batch"]):
+        return log
+    cols = list(raw.columns[2:])                     # sheet columns (after sheet_row, label)
+    start = len(log)
+    new = []
+    for e in edits.itertuples():
+        if "change" in edits and str(e.change) != "True":
+            continue
+        letter = column_letter(cols.index(e.field))
+        if e.column and e.column != letter:
+            raise ValueError(f"{e.field}: column {e.column} in the edits, {letter} in the sheet")
+        for row in _rows(e.sheet_rows):
+            r = raw.loc[raw.sheet_row == row].iloc[0]
+            new.append(dict(edit_id=start + len(new) + 1, date=date, batch=batch, cell=f"{letter}{row}", sheet_row=row,
+                            label=r["label"], column=letter, field=e.field, before=_cell_text(r[e.field]),
+                            after=_cell_text(e.proposed), source=e.source, source_url=e.source_url, note=e.note))
+    log = pd.concat([log, pd.DataFrame(new, columns=EDIT_LOG_COLUMNS).astype(str)], ignore_index=True)
+    log.to_csv(log_path, index=False)
+    return log
+
+
+def apply_edits(raw: pd.DataFrame, log: pd.DataFrame):
+    """Apply the edit record to the sheet as read now. Per cell, `status`:
+    'in sheet' = the sheet already holds the new value; 'applied (not yet in sheet)' = the sheet still holds the
+    old value, so the new one is used here; 'skipped: sheet changed' = the sheet holds a third value (edited since
+    the record was made): the sheet wins. Later edits of the same cell win over earlier ones.
+    Returns (edited copy of raw, log with `now` = sheet value and `status`)."""
+    out = raw.copy()
+    log = log.copy()
+    now, status = [], []
+    for e in log.itertuples():
+        i = out.index[out.sheet_row == int(e.sheet_row)][0]
+        v = _cell_text(raw.at[i, e.field])
+        now.append(v)
+        if v == e.after:
+            status.append("in sheet")
+        elif _cell_text(out.at[i, e.field]) == e.before:     # out: earlier edits of the cell already applied
+            out.at[i, e.field] = np.nan if e.after == EMPTY else e.after
+            status.append("applied (not yet in sheet)")
+        else:
+            status.append("skipped: sheet changed")
+    log["now"], log["status"] = now, status
+    return out, log
+
+
+def write_dashboard(raw: pd.DataFrame, groups: pd.DataFrame, issues: pd.DataFrame, edit_log: Optional[pd.DataFrame],
+                    out_path: str, template: Optional[str] = None,
                     footprint_max_km: float = 100, sheet_url: Optional[str] = None) -> str:
     """Write the interactive dashboard (one self-contained HTML file): scatter of GSD
-    vs swath, aligned spec strips, footprints at true scale, completeness, checks,
-    proposed edits and a table view, with hover details for every constellation.
+    vs swath, launches, aligned spec strips, cross-track swath widths, completeness, checks,
+    the edit record and a table view, with hover details for every constellation.
+    `raw`: the sheet with the edits applied; `edit_log`: apply_edits() log (with `status`);
     `groups`: constellations() output (all rows; the page filters by sector / status)."""
     import json
     from pathlib import Path
     template = template or str(Path(__file__).with_name("vendor_specs_dashboard.html"))
-    edits = edits if edits is not None else pd.DataFrame(columns=["sheet_rows", "field", "current", "proposed"])
-    changes = edits[edits["change"].astype(str) == "True"] if "change" in edits else edits
-    edit_rows = [(set(_rows(e.sheet_rows)), e) for e in changes.itertuples()]
+    edit_log = edit_log if edit_log is not None else pd.DataFrame(columns=EDIT_LOG_COLUMNS + ["now", "status"])
+    used = edit_log[~edit_log["status"].str.startswith("skipped")]
     num = lambda v: None if pd.isna(v) else float(v)
     out = []
     for g in groups.itertuples():
         rows = {int(r) for r in g.sheet_rows.split(", ")}
         qa = [f"{r.column} {r.field}: {r.check}" for r in issues.itertuples() if r.sheet_row in rows]
-        ed = [dict(field=e.field, current=e.current, proposed=e.proposed) for rs, e in edit_rows if rs & rows]
+        ed = list({(e.field, e.before, e.after): dict(field=e.field, before=e.before, after=e.after)
+                   for e in used.itertuples() if int(e.sheet_row) in rows}.values())
         out.append(dict(
             group=g.group, affiliation=g.affiliation, sector=g.sector, constellation=g.constellation, sensors=g.sensors,
             status=g.status, current=bool(g.current),
@@ -735,9 +805,10 @@ def write_dashboard(raw: pd.DataFrame, groups: pd.DataFrame, issues: pd.DataFram
         asof=pd.Timestamp.today().strftime("%d %b %Y"), sheet_url=sheet_url or
         f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit?gid={GID['Vendor Specs']}",
         n_sensors=len(raw), pct_filled=float(comp.to_numpy().mean() * 100), n_issues=len(issues),
-        groups=out, sensors=sensors, footprint_max_km=footprint_max_km, edits_date=edits_date,
+        groups=out, sensors=sensors, footprint_max_km=footprint_max_km,
         affiliation_colors=affiliation_colors(raw["Affiliation"].dropna().unique()),
-        edits=edits.to_dict("records"),
+        edits=edit_log.to_dict("records"),
+        edit_status=edit_log["status"].value_counts().to_dict(),
         completeness=[dict(letter=column_letter(i), field=f, pct=float(comp[f].mean() * 100))
                       for i, f in enumerate(comp.columns)],
         qa_summary=qa_sum.to_dict("records"),

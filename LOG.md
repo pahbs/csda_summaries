@@ -31,6 +31,7 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-02 · [6] Vendor Specs: the 86 proposed edits are applied (140 cells) and recorded per cell in `specs/edits_log.csv`; checks fall from 75 to 45 flagged cells. Dashboard: *Cross-track swath width* section, *Database Quality* tab with the edit record.
 - 2026-11-02 · [6] Vendor Specs: rule *Total Bands (MS)* counts pan; public-source check (87 proposed edits, 71 from CSDA vendor pages, `specs/public_check_2026-11-02.csv`); interactive dashboard `html/vendor_specs.html` (hover details, sector / status filters, light / dark).
 - 2026-11-02 · [6] Vendor Specs DB: `lib/vendor_specs.py` + `csda_specs_compare.ipynb`: live load, QA checks on columns A–AS (76 suspect cells in 50 of 84 rows), completeness grid (A–AS 56% filled), NASA Chat extraction prompt + diff, and footprint / GSD / band-count comparison figures.
 - 2026-11-02 · [6] Timeline: joint evaluation comparison sheet shared with ESA & USGS on 29 Oct 2026 (was planned, placeholder 30 Nov).
@@ -353,6 +354,21 @@ only if needed), never a separate search API.
 ---
 
 ## 6 · Evaluation results, RadCalNet and spectral response
+
+### 2026-11-02 · Vendor Specs: edits applied, with a record of every edit
+- **Edit record** `specs/edits_log.csv`: one row per sheet cell (`edit_id`, `date`, `batch`, `cell` e.g. `CI2`, sensor,
+  field, `before`, `after`, `source`, `source_url`, `note`). Batches are appended, never rewritten (`vs.record_edits`;
+  a batch already in the record is not added twice). First batch: `public_check_2026-11-02` (86 proposals with
+  `change = True` -> 140 cells; the GeoEye-1 "no change" row left out).
+- **Applied on top of the live sheet** (`vs.apply_edits`), so every view uses the edited values; status per cell:
+  *applied (not yet in sheet)* (all 140 now), *in sheet* once the value is copied into the Google Sheet, *skipped: sheet
+  changed* if the sheet holds a third value (the sheet wins). The Google Sheet itself is not changed yet.
+- With the edits, checks: 45 flagged cells in 33 rows (was 75); core fields A–AS 57% filled.
+- Notebook: new section 2 *Edits: record and apply* (`EDIT_LOG`, `EDIT_BATCHES`); checks are now section 3 and run on
+  the edited values; plot asterisks mark only values still flagged by the checks.
+- Dashboard: *Image footprints at true scale* renamed **Cross-track swath width** (also the static figure title); tab
+  *Data quality* renamed **Database Quality**; its edits panel is now the **Edit record** (cell, sensor, field, before,
+  after, status, source, note; searchable); tooltips list the edits applied to each constellation.
 
 ### 2026-11-02 · Vendor Specs: public-source check and interactive dashboard
 - **Rule**: *Total Bands (MS)* counts the pan band (decided 2 Nov). QA check now flags rows that leave pan out (12: Legion,

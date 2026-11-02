@@ -102,7 +102,7 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
   <div class="sub" id="subtitle"></div>
   <div class="tabs" role="tablist" aria-label="Views">
     <button role="tab" id="tab-compare" aria-controls="panel-compare" aria-selected="true">Comparison</button>
-    <button role="tab" id="tab-quality" aria-controls="panel-quality" aria-selected="false">Data quality <span class="count" id="tab-q-count"></span></button>
+    <button role="tab" id="tab-quality" aria-controls="panel-quality" aria-selected="false">Database Quality <span class="count" id="tab-q-count"></span></button>
   </div>
 
   <div role="tabpanel" id="panel-compare" aria-labelledby="tab-compare">
@@ -145,7 +145,7 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
   </section>
 
   <section class="card" aria-labelledby="h-foot">
-    <h2 id="h-foot">Image footprints at true scale</h2>
+    <h2 id="h-foot">Cross-track swath width</h2>
     <div class="note">One panel per constellation, all on the same km scale (square side = swath width; a nominal scene; pushbroom strips can be
       much longer). Wider swaths than <span id="foot-max"></span> km are listed below.</div>
     <div id="foot"></div>
@@ -161,7 +161,7 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
   </div>
 
   <div role="tabpanel" id="panel-quality" aria-labelledby="tab-quality" hidden>
-  <div class="note" style="margin-top:12px">How complete and consistent the sheet is, and the edits proposed from public sources. Kept apart from the
+  <div class="note" style="margin-top:12px">How complete and consistent the database is, and the record of every edit made to it. Kept apart from the
     comparison so the results views stay readable.</div>
   <div class="tiles" id="qtiles"></div>
   <div class="two">
@@ -178,9 +178,9 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
   </div>
 
   <section class="card" aria-labelledby="h-edits">
-    <h2 id="h-edits">Proposed edits from the public-source check</h2>
+    <h2 id="h-edits">Edit record</h2>
     <div class="note" id="edits-note"></div>
-    <div class="filters" style="position:static;border:0;padding:8px 0"><label>Find <input type="search" id="e-q" placeholder="sensor, field, note…"></label></div>
+    <div class="filters" style="position:static;border:0;padding:8px 0"><label>Find <input type="search" id="e-q" placeholder="cell, sensor, field, note…"></label></div>
     <div class="scroll"><table class="data" id="edits"></table></div>
   </section>
 
@@ -238,8 +238,8 @@ function showTip(ev, g) {
     ['Scanner · tasking', `${esc(g.scanner || '–')} · ${esc(g.acquisition || '–')}`], ['Sheet rows', esc(g.sheet_rows)],
   ];
   let flags = '';
-  if (g.edits.length) flags += `<div class="flags"><b>${g.edits.length} proposed edit${g.edits.length > 1 ? 's' : ''}</b>: ` +
-    g.edits.slice(0, 4).map(e => `${esc(e.field)} ${esc(e.current)} → ${esc(e.proposed)}`).join('; ') + (g.edits.length > 4 ? '; …' : '') + '</div>';
+  if (g.edits.length) flags += `<div class="flags"><b>${g.edits.length} edit${g.edits.length > 1 ? 's' : ''} applied</b>: ` +
+    g.edits.slice(0, 4).map(e => `${esc(e.field)} ${esc(e.before)} → ${esc(e.after)}`).join('; ') + (g.edits.length > 4 ? '; …' : '') + '</div>';
   if (g.qa.length) flags += `<div class="flags"><b>${g.qa.length} check${g.qa.length > 1 ? 's' : ''} flagged</b>: ` +
     [...new Set(g.qa)].slice(0, 3).map(esc).join('; ') + (g.qa.length > 3 ? '; …' : '') + '</div>';
   tip.innerHTML = `<b>${esc(g.group)}</b><table>${rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</table>${flags}`;
@@ -457,7 +457,7 @@ function drawFoot(G) {
   const d = G.filter(g => g.swath_km != null && g.swath_km <= MAX).sort((a, b) => a.swath_km - b.swath_km || a.group.localeCompare(b.group));
   const side = Math.max(...d.map(g => g.swath_km), 10) * 1.06, cell = 132, cols = Math.max(1, Math.floor(1180 / cell));
   const rowsN = Math.ceil((d.length + 1) / cols), H = rowsN * (cell + 34);
-  const svg = el('svg', {viewBox: `0 0 ${cols * cell} ${H}`, width: '100%', role: 'img', 'aria-label': 'Footprints at true scale'}, box);
+  const svg = el('svg', {viewBox: `0 0 ${cols * cell} ${H}`, width: '100%', role: 'img', 'aria-label': 'Cross-track swath width at true scale'}, box);
   const k = (cell - 18) / side;
   d.forEach((g, i) => {
     const cx = (i % cols) * cell + cell / 2, ty = Math.floor(i / cols) * (cell + 34), node = el('g', {class: 'pt' + (lit(g) ? '' : ' dim')}, svg);
@@ -490,12 +490,16 @@ function drawQuality() {
     `<span class="right">${q.cells}</span></div>`).join('') + `<div class="note" style="margin-top:8px">Full list: <code>vendor_specs_qa.csv</code> from the notebook.</div>`;
 }
 function drawEdits() {
-  const q = (S.eq || '').toLowerCase(), E = D.edits.filter(e => !q || [e.sensors, e.field, e.note].join(' ').toLowerCase().includes(q));
-  $('#edits-note').innerHTML = `${D.edits.length} proposed changes from ${esc(D.edits_date)} (rule: <i>Total Bands (MS)</i> counts the pan band). ` +
-    `Sources: CSDA vendor pages on science.nasa.gov first, then vendor / agency pages; "computed" = derived from other fields. Not yet applied to the sheet.`;
-  $('#edits').innerHTML = '<thead><tr><th>Rows</th><th>Sensors</th><th>Col</th><th>Field</th><th>Current</th><th>Proposed</th><th>Source</th><th>Note</th></tr></thead><tbody>' +
-    E.map(e => `<tr><td>${esc(e.sheet_rows)}</td><td>${esc(e.sensors)}</td><td>${esc(e.column)}</td><td>${esc(e.field)}</td><td>${esc(e.current)}</td>` +
-      `<td><b>${esc(e.proposed)}</b></td><td>${e.source_url ? `<a href="${esc(e.source_url)}" target="_blank" rel="noopener">${esc(e.source)}</a>` : esc(e.source)}</td>` +
+  const q = (S.eq || '').toLowerCase(), E = D.edits.filter(e => !q || [e.cell, e.label, e.field, e.note, e.status].join(' ').toLowerCase().includes(q));
+  const st = Object.entries(D.edit_status).map(([k, n]) => `${n} ${esc(k)}`).join(', ');
+  $('#edits-note').innerHTML = `Every change made to the database, one row per cell (${D.edits.length}: ${st}). All views use the edited values. ` +
+    `<i>Applied (not yet in sheet)</i> = the Google Sheet still has the old value; <i>in sheet</i> = copied into the sheet; ` +
+    `<i>skipped</i> = the sheet changed since the edit was recorded, so the sheet value is used. Rule: <i>Total Bands (MS)</i> counts the pan band. ` +
+    `Sources: CSDA vendor pages on science.nasa.gov first, then vendor / agency pages; "computed" = derived from other fields. ` +
+    `Record: <code>specs/edits_log.csv</code>.`;
+  $('#edits').innerHTML = '<thead><tr><th>#</th><th>Date</th><th>Cell</th><th>Sensor</th><th>Field</th><th>Before</th><th>After</th><th>Status</th><th>Source</th><th>Note</th></tr></thead><tbody>' +
+    E.map(e => `<tr><td class="n">${esc(e.edit_id)}</td><td>${esc(e.date)}</td><td>${esc(e.cell)}</td><td>${esc(e.label)}</td><td>${esc(e.field)}</td><td>${esc(e.before)}</td>` +
+      `<td><b>${esc(e.after)}</b></td><td>${esc(e.status)}</td><td>${e.source_url ? `<a href="${esc(e.source_url)}" target="_blank" rel="noopener">${esc(e.source)}</a>` : esc(e.source)}</td>` +
       `<td>${esc(e.note)}</td></tr>`).join('') + '</tbody>';
 }
 const TCOLS = [['group', 'Constellation'], ['affiliation', 'Owner'], ['sector', 'Sector'], ['status', 'Status'], ['pan_gsd', 'Pan GSD (m)', 1],
@@ -536,7 +540,8 @@ function render() {
 }
 function init() {
   $('#subtitle').innerHTML = `Read from the <a href="${esc(D.sheet_url)}" target="_blank" rel="noopener">CSDA Vendor Specs sheet</a> on ${esc(D.asof)}. ` +
-    `Preliminary: values are being checked against vendor documents (see the Data quality tab).`;
+    `Preliminary: values are being checked against vendor documents; ${D.edits.length} cell edits from that check are applied ` +
+    `(see the Database Quality tab).`;
   chips('#f-sector', [['Commercial', 'Commercial', 'var(--com)'], ['Government', 'Government', 'var(--gov)']], k => S.sectors.has(k),
     k => { S.sectors.has(k) ? S.sectors.delete(k) : S.sectors.add(k); if (!S.sectors.size) S.sectors.add(k); });
   chips('#f-scope', [['current', 'Current'], ['all', 'All (incl. retired, planned)']], k => S.scope === k, k => S.scope = k);
@@ -550,7 +555,7 @@ function init() {
   $('#footer').innerHTML = esc(D.footer);
   const tiles = a => a.map(([v, k]) => `<div class="tile"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join('');
   $('#qtiles').innerHTML = tiles([[Math.round(D.pct_filled) + '%', 'of core fields (A–AS) filled'], [D.n_issues, 'cells flagged by the checks'],
-    [D.edits.length, 'proposed edits']]);
+    [D.edits.length, 'cell edits recorded']]);
   $('#tab-q-count').textContent = `${D.n_issues} flags · ${D.edits.length} edits`;
   $('#e-q').oninput = e => { S.eq = e.target.value; drawEdits(); };
   const show = name => { for (const t of ['compare', 'quality']) {
