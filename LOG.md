@@ -381,6 +381,9 @@ only if needed), never a separate search API.
   OrbitalSideKick #7570B3 (new since; further new owners take `EXTRA_COLORS`). Shared color key under the filters (click an
   owner to highlight it); thin marker outlines keep ESA yellow and BlackSky black visible in light and dark. 17+ hues
   exceed the dataviz palette's categorical cap: kept for familiarity, palette may change later.
+- Dashboard retitled *CSDA Vendor Specification Database: optical constellation comparison*; two tabs: **Comparison**
+  (2 tiles, filters, color key, charts, table view) and **Data quality** (completeness, checks and proposed-edits tiles
+  and panels, own search box; deep link `#quality`), so results and error checking are kept apart.
 
 ### 2026-11-02 · Vendor Specs database: QA, update loop, constellation comparison (`csda_specs_compare.ipynb`)
 - Sheet `13MrpqFt...` tab *Vendor Specs* (gid 1094438485), read live; 84 sensor rows. `lib/vendor_specs.py`: `load`,
