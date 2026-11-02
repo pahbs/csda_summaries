@@ -2,7 +2,8 @@
 
     import multistac, multistac_plots
     table = multistac.overview_by_month({"csda-cmr": None})        # catalog-wide
-    table = res.by_month(["affiliation", "constellation", "sensor"])  # one search
+    table = res.by_month(["affiliation", "constellation", "sensor"])  # one search: products
+    table = res.by_month("site_group", count="acquisitions")          # ... or acquisitions
     multistac_plots.plot_month_heatmap(table, color_by="affiliation")
 """
 
@@ -26,7 +27,7 @@ MONTH_NAMES = multistac.MONTH_NAMES
 BLUE_RAMP = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"]
 # Categorical hues in fixed order (assigned by first appearance, never cycled)
 CATEGORICAL = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]
-EMPTY_COLOR = "#f0efec"    # month with no acquisitions
+EMPTY_COLOR = "#f0efec"    # month with nothing counted
 SPAN_COLOR = "#dcd9d2"     # date range known, monthly counts not reported
 SURFACE = "white"
 INK = "#2b2b2b"
@@ -78,12 +79,15 @@ def plot_month_heatmap(table: pd.DataFrame, rows: Optional[List[str]] = None,
                        start: Optional[str] = None, end: Optional[str] = None,
                        title: Optional[str] = None, show_totals: bool = True,
                        display_names: bool = True, max_rows: Optional[int] = 60,
-                       spans: Optional[pd.DataFrame] = None,
+                       spans: Optional[pd.DataFrame] = None, unit: Optional[str] = None,
                        figsize: Optional[tuple] = None, ax=None):
     """Timeline heatmap: one row per group, one cell per month.
 
     table : multistac.overview_by_month(), res.by_month(by=...) or
         multistac.month_table(gdf, by=...) output (key columns, year, Jan..Dec).
+    unit : what the table counts, "products" or "acquisitions", for the labels.
+        Default: table.attrs["count"] (set by month_table / by_month /
+        overview_by_month), else "products".
     rows : key columns defining a row, outermost first (default: all key
         columns of the table). The first is drawn as a bold group label when
         there are two or more, e.g. ["affiliation", "constellation", "sensor"].
@@ -98,7 +102,7 @@ def plot_month_heatmap(table: pd.DataFrame, rows: Optional[List[str]] = None,
     log : log color scale (counts often span several orders of magnitude).
     start, end : optional 'YYYY-MM' limits for the time axis.
     display_names : show provider display names (profile `display_name`).
-    max_rows : keep only the rows with the most acquisitions (None = all); the
+    max_rows : keep only the rows with the highest totals (None = all); the
         subtitle says how many were left out.
     spans : multistac.overview() output. Collections without monthly counts
         (e.g. CSDA STAC) are drawn as a neutral band from first to last
@@ -106,6 +110,7 @@ def plot_month_heatmap(table: pd.DataFrame, rows: Optional[List[str]] = None,
         provider/collection table (overview_by_month, by_month() default).
     Returns (fig, ax).
     """
+    unit = unit or table.attrs.get("count") or "products"
     if table.empty and spans is None:
         raise ValueError("Empty table - nothing to plot")
     if table.empty:
@@ -153,20 +158,24 @@ def plot_month_heatmap(table: pd.DataFrame, rows: Optional[List[str]] = None,
     row_keys = sorted({tuple(r) for r in table[rows].itertuples(index=False)} | set(span_of))
     grid = (long.pivot_table(index=rows, columns="date", values="count", aggfunc="sum", fill_value=0)
             if len(long) else pd.DataFrame())
-    grid = grid.reindex(index=pd.MultiIndex.from_tuples(row_keys, names=rows), columns=months, fill_value=0)
+    # One key column: pivot_table gives a plain Index, so match it (a 1-level MultiIndex would zero every row)
+    index = (pd.Index([k[0] for k in row_keys], name=rows[0]) if len(rows) == 1
+             else pd.MultiIndex.from_tuples(row_keys, names=rows))
+    grid = grid.reindex(index=index, columns=months, fill_value=0)
     # Keep rows with counts in the window, or a known date range overlapping it
     window_end = months[-1] + pd.offsets.MonthEnd(1)
     in_window = {k for k, (f, l) in span_of.items() if f <= window_end and l >= months[0]}
     grid = grid[(grid.sum(axis=1) > 0) | grid.index.isin(list(in_window))]
     if grid.empty:
-        raise ValueError("No acquisitions inside the time window")
-    row_keys = list(grid.index)
+        raise ValueError(f"No {unit} inside the time window")
+    as_key = (lambda k: (k,)) if len(rows) == 1 else tuple
+    row_keys = [as_key(k) for k in grid.index]
     hidden = 0
     if max_rows and len(grid) > max_rows:
         keep = grid.sum(axis=1).nlargest(max_rows).index
         hidden = len(grid) - max_rows
         grid = grid.loc[[k for k in grid.index if k in set(keep)]]
-        row_keys = list(grid.index)
+        row_keys = [as_key(k) for k in grid.index]
     values = grid.to_numpy(dtype=float)
     totals = values.sum(axis=1)
     n_rows, n_cols = values.shape
@@ -256,7 +265,7 @@ def plot_month_heatmap(table: pd.DataFrame, rows: Optional[List[str]] = None,
             ax.annotate("n/a" if i in span_rows else _human(total), xy=(1, i + 0.5), xycoords=("axes fraction", "data"),
                         xytext=(6, 0), textcoords="offset points", ha="left", va="center",
                         fontsize=8.5, color=INK_MUTED)
-        ax.annotate("total", xy=(1, 1), xycoords="axes fraction", xytext=(6, 4),
+        ax.annotate(f"total {unit}", xy=(1, 1), xycoords="axes fraction", xytext=(6, 4),
                     textcoords="offset points", ha="left", va="bottom", fontsize=8.5, color=INK_MUTED)
 
     for spine in ax.spines.values():
@@ -266,7 +275,14 @@ def plot_month_heatmap(table: pd.DataFrame, rows: Optional[List[str]] = None,
     ax_h_in = ax.get_position().height * fig.get_figheight()
     bar_h, gap, top = 0.11, 0.24, 0.55
     left = 0.14 if color_by and scales else 0.0
-    ticks = [t for t in (1, 10, 100, 1e3, 1e4, 1e5, 1e6) if t <= vmax] if log else None
+    # Counts get whole-number ticks: every count when the maximum is small, else decades (log) or ~5 steps
+    if log and vmax >= 10:
+        ticks = [t for t in (1, 10, 100, 1e3, 1e4, 1e5, 1e6) if t <= vmax]
+    elif vmax <= 10:
+        ticks = list(range(1 if log else 0, int(vmax) + 1))
+    else:
+        from matplotlib.ticker import MaxNLocator
+        ticks = [t for t in MaxNLocator(nbins=5, integer=True).tick_values(0, vmax) if 0 <= t <= vmax]
     for i, (name, cm) in enumerate(scales):
         last = i == len(scales) - 1
         cax = ax.inset_axes([left, -(top + i * gap + bar_h) / ax_h_in, 0.4, bar_h / ax_h_in])
@@ -283,16 +299,16 @@ def plot_month_heatmap(table: pd.DataFrame, rows: Optional[List[str]] = None,
             cax.annotate(name, xy=(0, 0.5), xycoords="axes fraction", xytext=(-6, 0),
                          textcoords="offset points", ha="right", va="center", fontsize=8.5, color=INK)
     bottom = -(top + (len(scales) - 1) * gap + bar_h) / ax_h_in if scales else -0.35 / ax_h_in
-    parts = ([f"Acquisitions per month{' (log scale)' if log else ''}", "gray = none"] if scales else [])
+    parts = ([f"{unit.capitalize()} per month{' (log scale)' if log else ''}", "gray = none"] if scales else [])
     parts += ["band = date range only (catalog reports no counts)"] if span_rows else []
     ax.annotate("  ·  ".join(parts),
                 xy=(left, bottom), xycoords="axes fraction", xytext=(0, -20),
                 textcoords="offset points", ha="left", va="top", fontsize=9, color=INK)
 
     span = f"{months[0]:%b %Y} - {months[-1]:%b %Y}"
-    ax.set_title(title or "Acquisitions per month", loc="left", fontsize=12, color=INK, pad=22)
+    ax.set_title(title or f"{unit.capitalize()} per month", loc="left", fontsize=12, color=INK, pad=22)
     note = f"  ·  top {n_rows} of {n_rows + hidden} rows shown" if hidden else ""
-    counted_note = (f"{int(totals.sum()):,} acquisitions counted" if totals.sum() > 0 else "no counts")
+    counted_note = (f"{int(totals.sum()):,} {unit} counted" if totals.sum() > 0 else "no counts")
     if span_rows:
         counted_note += f"  ·  {len(span_rows)} collections with dates only"
     ax.annotate(f"{span}  ·  {counted_note}{note}", xy=(0, 1), xycoords="axes fraction",
@@ -303,6 +319,16 @@ def plot_month_heatmap(table: pd.DataFrame, rows: Optional[List[str]] = None,
 # --------------------------------------------------------------------------
 # Small multiples helpers
 # --------------------------------------------------------------------------
+
+def _unique(gdf: pd.DataFrame, count: Optional[str], *group_cols) -> pd.DataFrame:
+    """One row per product or acquisition (multistac.unique_rows), kept once per
+    site / site group when one of group_cols is site_name / site_group.
+    count=None keeps every row."""
+    if count is None:
+        return gdf
+    per = [c for cols in group_cols for c in ([cols] if isinstance(cols, str) else list(cols or []))]
+    return multistac.unique_rows(gdf, count, per=per)
+
 
 def _facets(gdf: pd.DataFrame, facet_by, max_facets: int):
     """[(label, sub-frame)], largest groups first, capped at max_facets."""
@@ -331,7 +357,8 @@ def _facets(gdf: pd.DataFrame, facet_by, max_facets: int):
 
 def plot_skyplot(gdf: pd.DataFrame, facet_by=None, color_by: Optional[str] = None,
                  show_sun: bool = True, max_facets: int = 24, ncols: int = 4,
-                 title: Optional[str] = None, panel_size: float = 3.4):
+                 title: Optional[str] = None, panel_size: float = 3.4,
+                 count: str = "acquisitions"):
     """Polar skyplots of acquisition geometry (north up, clockwise).
 
     Radius = zenith angle (center = overhead, edge = horizon), labeled as
@@ -339,13 +366,29 @@ def plot_skyplot(gdf: pd.DataFrame, facet_by=None, color_by: Optional[str] = Non
     `color_by` (e.g. "constellation"); small open circles = sun (sun_azimuth,
     sun_elevation). One panel per `facet_by` value(s), e.g. "site_name" or
     ["site_name", "constellation"]. Rows missing an azimuth or elevation are
-    left out of that layer; the panel title gives both counts.
+    left out of that layer; the panel title gives the satellite dot count
+    (and the sun count when it differs).
+
+    count : "acquisitions" (default) draws one dot per acquisition: its pan,
+        MS and pansharpened products share one geometry and would stack. The
+        panel title reads "n=<acquisitions> acquisitions; <products> products",
+        products being all product types behind those dots. "products" draws
+        one dot per product. Rows without acquisition_id count as their own
+        acquisition.
 
     Works on res.gdf or any multistac result GeoDataFrame. sat_elevation may be
     estimated from off_nadir (see column sat_elevation_source).
     Returns fig.
     """
-    df = gdf.copy()
+    df = _unique(gdf, count, facet_by).copy()
+    if count == "acquisitions":
+        # Products behind each dot (pan / MS / pansharpened, levels, formats)
+        prods = _unique(gdf, "products", facet_by)
+        facet_cols = [facet_by] if isinstance(facet_by, str) else list(facet_by or [])
+        keys = ["provider", "_acq"] + [c for c in ("site_name", "site_group") if c in facet_cols and c in gdf]
+        acq = lambda d: d["acquisition_id"].fillna(d["id"]) if "acquisition_id" in d else d["id"]
+        n_prod = prods.assign(_acq=acq(prods)).groupby(keys).size().rename("_n_products")
+        df = df.assign(_acq=acq(df)).join(n_prod, on=keys).drop(columns="_acq")
     for c in ("sat_azimuth", "sat_elevation", "sun_azimuth", "sun_elevation"):
         df[c] = pd.to_numeric(df.get(c), errors="coerce")
     has_sat = df[["sat_azimuth", "sat_elevation"]].notna().all(axis=1)
@@ -388,9 +431,13 @@ def plot_skyplot(gdf: pd.DataFrame, facet_by=None, color_by: Optional[str] = Non
             c = sat[color_by].map(colors) if color_by else CATEGORICAL[0]
             ax.scatter(np.radians(sat["sat_azimuth"]), 90 - sat["sat_elevation"], s=16, c=c,
                        edgecolors=SURFACE, linewidths=0.4, alpha=0.85, zorder=4)
-        ax.set_title(label, fontsize=9.5, color=INK, pad=16, loc="center")
-        ax.annotate(f"satellite n={len(sat):,}   sun n={len(sun):,}", xy=(0.5, -0.12), xycoords="axes fraction",
-                    ha="center", fontsize=7.5, color=INK_MUTED)
+        # Counts go in the title: below the plot they collide with the "S" label
+        counts = f"n={len(sat):,} {count}"
+        if count == "acquisitions":
+            counts += f"; {int(sat['_n_products'].sum()):,} products"
+        if show_sun and len(sun) != len(sat):
+            counts += f" · sun {len(sun):,}"
+        ax.set_title(f"{label}\n{counts}" if label else counts, fontsize=9.5, color=INK, pad=16, loc="center")
     for ax in axes[n:]:
         fig.delaxes(ax)
 
@@ -411,13 +458,13 @@ def plot_skyplot(gdf: pd.DataFrame, facet_by=None, color_by: Optional[str] = Non
     fig.legend(handles=handles, loc="upper left", bbox_to_anchor=(0.01, 1.0), ncol=min(len(handles), 8),
                frameon=False, fontsize=8.5, labelcolor=INK, handletextpad=0.3, columnspacing=1.2)
     note = f"  ·  {hidden} more panels not shown" if hidden else ""
-    fig.suptitle((title or "Acquisition geometry (as seen from the target)") + note,
+    fig.suptitle((title or f"Acquisition geometry (as seen from the target), one dot per {count[:-1]}") + note,
                  x=0.01, y=1.0 + 0.35 / fig.get_figheight(), ha="left", fontsize=12, color=INK)
     fig.text(0.01, -0.01, "Radius = elevation angle (center 90°, edge 0°). Dots: satellite"
              + (f", colored by {color_by}" if color_by else "") + ("; open circles: sun." if show_sun else "."),
              fontsize=8, color=INK_MUTED)
     fig.tight_layout(rect=(0, 0.02, 1, 0.94))
-    fig.subplots_adjust(hspace=0.55)
+    fig.subplots_adjust(hspace=0.35)
     return fig
 
 
@@ -426,8 +473,16 @@ def plot_skyplot(gdf: pd.DataFrame, facet_by=None, color_by: Optional[str] = Non
 # --------------------------------------------------------------------------
 
 def plot_density_maps(gdf: pd.DataFrame, facet_by=None, max_facets: int = 8, ncols: int = 2,
-                      sites=None, title: Optional[str] = None, panel_size=(9, 4.8), **kwargs):
-    """Global acquisition density (Robinson, hexbin of footprint centroids).
+                      sites=None, title: Optional[str] = None, panel_size=(9, 4.8),
+                      unique_items: bool = True, count: str = "products", **kwargs):
+    """Global density of products or acquisitions (Robinson, hexbin of footprint centroids).
+
+    count : "products" (catalog items) or "acquisitions" (unique
+        acquisition_id: one collect, often several products). Panel titles
+        and the figure title say which.
+    unique_items: count each once, not once per site it covers (site
+    searches return one row per item and site; overlapping sites repeat items).
+    Faceting by site_name or site_group counts it once per facet.
 
     One map per `facet_by` value(s), e.g. "affiliation" or "constellation".
     Extra kwargs go to staclib.plot_stac_acquisition_density (bin_method,
@@ -435,6 +490,8 @@ def plot_density_maps(gdf: pd.DataFrame, facet_by=None, max_facets: int = 8, nco
     (column 'Site Name' or pass site_name_col=). Returns fig.
     """
     import staclib
+    if unique_items or count == "acquisitions":
+        gdf = _unique(gdf, count, facet_by)
     facets, hidden = _facets(gdf, facet_by, max_facets)
     n = len(facets)
     ncols = min(ncols, n)
@@ -443,14 +500,16 @@ def plot_density_maps(gdf: pd.DataFrame, facet_by=None, max_facets: int = 8, nco
                              facecolor=SURFACE, squeeze=False)
     axes = axes.ravel()
     kwargs.setdefault("show_sites", sites is not None)
+    kwargs.setdefault("count_label", count.capitalize())
     for ax, (label, sub) in zip(axes, facets):
         sub = sub[sub.geometry.notna()]
         staclib.plot_stac_acquisition_density(sub, sites_gdf=sites, ax=ax,
-                                              title=f"{label}  (n={len(sub):,})" if label else None, **kwargs)
+                                              title=f"{label}  ({len(sub):,} {count})" if label else f"{len(sub):,} {count}",
+                                              **kwargs)
         ax.title.set_fontsize(11)
     for ax in axes[n:]:
         fig.delaxes(ax)
-    parts = [title] if title else []
+    parts = [title or f"{count.capitalize()} density"]
     parts += [f"{hidden} more groups not shown (max_facets={max_facets})"] if hidden else []
     if parts:
         fig.suptitle("  ·  ".join(parts), x=0.01, ha="left", fontsize=13, color=INK)
@@ -471,15 +530,19 @@ COLUMN_LABELS = {"cloud_cover": "Cloud cover (%)", "gsd": "GSD (m)", "off_nadir"
 
 def plot_distributions(gdf: pd.DataFrame, by: str = "constellation",
                        columns: Optional[List[str]] = None, max_groups: int = 20,
-                       title: Optional[str] = None):
-    """Box plots of acquisition properties (columns) for each group (`by`).
+                       title: Optional[str] = None, count: str = "products"):
+    """Box plots of product or acquisition properties (columns) for each group (`by`).
 
-    One panel per column, groups as rows (most acquisitions first), with n per
-    group. Shows the inherent variation (cloud, GSD, view and sun angles)
-    across vendors, constellations or sensors. Returns fig.
+    One panel per column, groups as rows (largest first), with n per group.
+    count : "products" (default; GSD differs between the pan and MS products
+        of one acquisition) or "acquisitions" (one row per acquisition_id,
+        e.g. for cloud and angles). Each is counted once, or once per site
+        when `by` is site_name / site_group.
+    Shows the inherent variation (cloud, GSD, view and sun angles) across
+    vendors, constellations or sensors. Returns fig.
     """
     columns = columns or DEFAULT_DISTRIBUTION_COLUMNS
-    df = gdf.copy()
+    df = _unique(gdf, count, by).copy()
     df[by] = df[by].fillna("unknown").astype(str)
     if by == "provider":
         names = multistac.display_names()
@@ -508,7 +571,9 @@ def plot_distributions(gdf: pd.DataFrame, by: str = "constellation",
     axes[0][0].set_yticks(range(len(groups)))
     counts = df[by].value_counts()
     axes[0][0].set_yticklabels([f"{g}  ({counts[g]:,})" for g in groups], fontsize=8.5, color=INK)
-    fig.suptitle(title or f"Acquisition properties by {by}  (box = middle 50%, line = median, whiskers = 1.5 IQR)",
+    fig.suptitle((f"{title}  ·  n = {count}" if title else
+                  f"{count[:-1].capitalize()} properties by {by}, n = {count}  "
+                  "(box = middle 50%, line = median, whiskers = 1.5 IQR)"),
                  x=0.01, ha="left", fontsize=11, color=INK)
     fig.tight_layout()
     return fig
