@@ -31,6 +31,7 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-02 · [6] Timeline: Planet-Tanager added as an evaluation (own panel) with the Planet Tanager TEM (28 Aug 2026).
 - 2026-11-02 · [6] Timeline joint events: CSDA Evaluation Results dB (Jul 2026, ongoing) and the planned sharing of the joint evaluation comparison sheet with ESA & USGS (placeholder 30 Nov); both link to the CSDA Evaluation Results slides.
 - 2026-11-02 · [6] Timeline: OroraTech, Orbital Sidekick, ImageSat and Satlantis added as evaluations (own panels), each with its TEM: OroraTech 25 Aug, Orbital Sidekick 16 Oct, ImageSat 22 Oct, Satlantis 2 Nov 2026; Airbus 24 Sep TEM relabeled.
 - 2026-11-02 · [6] Timeline: Satellogic v2 plan: confirm STAC API search type with vendor and build the geometric/radiometric site list (2-6 Nov), request v2 archive data at the sites (9-20 Nov); initial STAC analysis notebook milestone (27 Oct).
@@ -349,6 +350,13 @@ only if needed), never a separate search API.
 ---
 
 ## 6 · Evaluation results, RadCalNet and spectral response
+
+### 2026-11-02 · Timeline: Planet-Tanager TEM
+- `evaluations_list` now has **Planet-Tanager** (9 panels; named like Vantor-Legion), after OroraTech. First entry:
+  Planet & CSDA technical exchange meeting on Tanager (Fri 28 Aug 2026).
+- HTML timeline (`lib/timeline_template.html`): the joint-events lane, legend and tooltips now read **Joint Activities**
+  (was "Meetings, conferences & joint activities"); in the table, their evaluation and type columns too (were
+  "Joint / all", "Meeting / joint activity").
 
 ### 2026-11-02 · Timeline: Evaluation Results dB and comparison sheet (joint events)
 - *CSDA Evaluation Results dB*: bar from **1 Jul 2026** (started July; exact day not recorded) to the joint
