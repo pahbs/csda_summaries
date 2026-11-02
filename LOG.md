@@ -376,6 +376,11 @@ only if needed), never a separate search API.
 - Dashboard: **launch timeline** (one mark per sensor row: launch date vs orbit altitude; shape = orbit type
   (sun-synchronous, mid-inclination / inclined, near-polar, not in sheet), size = satellite size class, color = sector,
   open = planned, line to the end date or today; labels = constellation group). Year-only launch dates are placed mid-year.
+- Dashboard colors: **Color by** data owner (default) or sector; owner colors = the palette of
+  `csda_specs_multispec_smry.ipynb` (Set1 + Dark2, BlackSky black, US Agency blue; `vs.AFFILIATION_COLORS`), plus
+  OrbitalSideKick #7570B3 (new since; further new owners take `EXTRA_COLORS`). Shared color key under the filters (click an
+  owner to highlight it); thin marker outlines keep ESA yellow and BlackSky black visible in light and dark. 17+ hues
+  exceed the dataviz palette's categorical cap: kept for familiarity, palette may change later.
 
 ### 2026-11-02 · Vendor Specs database: QA, update loop, constellation comparison (`csda_specs_compare.ipynb`)
 - Sheet `13MrpqFt...` tab *Vendor Specs* (gid 1094438485), read live; 84 sensor rows. `lib/vendor_specs.py`: `load`,

@@ -9,21 +9,21 @@
   color-scheme: light;
   --surface: #fcfcfb; --surface-2: #f3f2ee; --ink: #0b0b0b; --ink-2: #52514e; --ink-3: #8a8984;
   --grid: #e6e5e0; --com: #2a78d6; --gov: #eb6834; --ring: #0b0b0b; --bar: #256abf; --bar-bg: #e9edf3;
-  --link: #1c5cab;
+  --link: #1c5cab; --edge: rgba(0,0,0,.45);
 }
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) .viz-root {
     color-scheme: dark;
     --surface: #1a1a19; --surface-2: #232322; --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #8f8e86;
     --grid: #30302d; --com: #3987e5; --gov: #d95926; --ring: #f0efec; --bar: #3987e5; --bar-bg: #2b2f36;
-    --link: #86b6ef;
+    --link: #86b6ef; --edge: rgba(255,255,255,.55);
   }
 }
 :root[data-theme="dark"] .viz-root {
   color-scheme: dark;
   --surface: #1a1a19; --surface-2: #232322; --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #8f8e86;
   --grid: #30302d; --com: #3987e5; --gov: #d95926; --ring: #f0efec; --bar: #3987e5; --bar-bg: #2b2f36;
-  --link: #86b6ef;
+  --link: #86b6ef; --edge: rgba(255,255,255,.55);
 }
 * { box-sizing: border-box; }
 body { margin: 0; }
@@ -44,6 +44,10 @@ a { color: var(--link); }
 .filters label { font-size: 13px; color: var(--ink-2); display: inline-flex; gap: 6px; align-items: center; }
 .chip { border: 1px solid var(--grid); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 3px 11px;
   font: inherit; font-size: 13px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.key { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--ink-2); width: 100%; }
+.key button { background: none; border: 0; color: inherit; font: inherit; cursor: pointer; padding: 1px 2px; display: inline-flex; gap: 5px; align-items: center; }
+.key button[aria-pressed="true"] { color: var(--ink); font-weight: 600; text-decoration: underline; }
+.key .sw { border: 1px solid var(--edge); }
 .chip[aria-pressed="true"] { background: var(--surface-2); border-color: var(--ink-3); }
 .sw { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 select, input[type=search] { font: inherit; font-size: 13px; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--grid);
@@ -97,6 +101,8 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
     <label>Status <span id="f-scope"></span></label>
     <label>Highlight <select id="f-aff"><option value="">all data owners</option></select></label>
     <label>Find <input type="search" id="f-q" placeholder="constellation, owner…"></label>
+    <label>Color by <span id="f-color"></span></label>
+    <div class="key" id="key" aria-label="Color key"></div>
   </div>
 
   <section class="card" aria-labelledby="h-scatter">
@@ -112,7 +118,7 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
   <section class="card" aria-labelledby="h-launch">
     <h2 id="h-launch">Launches, orbits and satellite size</h2>
     <div class="note">One mark per sensor row in the sheet, at its launch date (x) and orbit altitude (y). Marker shape = orbit type,
-      size = satellite size class, color = sector; open = planned. The line runs to the end date, or to today while in operation.
+      size = satellite size class, color = data owner or sector (key above); open = planned. The line runs to the end date, or to today while in operation.
       Hover a mark for details.</div>
     <div class="legend" id="lg-launch"></div>
     <svg id="launch" viewBox="0 0 1180 560" width="100%" role="img" aria-label="Launch date against orbit altitude by sensor"></svg>
@@ -173,12 +179,13 @@ const NS = 'http://www.w3.org/2000/svg';
 const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag);
   for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (parent) parent.appendChild(e); return e; };
 const css = v => getComputedStyle(document.querySelector('.viz-root')).getPropertyValue(v).trim();
-const color = g => g.sector === 'Government' ? 'var(--gov)' : 'var(--com)';
+const color = g => S.colorBy === 'sector' ? (g.sector === 'Government' ? 'var(--gov)' : 'var(--com)')
+  : (D.affiliation_colors[g.affiliation] || 'var(--ink-3)');
 const BINS = [[1, 4, '1–4', 4.5], [5, 9, '5–9', 6.5], [10, 40, '10–40', 9], [41, 1e9, '> 40 (hyperspectral)', 12]];
 const radius = n => n == null ? 4.5 : BINS.find(b => n >= b[0] && n <= b[1])[3];
 
 // ---------- state & filters ----------
-const S = { sectors: new Set(['Commercial', 'Government']), scope: 'current', aff: '', q: '' };
+const S = { sectors: new Set(['Commercial', 'Government']), scope: 'current', aff: '', q: '', colorBy: 'affiliation' };
 function chips(target, items, isOn, onClick) {
   const box = $(target); box.innerHTML = '';
   items.forEach(([key, label, sw]) => {
@@ -275,8 +282,8 @@ function drawScatter(G) {
     const cx = X(g.ms_gsd), cy = Y(g.swath_km), r = radius(g.ms_bands), c = color(g);
     const node = el('g', {class: 'pt' + (lit(g) ? '' : ' dim')}, marks);
     if (g.pan_gsd != null) el('circle', {cx, cy, r: r + 3.2, fill: 'none', stroke: 'var(--ring)', 'stroke-width': 1.3}, node);
-    el('circle', {cx, cy, r, fill: g.ms_bands == null ? 'var(--surface)' : c, stroke: g.ms_bands == null ? c : 'var(--surface)',
-      'stroke-width': g.ms_bands == null ? 2 : 1, 'fill-opacity': .92}, node);
+    el('circle', {cx, cy, r, fill: g.ms_bands == null ? 'var(--surface)' : c, stroke: g.ms_bands == null ? c : 'var(--edge)',
+      'stroke-width': g.ms_bands == null ? 2 : .8, 'fill-opacity': .92}, node);
     el('circle', {cx, cy, r: r + 9, fill: 'transparent'}, node);
     const rr = r + (g.pan_gsd != null ? 4.5 : 1);     // marker incl. ring
     hover(node, g); placed.push({x0: cx - rr, x1: cx + rr, y0: cy - rr, y1: cy + rr});
@@ -300,8 +307,7 @@ function drawScatter(G) {
 function scatterLegend() {
   const sw = (fill, stroke, r, ring) => `<svg width="${2 * r + 10}" height="${2 * r + 10}"><circle cx="${r + 5}" cy="${r + 5}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${fill === 'var(--surface)' ? 2 : 0}"/>${ring ? `<circle cx="${r + 5}" cy="${r + 5}" r="${r + 3}" fill="none" stroke="var(--ring)" stroke-width="1.3"/>` : ''}</svg>`;
   $('#lg-scatter').innerHTML =
-    `<span>${sw('var(--com)', 'none', 5)} Commercial</span><span>${sw('var(--gov)', 'none', 5)} Government</span>` +
-    `<span style="margin-left:8px">Number of bands (MS incl. pan):</span>` +
+    `<span>Color: see the key above.</span><span style="margin-left:8px">Number of bands (MS incl. pan):</span>` +
     BINS.map(b => `<span>${sw('var(--ink-3)', 'none', b[3])} ${b[2]}</span>`).join('') +
     `<span>${sw('var(--surface)', 'var(--ink-3)', 4.5)} not in sheet</span><span>${sw('var(--ink-3)', 'none', 5, true)} has a panchromatic band</span>`;
 }
@@ -354,13 +360,13 @@ function drawLaunches() {
   const pts = shownSensors().filter(x => x.launch).sort((a, b) => (SIZE_R[b.size_class] || 4) - (SIZE_R[a.size_class] || 4));
   const lines = el('g', {}, svg), marks = el('g', {}, svg), labels = el('g', {}, svg), placed = [];
   for (const x of pts) {
-    const planned = x.status === 'Planned' || t(x.launch) > now, c = x.sector === 'Government' ? 'var(--gov)' : 'var(--com)';
+    const planned = x.status === 'Planned' || t(x.launch) > now, c = color(x);
     const end = x.end ? t(x.end) : (x.current && !planned ? now : null), cy = Y_(x), cx = X_(x), dim = S.aff && x.affiliation !== S.aff;
     if (end && end > t(x.launch)) { el('line', {x1: cx, x2: X(Math.min(end, t1)), y1: cy, y2: cy, stroke: c, 'stroke-width': 2, 'stroke-opacity': dim ? .1 : .4}, lines);
       if (x.end) el('line', {x1: X(end), x2: X(end), y1: cy - 4, y2: cy + 4, stroke: c, 'stroke-width': 1.5, 'stroke-opacity': dim ? .15 : .8}, lines); }
     const r = SIZE_R[x.size_class] || 3.5, node = el('g', {class: 'pt' + (dim ? ' dim' : '')}, marks);
-    el('path', {d: shapePath(SHAPES[x.orbit_type], cx, cy, r), fill: planned || !x.size_class ? 'var(--surface)' : c, stroke: planned || !x.size_class ? c : 'var(--surface)',
-      'stroke-width': planned || !x.size_class ? 1.8 : 1, 'fill-opacity': .9}, node);
+    el('path', {d: shapePath(SHAPES[x.orbit_type], cx, cy, r), fill: planned || !x.size_class ? 'var(--surface)' : c, stroke: planned || !x.size_class ? c : 'var(--edge)',
+      'stroke-width': planned || !x.size_class ? 1.8 : .8, 'fill-opacity': .9}, node);
     el('circle', {cx, cy, r: r + 7, fill: 'transparent'}, node);
     node.addEventListener('mouseenter', e => showSensorTip(e, x)); node.addEventListener('mousemove', moveTip); node.addEventListener('mouseleave', hideTip);
     placed.push({x0: cx - r - 2, x1: cx + r + 2, y0: cy - r - 2, y1: cy + r + 2});
@@ -415,7 +421,7 @@ function drawStrips(G) {
     rows.forEach((g, i) => { const cy = top + i * rh + rh / 2, [v, p] = get(g), c = color(g), node = el('g', {class: 'pt' + (lit(g) ? '' : ' dim')}, svg);
       if (p != null && v != null) el('line', {x1: X(p), x2: X(v), y1: cy, y2: cy, stroke: c, 'stroke-width': 1.5, 'stroke-opacity': .5}, node);
       if (p != null) el('circle', {cx: X(p), cy, r: 4.3, fill: 'var(--surface)', stroke: c, 'stroke-width': 1.6}, node);
-      if (v != null) { el('circle', {cx: X(v), cy, r: 4.6, fill: c, stroke: 'var(--surface)', 'stroke-width': 1}, node);
+      if (v != null) { el('circle', {cx: X(v), cy, r: 4.6, fill: c, stroke: 'var(--edge)', 'stroke-width': .8}, node);
         el('text', {x: X(v) + 8, y: cy + 4, 'font-size': 10.5, class: 'muted'}, node).textContent = fmt(v); }
       else el('text', {x: x + w - 10, y: cy + 4, 'font-size': 11, class: 'faint', 'text-anchor': 'end'}, node).textContent = '–';
     });
@@ -438,7 +444,8 @@ function drawFoot(G) {
     el('text', {x: cx, y: ty + 25, 'text-anchor': 'middle', 'font-size': 10.5, class: 'muted'}, node).textContent = fmt(g.swath_km) + ' km';
     const fy = ty + 32, s = g.swath_km * k;
     el('rect', {x: cx - side * k / 2, y: fy, width: side * k, height: side * k, fill: 'none', stroke: 'var(--grid)'}, node);
-    el('rect', {x: cx - s / 2, y: fy + (side * k - s) / 2, width: s, height: s, fill: color(g), 'fill-opacity': .85, rx: 1}, node);
+    el('rect', {x: cx - s / 2, y: fy + (side * k - s) / 2, width: s, height: s, fill: color(g), 'fill-opacity': .85, rx: 1,
+      stroke: 'var(--edge)', 'stroke-width': .8}, node);
     const hit = el('rect', {x: cx - cell / 2, y: ty, width: cell, height: cell + 32, fill: 'transparent'}, node); hover(hit, g);
   });
   // scale bar in the next free cell
@@ -484,8 +491,23 @@ function drawTable(G) {
 }
 
 // ---------- page ----------
+function drawKey(G) {
+  const key = $('#key');
+  const items = S.colorBy === 'sector' ? [['Commercial', 'var(--com)'], ['Government', 'var(--gov)']]
+    : [...new Set(G.map(g => g.affiliation))].sort().map(a => [a, D.affiliation_colors[a] || 'var(--ink-3)']);
+  key.innerHTML = '';
+  for (const [name, c] of items) {
+    const b = document.createElement('button'); b.type = 'button';
+    b.innerHTML = `<span class="sw" style="background:${c}"></span>${esc(name)}`;
+    if (S.colorBy === 'affiliation') { b.setAttribute('aria-pressed', S.aff === name); b.title = 'Highlight ' + name;
+      b.onclick = () => { S.aff = S.aff === name ? '' : name; $('#f-aff').value = S.aff; render(); }; }
+    else b.disabled = true;
+    key.appendChild(b);
+  }
+}
 function render() {
   const G = shown();
+  drawKey(G);
   drawScatter(G); drawLaunches(); drawStrips(G); drawFoot(G); drawEdits(); drawTable(G);
   const comm = G.filter(g => g.sector === 'Commercial').length;
   $('#tiles').innerHTML = [[G.length, `constellations shown (${comm} commercial)`], [D.n_sensors, 'sensors in the sheet'],
@@ -498,6 +520,7 @@ function init() {
   chips('#f-sector', [['Commercial', 'Commercial', 'var(--com)'], ['Government', 'Government', 'var(--gov)']], k => S.sectors.has(k),
     k => { S.sectors.has(k) ? S.sectors.delete(k) : S.sectors.add(k); if (!S.sectors.size) S.sectors.add(k); });
   chips('#f-scope', [['current', 'Current'], ['all', 'All (incl. retired, planned)']], k => S.scope === k, k => S.scope = k);
+  chips('#f-color', [['affiliation', 'Data owner'], ['sector', 'Sector']], k => S.colorBy === k, k => S.colorBy = k);
   const affs = [...new Set(D.groups.map(g => g.affiliation))].sort();
   $('#f-aff').innerHTML += affs.map(a => `<option>${esc(a)}</option>`).join('');
   $('#f-aff').onchange = e => { S.aff = e.target.value; render(); };
