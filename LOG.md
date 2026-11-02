@@ -31,6 +31,7 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-02 · [6] Timeline: OroraTech, Orbital Sidekick, ImageSat and Satlantis added as evaluations (own panels), each with its TEM: OroraTech 25 Aug, Orbital Sidekick 16 Oct, ImageSat 22 Oct, Satlantis 2 Nov 2026; Airbus 24 Sep TEM relabeled.
 - 2026-11-02 · [6] Timeline: Satellogic v2 plan: confirm STAC API search type with vendor and build the geometric/radiometric site list (2-6 Nov), request v2 archive data at the sites (9-20 Nov); initial STAC analysis notebook milestone (27 Oct).
 - 2026-11-01 · [3][6] Vantor's archive vs CSDA since the 14 Sep Legion request: Vantor collected 55 Legion images at the 9 sites, only 19 in CSDA (36 not delivered, 9 of them meeting the request); new section 8 of `vantor_legion_supp_tracking.ipynb` writes the timeline notes.
 - 2026-11-01 · [6][4] Timeline: joint event "ESA site list confirmed" (24 Sep 2026): the `ESA_misc_20260924` tab of the site request sheet (14 sites) is the reference site list for all vendors going forward.
@@ -347,6 +348,14 @@ only if needed), never a separate search API.
 ---
 
 ## 6 · Evaluation results, RadCalNet and spectral response
+
+### 2026-11-02 · Timeline: OroraTech, Orbital Sidekick, ImageSat and Satlantis TEMs
+- `evaluations_list` now has **OroraTech**, **Orbital Sidekick**, **ImageSat** and **Satlantis** (8 panels). First
+  entries: their technical exchange meetings with CSDA (Tue 25 Aug, Fri 16 Oct, Thu 22 Oct, Mon 2 Nov 2026); the
+  timeline now starts in August. Joint events (VH-RODA, AGU, ESA
+  template, ESA site list) show in their panels too.
+- Airbus: the 24 Sep 2026 TEM (already on the timeline as " CSDA on-ramp 2 Space Reference Points (SRPs)") relabeled
+  *Airbus Tech. Exchange Mtg. (TEM)* like the others; the SRP title moved into its note.
 
 ### 2026-11-02 · Timeline: Satellogic v2 plan
 - Three Satellogic tasks (type Data Acq./Analysis, work weeks Mon-Fri): *Confirm STAC API search type with vendor* and
