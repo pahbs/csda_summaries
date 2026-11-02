@@ -109,6 +109,16 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
     <div class="note" id="scatter-left"></div>
   </section>
 
+  <section class="card" aria-labelledby="h-launch">
+    <h2 id="h-launch">Launches, orbits and satellite size</h2>
+    <div class="note">One mark per sensor row in the sheet, at its launch date (x) and orbit altitude (y). Marker shape = orbit type,
+      size = satellite size class, color = sector; open = planned. The line runs to the end date, or to today while in operation.
+      Hover a mark for details.</div>
+    <div class="legend" id="lg-launch"></div>
+    <svg id="launch" viewBox="0 0 1180 560" width="100%" role="img" aria-label="Launch date against orbit altitude by sensor"></svg>
+    <div class="note" id="launch-left"></div>
+  </section>
+
   <section class="card" aria-labelledby="h-strips">
     <h2 id="h-strips">Key specs side by side</h2>
     <div class="note">One row per constellation, sorted by multispectral GSD; each panel has its own log axis. Filled dot = multispectral GSD,
@@ -296,6 +306,90 @@ function scatterLegend() {
     `<span>${sw('var(--surface)', 'var(--ink-3)', 4.5)} not in sheet</span><span>${sw('var(--ink-3)', 'none', 5, true)} has a panchromatic band</span>`;
 }
 
+// ---------- launches, orbits, size ----------
+const SIZE_R = {Nano: 3, Micro: 4.5, Mini: 6, Medium: 7.5, Large: 9.5};
+const SHAPES = {'Sun-synchronous': 'circle', 'Mid-inclination / inclined': 'triangle', 'Near-polar': 'diamond', 'Not in sheet': 'square'};
+function shapePath(shape, cx, cy, r) {
+  if (shape === 'triangle') { const h = r * 1.25; return `M${cx},${cy - h}L${cx + h * .95},${cy + h * .7}L${cx - h * .95},${cy + h * .7}Z`; }
+  if (shape === 'diamond') { const h = r * 1.3; return `M${cx},${cy - h}L${cx + h},${cy}L${cx},${cy + h}L${cx - h},${cy}Z`; }
+  if (shape === 'square') { const h = r * .9; return `M${cx - h},${cy - h}h${2 * h}v${2 * h}h${-2 * h}Z`; }
+  return `M${cx - r},${cy}a${r},${r} 0 1,0 ${2 * r},0a${r},${r} 0 1,0 ${-2 * r},0`;
+}
+function shownSensors() {
+  const q = S.q.toLowerCase();
+  return D.sensors.filter(x => S.sectors.has(x.sector) && (S.scope === 'all' || x.current) &&
+    (!q || [x.label, x.affiliation, x.constellation].join(' ').toLowerCase().includes(q)));
+}
+function showSensorTip(ev, x) {
+  const rows = [['Data owner', `${esc(x.affiliation)} · ${esc(x.sector)}`], ['Status', esc(x.status || '–')],
+    ['Launch', esc(x.launch || '–')], ['End', esc(x.end || (x.current ? 'in operation' : '–'))],
+    ['Orbit', `${esc(x.orbit_text || '–')}${x.altitude_km != null ? ' · ' + fmt(x.altitude_km) + ' km' : ''}`],
+    ['Size class', `${esc(x.size_class || '–')}${x.mass_kg != null ? ' · ' + fmt(x.mass_kg) + ' kg' : ''}`],
+    ['Satellites', fmt(x.n_satellites)], ['Sheet row', x.sheet_row]];
+  tip.innerHTML = `<b>${esc(x.label)}</b>${x.group ? ` <span class="pill">${esc(x.group)}</span>` : ''}<table>${rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</table>`;
+  tip.style.display = 'block'; moveTip(ev);
+}
+function drawLaunches() {
+  const svg = $('#launch'); svg.innerHTML = '';
+  const W = 1180, H = 560, m = {l: 64, r: 16, t: 14, b: 44}, nobase = 26;   // band at the bottom for "altitude not in sheet"
+  const all = D.sensors.filter(x => x.launch), t = d => new Date(d + 'T00:00:00Z').getTime(), now = Date.now();
+  const yr = d => new Date(d).getUTCFullYear();
+  const t0 = Date.UTC(Math.min(...all.map(x => yr(t(x.launch)))) - 1, 0, 1), t1 = Date.UTC(Math.max(yr(now), ...all.map(x => yr(t(x.launch)))) + 2, 0, 1);
+  const alts = all.map(x => x.altitude_km).filter(v => v != null), a0 = Math.floor(Math.min(...alts) / 50) * 50 - 25, a1 = Math.ceil(Math.max(...alts) / 50) * 50 + 25;
+  const X = v => m.l + (v - t0) / (t1 - t0) * (W - m.l - m.r), Y = v => m.t + (a1 - v) / (a1 - a0) * (H - m.t - m.b - nobase);
+  const gr = el('g', {}, svg);
+  for (let y = yr(t0) + 1; y < yr(t1); y++) { const x = X(Date.UTC(y, 0, 1));
+    if (y % 5 === 0) { el('line', {x1: x, x2: x, y1: m.t, y2: H - m.b, class: 'gridline'}, gr);
+      el('text', {x, y: H - m.b + 16, 'text-anchor': 'middle', 'font-size': 11, class: 'muted'}, gr).textContent = y; } }
+  for (let a = Math.ceil(a0 / 100) * 100; a <= a1; a += 100) { el('line', {x1: m.l, x2: W - m.r, y1: Y(a), y2: Y(a), class: 'gridline'}, gr);
+    el('text', {x: m.l - 6, y: Y(a) + 4, 'text-anchor': 'end', 'font-size': 11, class: 'muted'}, gr).textContent = a; }
+  const yNo = H - m.b - nobase / 2;
+  el('text', {x: m.l - 6, y: yNo + 4, 'text-anchor': 'end', 'font-size': 10.5, class: 'faint'}, gr).textContent = 'n/a';
+  el('line', {x1: X(now), x2: X(now), y1: m.t, y2: H - m.b, stroke: 'var(--ink-3)', 'stroke-dasharray': '2 3'}, gr);
+  el('text', {x: X(now) + 4, y: m.t + 10, 'font-size': 11, class: 'faint'}, gr).textContent = 'today';
+  el('text', {x: (m.l + W - m.r) / 2, y: H - 8, 'text-anchor': 'middle', 'font-size': 12.5, class: 'muted'}, gr).textContent = 'Launch date';
+  el('text', {x: 14, y: (m.t + H - m.b) / 2, 'text-anchor': 'middle', 'font-size': 12.5, class: 'muted', transform: `rotate(-90 14 ${(m.t + H - m.b) / 2})`}, gr)
+    .textContent = 'Orbit altitude (km)';
+  const X_ = x => X(t(x.launch)), Y_ = x => x.altitude_km != null ? Y(x.altitude_km) : yNo;
+  const pts = shownSensors().filter(x => x.launch).sort((a, b) => (SIZE_R[b.size_class] || 4) - (SIZE_R[a.size_class] || 4));
+  const lines = el('g', {}, svg), marks = el('g', {}, svg), labels = el('g', {}, svg), placed = [];
+  for (const x of pts) {
+    const planned = x.status === 'Planned' || t(x.launch) > now, c = x.sector === 'Government' ? 'var(--gov)' : 'var(--com)';
+    const end = x.end ? t(x.end) : (x.current && !planned ? now : null), cy = Y_(x), cx = X_(x), dim = S.aff && x.affiliation !== S.aff;
+    if (end && end > t(x.launch)) { el('line', {x1: cx, x2: X(Math.min(end, t1)), y1: cy, y2: cy, stroke: c, 'stroke-width': 2, 'stroke-opacity': dim ? .1 : .4}, lines);
+      if (x.end) el('line', {x1: X(end), x2: X(end), y1: cy - 4, y2: cy + 4, stroke: c, 'stroke-width': 1.5, 'stroke-opacity': dim ? .15 : .8}, lines); }
+    const r = SIZE_R[x.size_class] || 3.5, node = el('g', {class: 'pt' + (dim ? ' dim' : '')}, marks);
+    el('path', {d: shapePath(SHAPES[x.orbit_type], cx, cy, r), fill: planned || !x.size_class ? 'var(--surface)' : c, stroke: planned || !x.size_class ? c : 'var(--surface)',
+      'stroke-width': planned || !x.size_class ? 1.8 : 1, 'fill-opacity': .9}, node);
+    el('circle', {cx, cy, r: r + 7, fill: 'transparent'}, node);
+    node.addEventListener('mouseenter', e => showSensorTip(e, x)); node.addEventListener('mousemove', moveTip); node.addEventListener('mouseleave', hideTip);
+    placed.push({x0: cx - r - 2, x1: cx + r + 2, y0: cy - r - 2, y1: cy + r + 2});
+  }
+  // one label per constellation group (as in the other views), at its first launch, where it fits
+  const first = new Map();
+  for (const x of [...pts].sort((a, b) => t(a.launch) - t(b.launch))) { const k = x.group || x.constellation || x.label; if (!first.has(k)) first.set(k, x); }
+  for (const [name, x] of first) {
+    if (S.aff && x.affiliation !== S.aff) continue;
+    const cx = X_(x), cy = Y_(x), r = (SIZE_R[x.size_class] || 4) + 2, w = name.length * 6 + 2;
+    for (const [tx, ty, anchor] of [[cx + r + 2, cy + 4, 'start'], [cx - r - 2, cy + 4, 'end'], [cx, cy - r - 3, 'middle'], [cx, cy + r + 12, 'middle']]) {
+      const bx0 = anchor === 'start' ? tx : anchor === 'end' ? tx - w : tx - w / 2, box = {x0: bx0, x1: bx0 + w, y0: ty - 10, y1: ty + 1};
+      if (box.x0 < m.l || box.x1 > W - m.r || box.y0 < m.t || box.y1 > H - m.b) continue;
+      if (placed.some(p => !(box.x1 < p.x0 || box.x0 > p.x1 || box.y1 < p.y0 || box.y0 > p.y1))) continue;
+      el('text', {x: tx, y: ty, 'text-anchor': anchor, 'font-size': 10.5}, labels).textContent = name; placed.push(box); break;
+    }
+  }
+  const noLaunch = shownSensors().filter(x => !x.launch).map(x => x.label);
+  $('#launch-left').textContent = (noLaunch.length ? 'No launch date in the sheet: ' + noLaunch.join(', ') + '. ' : '') +
+    'Sensors without an altitude in the sheet sit in the n/a band.';
+}
+function launchLegend() {
+  const ic = (shape, r, fill, stroke) => `<svg width="${2 * r + 12}" height="${2 * r + 12}"><path d="${shapePath(shape, r + 6, r + 6, r)}" fill="${fill}" stroke="${stroke}" stroke-width="1.6"/></svg>`;
+  $('#lg-launch').innerHTML = Object.entries(SHAPES).map(([k, sh]) => `<span>${ic(sh, 5, 'var(--ink-3)', 'none')} ${esc(k)}</span>`).join('') +
+    `<span style="margin-left:8px">Size class:</span>` + Object.entries(SIZE_R).map(([k, r]) => `<span>${ic('circle', r, 'var(--ink-3)', 'none')} ${k}</span>`).join('') +
+    `<span>${ic('circle', 5, 'var(--surface)', 'var(--ink-3)')} planned / size not in sheet</span>` +
+    `<span><svg width="30" height="12"><line x1="2" x2="28" y1="6" y2="6" stroke="var(--ink-3)" stroke-width="2"/><line x1="28" x2="28" y1="2" y2="10" stroke="var(--ink-3)" stroke-width="1.5"/></svg> in operation until end date</span>`;
+}
+
 // ---------- strips ----------
 function drawStrips(G) {
   const svg = $('#strips'); svg.innerHTML = '';
@@ -392,7 +486,7 @@ function drawTable(G) {
 // ---------- page ----------
 function render() {
   const G = shown();
-  drawScatter(G); drawStrips(G); drawFoot(G); drawEdits(); drawTable(G);
+  drawScatter(G); drawLaunches(); drawStrips(G); drawFoot(G); drawEdits(); drawTable(G);
   const comm = G.filter(g => g.sector === 'Commercial').length;
   $('#tiles').innerHTML = [[G.length, `constellations shown (${comm} commercial)`], [D.n_sensors, 'sensors in the sheet'],
     [Math.round(D.pct_filled) + '%', 'of core fields (A–AS) filled'], [D.n_issues, 'cells flagged by the checks'], [D.edits.length, 'proposed edits']]
@@ -411,7 +505,7 @@ function init() {
   $('#theme').onclick = () => { const r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === 'dark' :
     matchMedia('(prefers-color-scheme: dark)').matches; r.dataset.theme = dark ? 'light' : 'dark'; };
   $('#footer').innerHTML = esc(D.footer);
-  scatterLegend(); drawQuality(); render();
+  scatterLegend(); launchLegend(); drawQuality(); render();
 }
 init();
 </script>

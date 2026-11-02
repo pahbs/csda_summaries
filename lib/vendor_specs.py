@@ -682,6 +682,33 @@ def write_dashboard(raw: pd.DataFrame, groups: pd.DataFrame, issues: pd.DataFram
             revisit_days=num(g.revisit_days), ce90_m=num(g.ce90_m), scanner=g.scanner if pd.notna(g.scanner) else None,
             acquisition=g.acquisition if pd.notna(g.acquisition) else None, sheet_rows=g.sheet_rows,
             qa=qa, edits=ed, n_flags=len(qa) + len(ed)))
+    # One row per sensor for the launch timeline (launch / end dates, orbit, size class)
+    def orbit_class(v):
+        v = str(v).lower() if pd.notna(v) else ""
+        if "sun" in v:
+            return "Sun-synchronous"
+        if "mid" in v or "inclin" in v:
+            return "Mid-inclination / inclined"
+        if "polar" in v:
+            return "Near-polar"
+        return "Not in sheet"
+    date = lambda v: None if pd.isna(pd.to_datetime(v, errors="coerce")) else pd.to_datetime(v).strftime("%Y-%m-%d")
+    row_group = {int(r): g.group for g in groups.itertuples() for r in g.sheet_rows.split(", ")}
+    sensors = []
+    for _, r in raw.iterrows():
+        launch = r["Launch Date"]
+        if pd.notna(launch) and re.fullmatch(r"\d{4}", str(launch)):
+            launch = f"{launch}-07-01"                       # year only: mid-year
+        sensors.append(dict(
+            label=r["label"], group=row_group.get(int(r["sheet_row"])), constellation=r["Constellation/Platform"],
+            sensor=r["Sensor Name"],
+            affiliation=r["Affiliation"], sector=r["Sector"], status=r["Mission Status"],
+            current=bool(r["Mission Status"] in CURRENT_STATUS or pd.isna(r["Mission Status"])),
+            launch=date(launch), end=date(r["End Date"]), altitude_km=num(to_number(r["Orbit Altitude (km)"])),
+            orbit_type=orbit_class(r["Orbit Type"]), orbit_text=r["Orbit Type"] if pd.notna(r["Orbit Type"]) else None,
+            size_class=r["Satellite Size Class"] if pd.notna(r["Satellite Size Class"]) else None,
+            mass_kg=num(to_number(r["Weight Range (kg)"])), n_satellites=num(to_number(r["n satellites"])),
+            sheet_row=int(r["sheet_row"])))
     comp = completeness(raw)
     qa_sum = (issues.groupby("check").agg(cells=("sheet_row", "size"), rows=("sheet_row", "nunique"),
                                           detail=("detail", "first"))
@@ -690,7 +717,7 @@ def write_dashboard(raw: pd.DataFrame, groups: pd.DataFrame, issues: pd.DataFram
         asof=pd.Timestamp.today().strftime("%d %b %Y"), sheet_url=sheet_url or
         f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit?gid={GID['Vendor Specs']}",
         n_sensors=len(raw), pct_filled=float(comp.to_numpy().mean() * 100), n_issues=len(issues),
-        groups=out, footprint_max_km=footprint_max_km, edits_date=edits_date,
+        groups=out, sensors=sensors, footprint_max_km=footprint_max_km, edits_date=edits_date,
         edits=edits.to_dict("records"),
         completeness=[dict(letter=column_letter(i), field=f, pct=float(comp[f].mean() * 100))
                       for i, f in enumerate(comp.columns)],
