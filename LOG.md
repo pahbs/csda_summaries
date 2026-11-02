@@ -31,6 +31,7 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-02 · [6] Timeline: joint evaluation comparison sheet shared with ESA & USGS on 29 Oct 2026 (was planned, placeholder 30 Nov).
 - 2026-11-02 · [6] Timeline: Planet-Tanager added as an evaluation (own panel) with the Planet Tanager TEM (28 Aug 2026).
 - 2026-11-02 · [6] Timeline joint events: CSDA Evaluation Results dB (Jul 2026, ongoing) and the planned sharing of the joint evaluation comparison sheet with ESA & USGS (placeholder 30 Nov); both link to the CSDA Evaluation Results slides.
 - 2026-11-02 · [6] Timeline: OroraTech, Orbital Sidekick, ImageSat and Satlantis added as evaluations (own panels), each with its TEM: OroraTech 25 Aug, Orbital Sidekick 16 Oct, ImageSat 22 Oct, Satlantis 2 Nov 2026; Airbus 24 Sep TEM relabeled.
@@ -362,8 +363,8 @@ only if needed), never a separate search API.
 - *CSDA Evaluation Results dB*: bar from **1 Jul 2026** (started July; exact day not recorded) to the joint
   ESA-USGS-NASA summary (1 Apr 2027), marked ongoing. One database on ADAPT with all CSDA SME evaluation results,
   for comparing results across vendors; a key feature of the joint activities.
-- *Share joint evaluation comparison sheet with ESA & USGS (planned)*: not shared yet; started on ADAPT. **30 Nov 2026
-  is a placeholder**; set the real date when shared.
+- *Shared joint evaluation comparison sheet with ESA & USGS*: shared **29 Oct 2026** (first entered as planned with a
+  30 Nov placeholder; corrected the same day). Sheet started on ADAPT.
 - Both link to the slides: https://docs.google.com/presentation/d/1uKUrkPxlBLGDI_Hmr-jPj6sKqPC6RyhELhNlih5wFXU/edit?usp=sharing
 
 ### 2026-11-02 · Timeline: OroraTech, Orbital Sidekick, ImageSat and Satlantis TEMs
