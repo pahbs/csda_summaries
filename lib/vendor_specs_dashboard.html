@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CSDA Vendor Specs: constellation comparison</title>
+<title>CSDA Vendor Specification Database: optical constellation comparison</title>
 <style>
 .viz-root {
   color-scheme: light;
@@ -84,6 +84,12 @@ table.data td.n { text-align: right; font-variant-numeric: tabular-nums; }
 .barrow .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .right { text-align: right; font-variant-numeric: tabular-nums; }
 .pill { display: inline-block; border-radius: 4px; padding: 0 5px; background: var(--surface-2); color: var(--ink-2); font-size: 11.5px; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--grid); margin: 16px 0 0; }
+.tabs button { font: inherit; font-size: 14px; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--ink-2);
+  padding: 7px 14px; cursor: pointer; margin-bottom: -1px; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); font-weight: 600; }
+.tabs .count { font-size: 11.5px; color: var(--ink-3); margin-left: 4px; }
+[role=tabpanel][hidden] { display: none; }
 footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
 .theme { float: right; }
 </style>
@@ -92,8 +98,14 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
 <div class="viz-root">
 <div class="wrap">
   <button class="chip theme" id="theme" title="Switch light / dark">◐ Theme</button>
-  <h1>CSDA Vendor Specs: constellation comparison</h1>
+  <h1>CSDA Vendor Specification Database: optical constellation comparison</h1>
   <div class="sub" id="subtitle"></div>
+  <div class="tabs" role="tablist" aria-label="Views">
+    <button role="tab" id="tab-compare" aria-controls="panel-compare" aria-selected="true">Comparison</button>
+    <button role="tab" id="tab-quality" aria-controls="panel-quality" aria-selected="false">Data quality <span class="count" id="tab-q-count"></span></button>
+  </div>
+
+  <div role="tabpanel" id="panel-compare" aria-labelledby="tab-compare">
   <div class="tiles" id="tiles"></div>
 
   <div class="filters" role="group" aria-label="Filters">
@@ -140,6 +152,18 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
     <div class="note" id="foot-left"></div>
   </section>
 
+  <section class="card" aria-labelledby="h-table">
+    <h2 id="h-table">Table view</h2>
+    <div class="note">The constellations shown above, with the plotted values. Click a column header to sort.</div>
+    <div class="scroll"><table class="data" id="tbl"></table></div>
+  </section>
+
+  </div>
+
+  <div role="tabpanel" id="panel-quality" aria-labelledby="tab-quality" hidden>
+  <div class="note" style="margin-top:12px">How complete and consistent the sheet is, and the edits proposed from public sources. Kept apart from the
+    comparison so the results views stay readable.</div>
+  <div class="tiles" id="qtiles"></div>
   <div class="two">
     <section class="card" aria-labelledby="h-comp">
       <h2 id="h-comp">Core fields filled (columns A–AS)</h2>
@@ -156,14 +180,11 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
   <section class="card" aria-labelledby="h-edits">
     <h2 id="h-edits">Proposed edits from the public-source check</h2>
     <div class="note" id="edits-note"></div>
+    <div class="filters" style="position:static;border:0;padding:8px 0"><label>Find <input type="search" id="e-q" placeholder="sensor, field, note…"></label></div>
     <div class="scroll"><table class="data" id="edits"></table></div>
   </section>
 
-  <section class="card" aria-labelledby="h-table">
-    <h2 id="h-table">Table view</h2>
-    <div class="note">The constellations shown above, with the plotted values. Click a column header to sort.</div>
-    <div class="scroll"><table class="data" id="tbl"></table></div>
-  </section>
+  </div>
 
   <footer id="footer"></footer>
 </div>
@@ -469,7 +490,7 @@ function drawQuality() {
     `<span class="right">${q.cells}</span></div>`).join('') + `<div class="note" style="margin-top:8px">Full list: <code>vendor_specs_qa.csv</code> from the notebook.</div>`;
 }
 function drawEdits() {
-  const q = S.q.toLowerCase(), E = D.edits.filter(e => !q || [e.sensors, e.field, e.note].join(' ').toLowerCase().includes(q));
+  const q = (S.eq || '').toLowerCase(), E = D.edits.filter(e => !q || [e.sensors, e.field, e.note].join(' ').toLowerCase().includes(q));
   $('#edits-note').innerHTML = `${D.edits.length} proposed changes from ${esc(D.edits_date)} (rule: <i>Total Bands (MS)</i> counts the pan band). ` +
     `Sources: CSDA vendor pages on science.nasa.gov first, then vendor / agency pages; "computed" = derived from other fields. Not yet applied to the sheet.`;
   $('#edits').innerHTML = '<thead><tr><th>Rows</th><th>Sensors</th><th>Col</th><th>Field</th><th>Current</th><th>Proposed</th><th>Source</th><th>Note</th></tr></thead><tbody>' +
@@ -508,15 +529,14 @@ function drawKey(G) {
 function render() {
   const G = shown();
   drawKey(G);
-  drawScatter(G); drawLaunches(); drawStrips(G); drawFoot(G); drawEdits(); drawTable(G);
+  drawScatter(G); drawLaunches(); drawStrips(G); drawFoot(G); drawTable(G);
   const comm = G.filter(g => g.sector === 'Commercial').length;
-  $('#tiles').innerHTML = [[G.length, `constellations shown (${comm} commercial)`], [D.n_sensors, 'sensors in the sheet'],
-    [Math.round(D.pct_filled) + '%', 'of core fields (A–AS) filled'], [D.n_issues, 'cells flagged by the checks'], [D.edits.length, 'proposed edits']]
-    .map(([v, k]) => `<div class="tile"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join('');
+  const tiles = a => a.map(([v, k]) => `<div class="tile"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join('');
+  $('#tiles').innerHTML = tiles([[G.length, `constellations shown (${comm} commercial)`], [D.n_sensors, 'sensors in the sheet']]);
 }
 function init() {
   $('#subtitle').innerHTML = `Read from the <a href="${esc(D.sheet_url)}" target="_blank" rel="noopener">CSDA Vendor Specs sheet</a> on ${esc(D.asof)}. ` +
-    `Preliminary: values are being checked against vendor documents (see the proposed edits below).`;
+    `Preliminary: values are being checked against vendor documents (see the Data quality tab).`;
   chips('#f-sector', [['Commercial', 'Commercial', 'var(--com)'], ['Government', 'Government', 'var(--gov)']], k => S.sectors.has(k),
     k => { S.sectors.has(k) ? S.sectors.delete(k) : S.sectors.add(k); if (!S.sectors.size) S.sectors.add(k); });
   chips('#f-scope', [['current', 'Current'], ['all', 'All (incl. retired, planned)']], k => S.scope === k, k => S.scope = k);
@@ -528,7 +548,17 @@ function init() {
   $('#theme').onclick = () => { const r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === 'dark' :
     matchMedia('(prefers-color-scheme: dark)').matches; r.dataset.theme = dark ? 'light' : 'dark'; };
   $('#footer').innerHTML = esc(D.footer);
-  scatterLegend(); launchLegend(); drawQuality(); render();
+  const tiles = a => a.map(([v, k]) => `<div class="tile"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join('');
+  $('#qtiles').innerHTML = tiles([[Math.round(D.pct_filled) + '%', 'of core fields (A–AS) filled'], [D.n_issues, 'cells flagged by the checks'],
+    [D.edits.length, 'proposed edits']]);
+  $('#tab-q-count').textContent = `${D.n_issues} flags · ${D.edits.length} edits`;
+  $('#e-q').oninput = e => { S.eq = e.target.value; drawEdits(); };
+  const show = name => { for (const t of ['compare', 'quality']) {
+      $('#tab-' + t).setAttribute('aria-selected', t === name); $('#panel-' + t).hidden = t !== name; }
+    history.replaceState(null, '', name === 'quality' ? '#quality' : location.pathname + location.search); };
+  $('#tab-compare').onclick = () => show('compare'); $('#tab-quality').onclick = () => show('quality');
+  scatterLegend(); launchLegend(); drawQuality(); drawEdits(); render();
+  if (location.hash === '#quality') show('quality');
 }
 init();
 </script>
