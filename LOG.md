@@ -31,6 +31,7 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-03 · [6] Vendor Specs: revisit estimates for the Google Sheet (6 columns + notes, `specs/revisit_estimates.csv`, Apps Script `specs/write_revisit.gs`); Revisit tab grouped by sector / data owner and colored by *Color by*; byline on the dashboard.
 - 2026-11-03 · [6] Vendor Specs: *Revisit* tab: mean revisit at 0°, 40°N and 60°N simulated from each orbit (≤ 20° view angle or full agility; whole year or June–August), replacing the sheet's mixed-definition *Revisit Time* in the comparison.
 - 2026-11-03 · [3] Vantor and Airbus: simple "since September" summaries (new in CSDA STAC since 9/1; for Vantor also collected but not yet in CSDA) in `vantor_legion_supp_tracking.ipynb` §9 and `airbus_order_tracking.ipynb` §4b; timeline notes updated from them.
 - 2026-11-02 · [6] Timeline: Joint Activities entry *NASA-USGS Airbus Optical Evaluation Methods and Results mtg.* (2 Nov 2026).
@@ -375,6 +376,18 @@ only if needed), never a separate search API.
 ---
 
 ## 6 · Evaluation results, RadCalNet and spectral response
+
+### 2026-11-03 · Vendor Specs: revisit estimates into the sheet; Revisit tab grouping
+- **Sheet columns** (`vs.revisit_sheet_columns`, `vs.revisit_apps_script`, notebook section 6): `Revisit est. 0° / 40°N /
+  60°N (days, ≤20° view)`, the same for `full agility`, and `Revisit est. notes` (date, settings, satellites counted,
+  assumptions). Whole-year values; a constellation's value on each of its current rows (71 of 84 rows); retired / planned
+  rows of a current constellation get only a note; `no access` = orbit never reaches the latitude. Record:
+  `specs/revisit_estimates.csv`. `specs/write_revisit.gs` (previewRevisit / writeRevisit) finds columns by header and
+  appends missing ones after the last header (CY–DE, only into empty columns), matches rows by Sensor Name +
+  Constellation/Platform, and logs one row per column in *Edit log*. Tested on a mock of the sheet: nothing else
+  changes, a second run changes nothing, moved rows still match.
+- **Dashboard**: title *Revisit time (estimated)…*; sheet-value tick removed; markers take the *Color by* color
+  (data owner or sector), shape = latitude; *Group rows*: none / sector / data owner. Byline under the page title.
 
 ### 2026-11-03 · Vendor Specs: revisit time by latitude (Revisit tab)
 - **Why simulate**: the sheet's *Revisit Time (days, < 20° onva)* mixes vendor figures at full agility (Pléiades 1 d,
