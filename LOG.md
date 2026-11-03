@@ -31,6 +31,7 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-03 · [3] Vantor and Airbus: simple "since September" summaries (new in CSDA STAC since 9/1; for Vantor also collected but not yet in CSDA) in `vantor_legion_supp_tracking.ipynb` §9 and `airbus_order_tracking.ipynb` §4b; timeline notes updated from them.
 - 2026-11-02 · [6] Timeline: Joint Activities entry *NASA-USGS Airbus Optical Evaluation Methods and Results mtg.* (2 Nov 2026).
 - 2026-11-03 · [6] Vendor Specs: all 138 recorded edits now in the Google Sheet (Apps Script `specs/apply_edits.gs`, sheet tab *Edit log*); the M77/M78 Orbit Type case change was withdrawn (rejected by the sheet's dropdown).
 - 2026-11-02 · [6] Vendor Specs: the 86 proposed edits are applied (140 cells) and recorded per cell in `specs/edits_log.csv`; checks fall from 75 to 45 flagged cells. Dashboard: *Cross-track swath width* section, *Database Quality* tab with the edit record.
@@ -238,6 +239,23 @@ only if needed), never a separate search API.
 ---
 
 ## 3 · Data requests and downloads
+
+### 2026-11-03 · Since-September summaries for Vantor and Airbus (timeline notes)
+- Both notebooks end their analysis with a short section: a per-site table, plain-language conclusions and the timeline
+  note. "New" = **acquired** on or after `SINCE` (2026-09-01): CSDA STAC items carry no added / updated date, so delivery
+  dates cannot be counted.
+- **Vantor** (`vantor_legion_supp_tracking.ipynb` §9; replaces the old notes cell): fresh Vantor Discovery search since
+  `SINCE`, matched to CSDA by site, sensor and time (`MATCH_SECONDS`). As of 11/3/26: 19 Legion images new in CSDA at 3 of
+  9 sites (Valencia 9, WLEF 9, Golmud 1), 4 meet the site requirements; Vantor collected 57, so 38 (67%) are not in CSDA
+  yet (WLEF 14, Valencia 14, PICS Libya-4 5, La Crau 2, Railroad Valley 2, Golmud 1), 9 of them meet the requirements.
+  Nothing new at Baotou, Gobabeb, Sioux Falls. Check: every CSDA image since 9/1 is in Vantor's catalog.
+- **Airbus** (`airbus_order_tracking.ipynb` §4b, before the Excel copy): fresh CSDA search since `SINCE` at all 8 tracked
+  sites (the §2 search is cached). As of 11/3/26: 23 images new in CSDA at 6 of 8 sites (Baotou 9, WLEF 7, Golmud 2, PICS
+  Libya-4 2, Railroad Valley 2, Valencia 1), 6 with SR, 18 fill tasking requests; tasking requests (TOA and SR cells)
+  24 of 93 filled, 69 waiting (WLEF 29, Valencia 22, Golmud 15, Baotou 3). Collected but not delivered: unknown (no
+  Airbus catalog access). Run through §4b only (in a copy, outputs copied back): §5 writes the Excel copy and §6 downloads.
+- Timeline: notes of Vantor-Legion *Receive additional data* and *Supplemental tasking windows*, and Airbus *Receive
+  additional data*, replaced with these.
 
 ### 2026-11-01 · Vantor Legion request tracking (`vantor_legion_supp_tracking.ipynb`, `lib/order_tracking.py`)
 - Requirements read live from the request sheet's `Legion_20260914` tab (CSV export by gid 226856298;
