@@ -31,6 +31,8 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-02 · [6] Timeline: Joint Activities entry *NASA-USGS Airbus Optical Evaluation Methods and Results mtg.* (2 Nov 2026).
+- 2026-11-03 · [6] Vendor Specs: all 138 recorded edits now in the Google Sheet (Apps Script `specs/apply_edits.gs`, sheet tab *Edit log*); the M77/M78 Orbit Type case change was withdrawn (rejected by the sheet's dropdown).
 - 2026-11-02 · [6] Vendor Specs: the 86 proposed edits are applied (140 cells) and recorded per cell in `specs/edits_log.csv`; checks fall from 75 to 45 flagged cells. Dashboard: *Cross-track swath width* section, *Database Quality* tab with the edit record.
 - 2026-11-02 · [6] Vendor Specs: rule *Total Bands (MS)* counts pan; public-source check (87 proposed edits, 71 from CSDA vendor pages, `specs/public_check_2026-11-02.csv`); interactive dashboard `html/vendor_specs.html` (hover details, sector / status filters, light / dark).
 - 2026-11-02 · [6] Vendor Specs DB: `lib/vendor_specs.py` + `csda_specs_compare.ipynb`: live load, QA checks on columns A–AS (76 suspect cells in 50 of 84 rows), completeness grid (A–AS 56% filled), NASA Chat extraction prompt + diff, and footprint / GSD / band-count comparison figures.
@@ -360,6 +362,19 @@ only if needed), never a separate search API.
   field, `before`, `after`, `source`, `source_url`, `note`). Batches are appended, never rewritten (`vs.record_edits`;
   a batch already in the record is not added twice). First batch: `public_check_2026-11-02` (86 proposals with
   `change = True` -> 140 cells; the GeoEye-1 "no change" row left out).
+- **Into the Google Sheet**: `vs.apps_script` writes `specs/apply_edits.gs`, a Google Apps Script with the edits not yet in
+  the sheet (notebook section 2). Paste into Extensions > Apps Script; `previewEdits` changes nothing, `applyEdits` writes a
+  cell only if its column header matches the field and it still shows the `before` value, and appends one row per
+  written cell to a sheet tab *Edit log*. Tested in headless Chromium against a mock built from the live sheet: 140
+  written, a second run writes none. `apply_edits` treats `0.50` and `0.5` as the same value (the sheet drops zeros).
+- 2026-11-03: first `applyEdits` run in the sheet wrote edits 1–130, then stopped at M77: the Orbit Type dropdown lists
+  `mid-inclination LEO` (lowercase), so the case change to `Mid-inclination LEO` was rejected. That edit (M77, M78) is
+  **withdrawn** (removed from the record, `change = False` with the reason in the batch CSV; ids not reused): record now
+  138 cells, 130 in sheet, 8 to go. Script revised: a rejected cell is skipped and listed, the run goes on; the *Edit log*
+  tab (columns logged, result, edit_id, batch, ...) lists every edit once (result *written*, or *already in sheet* for
+  the 130 from the stopped run). Tested against a mock of the sheet after the stopped run, with the dropdown enforced.
+- 2026-11-03: second run done; notebook re-run: **all 138 edits in the Google Sheet** (status *in sheet*), checks 45
+  flagged cells in 33 rows. `specs/apply_edits.gs` kept as the script that was run.
 - **Applied on top of the live sheet** (`vs.apply_edits`), so every view uses the edited values; status per cell:
   *applied (not yet in sheet)* (all 140 now), *in sheet* once the value is copied into the Google Sheet, *skipped: sheet
   changed* if the sheet holds a third value (the sheet wins). The Google Sheet itself is not changed yet.

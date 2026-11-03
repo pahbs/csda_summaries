@@ -129,8 +129,6 @@ edit_id,date,batch,cell,sheet_row,label,column,field,before,after,source,source_
 128,2026-11-02,public_check_2026-11-02,AA78,78,ImageSat EROS-C3,AA,MS GSD Nadir (m),(empty),0.86,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-imagesat/,
 129,2026-11-02,public_check_2026-11-02,Q77,77,ImageSat EROS-C2,Q,Swath Width (km),13.5,12.5,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-imagesat/,
 130,2026-11-02,public_check_2026-11-02,Q78,78,ImageSat EROS-C3,Q,Swath Width (km),13.5,12.5,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-imagesat/,
-131,2026-11-02,public_check_2026-11-02,M77,77,ImageSat EROS-C2,M,Orbit Type,mid-inclination LEO,Mid-inclination LEO,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-imagesat/,
-132,2026-11-02,public_check_2026-11-02,M78,78,ImageSat EROS-C3,M,Orbit Type,mid-inclination LEO,Mid-inclination LEO,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-imagesat/,
 133,2026-11-02,public_check_2026-11-02,CI78,78,ImageSat EROS-C3,CI,Total Bands (MS),(empty),5,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-imagesat/,4 MS + pan
 134,2026-11-02,public_check_2026-11-02,C78,78,ImageSat EROS-C3,C,Launch Date,2022-12-01,2022-12-30,secondary,https://www.nasaspaceflight.com/2022/12/eros-c3-launch/,
 135,2026-11-02,public_check_2026-11-02,Z76,76,ImageSat EROS-B,Z,Pan GSD Nadir (m),(empty),0.50,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-imagesat/,eoPortal gives 0.7 m
