@@ -673,7 +673,9 @@ def load_edits(path: str) -> pd.DataFrame:
 
 
 # Edit record: one row per sheet cell, kept in the repo (specs/edits_log.csv). New batches are appended;
-# rows are never rewritten, so the file is the full history of what was changed, from what, and why.
+# rows are never rewritten, so the file is the full history of what was changed, from what, and why. Exception:
+# an edit the sheet cannot take (e.g. rejected by data validation) is withdrawn: removed here and marked
+# change = False, with the reason, in its batch CSV; its edit_id is not reused.
 EDIT_LOG_COLUMNS = ["edit_id", "date", "batch", "cell", "sheet_row", "label", "column", "field", "before", "after",
                     "source", "source_url", "note"]
 EMPTY = "(empty)"
@@ -699,7 +701,7 @@ def record_edits(raw: pd.DataFrame, edits: pd.DataFrame, log_path: str, batch: s
     if batch in set(log["batch"]):
         return log
     cols = list(raw.columns[2:])                     # sheet columns (after sheet_row, label)
-    start = len(log)
+    start = int(pd.to_numeric(log["edit_id"]).max()) if len(log) else 0
     new = []
     for e in edits.itertuples():
         if "change" in edits and str(e.change) != "True":
@@ -717,6 +719,14 @@ def record_edits(raw: pd.DataFrame, edits: pd.DataFrame, log_path: str, batch: s
     return log
 
 
+def _same(a: str, b: str) -> bool:
+    """Same cell text, or the same plain number written differently ('0.50' and '0.5': the sheet drops zeros)."""
+    if a == b:
+        return True
+    num = r"\d+(\.\d+)?"
+    return bool(re.fullmatch(num, a) and re.fullmatch(num, b)) and float(a) == float(b)
+
+
 def apply_edits(raw: pd.DataFrame, log: pd.DataFrame):
     """Apply the edit record to the sheet as read now. Per cell, `status`:
     'in sheet' = the sheet already holds the new value; 'applied (not yet in sheet)' = the sheet still holds the
@@ -730,15 +740,121 @@ def apply_edits(raw: pd.DataFrame, log: pd.DataFrame):
         i = out.index[out.sheet_row == int(e.sheet_row)][0]
         v = _cell_text(raw.at[i, e.field])
         now.append(v)
-        if v == e.after:
+        if _same(v, e.after):
             status.append("in sheet")
-        elif _cell_text(out.at[i, e.field]) == e.before:     # out: earlier edits of the cell already applied
+        elif _same(_cell_text(out.at[i, e.field]), e.before):  # out: earlier edits of the cell already applied
             out.at[i, e.field] = np.nan if e.after == EMPTY else e.after
             status.append("applied (not yet in sheet)")
         else:
             status.append("skipped: sheet changed")
     log["now"], log["status"] = now, status
     return out, log
+
+
+APPS_SCRIPT = r"""/**
+ * Apply recorded edits to the CSDA Vendor Specs sheet: __N__ cells (__BATCHES__), __TODO__ not yet in the sheet.
+ * Written by csda_summaries lib/vendor_specs.py (apps_script) from specs/edits_log.csv on __DATE__.
+ *
+ * Use: open the spreadsheet > Extensions > Apps Script, paste this file, save.
+ *   1. Run previewEdits: changes nothing; the log (View > Logs / Execution log) lists what would change.
+ *   2. Run applyEdits: writes the cells and adds one row per edit to the tab 'Edit log' (result 'written', or
+ *      'already in sheet' for an edit made earlier that the tab does not list yet).
+ * A cell is written only if the column header matches the field and the cell still shows the 'before' value
+ * (a cell edited since the record was made is skipped and listed). A cell the sheet rejects (e.g. data
+ * validation) is skipped and listed; the run goes on. Running applyEdits again writes nothing new and adds no
+ * duplicate rows to 'Edit log'.
+ */
+const SHEET_ID = '__SHEET_ID__';
+const TAB_GID = __GID__;
+const LOG_TAB = 'Edit log';
+const EMPTY = '(empty)';
+const EDITS = __EDITS__;
+
+function previewEdits() { run_(false); }
+function applyEdits() { run_(true); }
+
+function same_(a, b) {
+  if (a === b) return true;
+  const num = /^\d+(\.\d+)?$/;
+  return num.test(a) && num.test(b) && Number(a) === Number(b);
+}
+
+function run_(write) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (ss.getId() !== SHEET_ID) throw new Error('Wrong spreadsheet: run this from the CSDA Vendor Specs sheet.');
+  const sh = ss.getSheets().find(s => s.getSheetId() === TAB_GID);
+  if (!sh) throw new Error('Vendor Specs tab (gid ' + TAB_GID + ') not found.');
+  const counts = {written: 0, 'already new value': 0, 'skipped: header differs': 0, 'skipped: cell changed': 0,
+                  'skipped: sheet rejected': 0};
+  const logRows = [], stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
+  let lg = ss.getSheetByName(LOG_TAB);
+  const logged = new Set();                    // batch|edit_id already in the 'Edit log' tab
+  if (lg && lg.getLastRow() > 1)
+    lg.getRange(2, 3, lg.getLastRow() - 1, 2).getDisplayValues().forEach(r => logged.add(r[1] + '|' + r[0]));
+  const row = (result, e) => [stamp, result, e.edit_id, e.batch, e.cell, e.label, e.field, e.before, e.after,
+                              e.source, e.source_url, e.note];
+  for (const e of EDITS) {
+    const rng = sh.getRange(e.cell);
+    const header = String(sh.getRange(1, rng.getColumn()).getDisplayValue()).trim();
+    const now = String(rng.getDisplayValue()).trim() || EMPTY;
+    let result;
+    if (header !== e.field.trim()) result = 'skipped: header differs';
+    else if (same_(now, e.after)) result = 'already new value';
+    else if (!same_(now, e.before)) result = 'skipped: cell changed';
+    else {
+      result = 'written';
+      if (write) {
+        try {
+          if (e.after === EMPTY) rng.clearContent();
+          else {
+            rng.setValue(e.after);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(e.after)) rng.setNumberFormat('yyyy-mm-dd');
+          }
+          SpreadsheetApp.flush();              // surface a validation error on this cell, not a later one
+        } catch (err) {
+          result = 'skipped: sheet rejected';
+          Logger.log(['skipped: sheet rejected', e.cell, e.label, e.field, 'after: ' + e.after, String(err.message || err)].join(' | '));
+        }
+      }
+    }
+    counts[result]++;
+    if (write && !logged.has(e.batch + '|' + e.edit_id)) {
+      if (result === 'written') logRows.push(row('written', e));
+      else if (result === 'already new value') logRows.push(row('already in sheet', e));
+    }
+    if (result !== 'written' && result !== 'already new value' && result !== 'skipped: sheet rejected' || !write && result === 'written')
+      Logger.log([write ? result : 'would write', e.cell, e.label, e.field,
+                  'now: ' + now, 'before: ' + e.before, 'after: ' + e.after].join(' | '));
+  }
+  if (write && logRows.length) {
+    if (!lg) {
+      lg = ss.insertSheet(LOG_TAB);
+      lg.appendRow(['logged', 'result', 'edit_id', 'batch', 'cell', 'sensor', 'field', 'before', 'after', 'source',
+                    'source_url', 'note']);
+      lg.setFrozenRows(1);
+    }
+    lg.getRange(lg.getLastRow() + 1, 1, logRows.length, logRows[0].length).setNumberFormat('@').setValues(logRows);
+  }
+  Logger.log((write ? 'Applied: ' : 'Preview: ') + JSON.stringify(counts));
+}
+"""
+
+
+def apps_script(log: pd.DataFrame, out_path: str) -> str:
+    """Write a Google Apps Script for the edit record (apply_edits() log, rows not skipped): it writes the edits
+    not yet in the sheet and lists every edit in the sheet's 'Edit log' tab once; see the header of APPS_SCRIPT.
+    Returns the path."""
+    import json
+    from pathlib import Path
+    todo = log[~log["status"].str.startswith("skipped")]
+    keys = ["edit_id", "batch", "cell", "label", "field", "before", "after", "source", "source_url", "note"]
+    rows = ",\n  ".join(json.dumps({k: str(r[k]) for k in keys}, ensure_ascii=False) for _, r in todo.iterrows())
+    js = (APPS_SCRIPT.replace("__N__", str(len(todo)))
+          .replace("__TODO__", str((todo["status"] == "applied (not yet in sheet)").sum())).replace("__BATCHES__", ", ".join(sorted(set(todo["batch"]))))
+          .replace("__DATE__", pd.Timestamp.today().strftime("%Y-%m-%d")).replace("__SHEET_ID__", SHEET_ID)
+          .replace("__GID__", str(GID["Vendor Specs"])).replace("__EDITS__", "[\n  " + rows + "\n]"))
+    Path(out_path).write_text(js)
+    return str(Path(out_path).resolve())
 
 
 def write_dashboard(raw: pd.DataFrame, groups: pd.DataFrame, issues: pd.DataFrame, edit_log: Optional[pd.DataFrame],

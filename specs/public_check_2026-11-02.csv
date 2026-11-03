@@ -77,7 +77,7 @@ sheet_rows,sensors,column,field,current,proposed,source,source_url,note,change
 77-78,"ImageSat EROS-C2, ImageSat EROS-C3",Z,Pan GSD Nadir (m),(empty),0.43,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-imagesat/,,True
 78,ImageSat EROS-C3,AA,MS GSD Nadir (m),(empty),0.86,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-imagesat/,,True
 77-78,"ImageSat EROS-C2, ImageSat EROS-C3",Q,Swath Width (km),13.5,12.5,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-imagesat/,,True
-77-78,"ImageSat EROS-C2, ImageSat EROS-C3",M,Orbit Type,mid-inclination LEO,Mid-inclination LEO,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-imagesat/,,True
+77-78,"ImageSat EROS-C2, ImageSat EROS-C3",M,Orbit Type,mid-inclination LEO,Mid-inclination LEO,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-imagesat/,withdrawn 2026-11-03: the sheet's Orbit Type dropdown lists 'mid-inclination LEO' (lowercase); the case change was rejected by data validation,False
 78,ImageSat EROS-C3,CI,Total Bands (MS),(empty),5,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-imagesat/,4 MS + pan,True
 78,ImageSat EROS-C3,C,Launch Date,2022-12-01,2022-12-30,secondary,https://www.nasaspaceflight.com/2022/12/eros-c3-launch/,,True
 76,ImageSat EROS-B,Z,Pan GSD Nadir (m),(empty),0.50,CSDA vendor page,https://science.nasa.gov/earth-science/csda/vendor-imagesat/,eoPortal gives 0.7 m,True
