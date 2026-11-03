@@ -10,6 +10,7 @@
   --surface: #fcfcfb; --surface-2: #f3f2ee; --ink: #0b0b0b; --ink-2: #52514e; --ink-3: #8a8984;
   --grid: #e6e5e0; --com: #2a78d6; --gov: #eb6834; --ring: #0b0b0b; --bar: #256abf; --bar-bg: #e9edf3;
   --link: #1c5cab; --edge: rgba(0,0,0,.45);
+  --lat0: #86b6ef; --lat40: #2a78d6; --lat60: #104281;
 }
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) .viz-root {
@@ -17,6 +18,7 @@
     --surface: #1a1a19; --surface-2: #232322; --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #8f8e86;
     --grid: #30302d; --com: #3987e5; --gov: #d95926; --ring: #f0efec; --bar: #3987e5; --bar-bg: #2b2f36;
     --link: #86b6ef; --edge: rgba(255,255,255,.55);
+    --lat0: #256abf; --lat40: #5598e7; --lat60: #b7d3f6;
   }
 }
 :root[data-theme="dark"] .viz-root {
@@ -24,6 +26,7 @@
   --surface: #1a1a19; --surface-2: #232322; --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #8f8e86;
   --grid: #30302d; --com: #3987e5; --gov: #d95926; --ring: #f0efec; --bar: #3987e5; --bar-bg: #2b2f36;
   --link: #86b6ef; --edge: rgba(255,255,255,.55);
+  --lat0: #256abf; --lat40: #5598e7; --lat60: #b7d3f6;
 }
 * { box-sizing: border-box; }
 body { margin: 0; }
@@ -102,10 +105,11 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
   <div class="sub" id="subtitle"></div>
   <div class="tabs" role="tablist" aria-label="Views">
     <button role="tab" id="tab-compare" aria-controls="panel-compare" aria-selected="true">Comparison</button>
+    <button role="tab" id="tab-revisit" aria-controls="panel-revisit" aria-selected="false">Revisit</button>
     <button role="tab" id="tab-quality" aria-controls="panel-quality" aria-selected="false">Database Quality <span class="count" id="tab-q-count"></span></button>
   </div>
 
-  <div role="tabpanel" id="panel-compare" aria-labelledby="tab-compare">
+  <div id="shared">
   <div class="tiles" id="tiles"></div>
 
   <div class="filters" role="group" aria-label="Filters">
@@ -113,9 +117,12 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
     <label>Status <span id="f-scope"></span></label>
     <label>Highlight <select id="f-aff"><option value="">all data owners</option></select></label>
     <label>Find <input type="search" id="f-q" placeholder="constellation, owner…"></label>
-    <label>Color by <span id="f-color"></span></label>
+    <label id="f-color-box">Color by <span id="f-color"></span></label>
     <div class="key" id="key" aria-label="Color key"></div>
   </div>
+  </div>
+
+  <div role="tabpanel" id="panel-compare" aria-labelledby="tab-compare">
 
   <section class="card" aria-labelledby="h-scatter">
     <h2 id="h-scatter">Image footprint vs. detail</h2>
@@ -158,6 +165,25 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
     <div class="scroll"><table class="data" id="tbl"></table></div>
   </section>
 
+  </div>
+
+  <div role="tabpanel" id="panel-revisit" aria-labelledby="tab-revisit" hidden>
+  <section class="card" aria-labelledby="h-revisit">
+    <h2 id="h-revisit">Revisit time at 0°, 40° and 60° latitude</h2>
+    <div class="note" id="rv-note"></div>
+    <div class="filters" role="group" aria-label="Revisit options" style="position:static;border:0;padding:8px 0 2px;margin:0">
+      <label>View angle <span id="rv-view"></span></label>
+      <label>Season <span id="rv-season"></span></label>
+      <label>Sort by <span id="rv-sort"></span></label>
+    </div>
+    <div class="legend" id="lg-revisit"></div>
+    <svg id="revisit" width="100%" role="img" aria-label="Mean revisit time by constellation at the equator, 40° and 60° latitude"></svg>
+    <div class="note" id="rv-left"></div>
+  </section>
+  <section class="card" aria-labelledby="h-rv-method">
+    <h2 id="h-rv-method">How revisit is estimated</h2>
+    <div class="note" id="rv-method"></div>
+  </section>
   </div>
 
   <div role="tabpanel" id="panel-quality" aria-labelledby="tab-quality" hidden>
@@ -479,6 +505,82 @@ function drawFoot(G) {
   $('#foot-left').textContent = wide.length ? `Wider than ${MAX} km: ` + wide.map(g => `${g.group} (${fmt(g.swath_km)} km)`).join(', ') : '';
 }
 
+// ---------- revisit ----------
+const LATS = [['0', '0° (equator)', 'circle', 'var(--lat0)'], ['40', '40°N (our sites)', 'diamond', 'var(--lat40)'],
+  ['60', '60°N (boreal)', 'triangle', 'var(--lat60)']];
+const RV = { view: 'cap', season: 'year', sort: 1 };
+const rvDays = (g, view = RV.view, season = RV.season) => g.revisit && g.revisit.days[view] ? g.revisit.days[view][season] : null;
+const rvText = v => v == null ? '–' : v < 0 ? 'no access' : v < 1 ? `${fmt(v)} d (${fmt(1 / v)}/day)` : fmt(v) + ' d';
+const rvShort = v => v == null ? '–' : v < 0 ? 'none' : v < 10 ? (+v).toFixed(v < 1 ? 2 : 1) : String(Math.round(v));
+const viewName = v => v === 'cap' ? `view angle ≤ ${D.revisit.cap_deg}°` : 'full agility';
+const seasonName = s => s === 'year' ? 'whole year' : 'June–August';
+function showRevisitTip(ev, g) {
+  const r = g.revisit, other = RV.view === 'cap' ? 'max' : 'cap';
+  const line = (view) => { const d = rvDays(g, view); return d ? d.map(rvText).join(' · ') : esc(r.why[view] || '–'); };
+  const rows = [['Data owner', `${esc(g.affiliation)} · ${esc(g.sector)}`],
+    [`0° · 40° · 60°`, `<b>${line(RV.view)}</b><br><span class="note">${viewName(RV.view)}, ${seasonName(RV.season)}</span>`],
+    [viewName(other).replace(/^./, c => c.toUpperCase()), line(other)],
+    ['Sheet value', g.revisit_days != null ? fmt(g.revisit_days) + ' d' : '–']];
+  const same = new Map();      // sensors with identical inputs share one line (Legion LG-3 to LG-6)
+  for (const x of r.inputs) { const k = `${fmt(x.alt_km)} km · ${fmt(x.incl_deg)}° (${esc(x.incl_source || 'not known')})` +
+      ` · reach ${fmt(x.half_swath_deg)}°${x.agility_deg ? ' + ' + fmt(x.agility_deg) + '° pointing' : x.agility_deg === 0 ? ' (nadir)' : ' + agility not in sheet'}` +
+      (x.notes ? `<br><i>${esc(x.notes)}</i>` : '');
+    if (!same.has(k)) same.set(k, {labels: [], n: 0}); same.get(k).labels.push(esc(x.label)); same.get(k).n += x.n_sat || 0; }
+  const inp = [...same].map(([k, v]) => `${v.labels.join(', ')}: ${fmt(v.n)} sat · ${k}`).join('<br>');
+  tip.innerHTML = `<b>${esc(g.group)}</b><table>${rows.map(x => `<tr><td>${x[0]}</td><td>${x[1]}</td></tr>`).join('')}</table>` +
+    `<div class="flags"><b>Inputs</b> (current satellites)<br>${inp}</div>`;
+  tip.style.display = 'block'; moveTip(ev);
+}
+function drawRevisit(G) {
+  const svg = $('#revisit'); svg.innerHTML = '';
+  if (!D.revisit) { $('#rv-note').textContent = 'Revisit not computed for this build.'; return; }
+  const has = g => { const d = rvDays(g); return d && d.some(v => v != null); };
+  const key = g => { const v = rvDays(g)[RV.sort]; return v == null ? 1e9 : v < 0 ? 1e8 : v; };
+  const rows = G.filter(has).sort((a, b) => key(a) - key(b) || a.group.localeCompare(b.group));
+  const rh = 21, top = 30, lw = 270, W = 1180, cw = 62, nx = W - 3 * cw - 16, n = rows.length, H = top + n * rh + 34;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const vals = D.groups.flatMap(g => g.revisit ? Object.values(g.revisit.days).flatMap(s => Object.values(s).flat()) : [])
+    .filter(v => v != null && v > 0).concat(D.groups.map(g => g.revisit_days).filter(v => v > 0));
+  const d0 = Math.min(...vals) / 1.3, d1 = Math.max(...vals) * 1.3, X = logScale(d0, d1, lw + 8, nx - 14);
+  rows.forEach((g, i) => { const y = top + i * rh;
+    if (i % 2 === 0) el('rect', {x: 0, y, width: W, height: rh, fill: 'var(--surface-2)', 'fill-opacity': .55}, svg);
+    el('text', {x: lw - 10, y: y + rh / 2 + 4, 'text-anchor': 'end', 'font-size': 11.5, class: lit(g) ? '' : 'faint'}, svg).textContent = g.group;
+    el('text', {x: 6, y: y + rh / 2 + 4, 'font-size': 10.5, class: 'faint'}, svg).textContent = g.affiliation; });
+  for (const v of logTicks(d0, d1)) { const major = /^1/.test(String(v));
+    el('line', {x1: X(v), x2: X(v), y1: top, y2: top + n * rh, class: 'gridline', 'stroke-width': major ? 1.3 : .7}, svg);
+    el('text', {x: X(v), y: top + n * rh + 14, 'text-anchor': 'middle', 'font-size': 10.5, class: 'muted'}, svg).textContent = tickLabel(v); }
+  for (const [v, t] of [[1, 'daily'], [7, 'weekly'], [30, 'monthly']]) if (v > d0 && v < d1) {
+    el('line', {x1: X(v), x2: X(v), y1: top - 4, y2: top + n * rh, stroke: 'var(--ink-3)', 'stroke-dasharray': '2 3'}, svg);
+    el('text', {x: X(v), y: top - 8, 'text-anchor': 'middle', 'font-size': 10.5, class: 'faint'}, svg).textContent = t; }
+  el('text', {x: (lw + nx) / 2, y: H - 6, 'text-anchor': 'middle', 'font-size': 12, class: 'muted'}, svg).textContent =
+    'Mean revisit (days, log)  —  more frequent ←';
+  LATS.forEach(([k, label], j) => { const x = nx + j * cw + cw - 6;
+    el('text', {x, y: top - 8, 'text-anchor': 'end', 'font-size': 11, 'font-weight': j === RV.sort ? 650 : 400}, svg).textContent = k + '°'; });
+  el('text', {x: nx + 6, y: top - 8, 'font-size': 10.5, class: 'faint'}, svg).textContent = 'days';
+  rows.forEach((g, i) => { const cy = top + i * rh + rh / 2, d = rvDays(g), node = el('g', {class: 'pt' + (lit(g) ? '' : ' dim')}, svg);
+    const ok = d.filter(v => v != null && v > 0);
+    if (ok.length > 1) el('line', {x1: X(Math.min(...ok)), x2: X(Math.max(...ok)), y1: cy, y2: cy, stroke: 'var(--ink-3)', 'stroke-width': 2, 'stroke-opacity': .6}, node);
+    if (g.revisit_days > 0) el('line', {x1: X(g.revisit_days), x2: X(g.revisit_days), y1: cy - 6, y2: cy + 6, stroke: 'var(--ink)', 'stroke-width': 1.5}, node);
+    LATS.forEach(([k, , shape, c], j) => { const v = d[j];
+      if (v > 0) el('path', {d: shapePath(shape, X(v), cy, 4.6), fill: c, stroke: 'var(--surface)', 'stroke-width': 1.2}, node);
+      el('text', {x: nx + j * cw + cw - 6, y: cy + 4, 'text-anchor': 'end', 'font-size': 11, class: v != null && v > 0 ? '' : 'faint',
+        'font-variant-numeric': 'tabular-nums', 'font-weight': j === RV.sort ? 600 : 400}, node).textContent = rvShort(v); });
+  });
+  rows.forEach((g, i) => { const hit = el('rect', {x: 0, y: top + i * rh, width: W, height: rh, fill: 'transparent'}, svg);
+    hit.addEventListener('mouseenter', e => showRevisitTip(e, g)); hit.addEventListener('mousemove', moveTip);
+    hit.addEventListener('mouseleave', hideTip); hit.setAttribute('tabindex', 0);
+    hit.addEventListener('focus', () => { const b = hit.getBoundingClientRect(); showRevisitTip({clientX: b.right - 300, clientY: b.top}, g); });
+    hit.addEventListener('blur', hideTip); });
+  const left = G.filter(g => !has(g)).map(g => `${g.group} (${g.revisit ? (g.revisit.why[RV.view] || 'no data').replace(/^[^:]*: /, '') : 'no data'})`);
+  $('#rv-left').textContent = left.length ? `Not plotted for ${viewName(RV.view)}: ` + left.join('; ') + '.' : '';
+}
+function revisitLegend() {
+  const ic = (shape, c) => `<svg width="16" height="16"><path d="${shapePath(shape, 8, 8, 4.6)}" fill="${c}"/></svg>`;
+  $('#lg-revisit').innerHTML = LATS.map(([, label, shape, c]) => `<span>${ic(shape, c)} ${label}</span>`).join('') +
+    `<span><svg width="12" height="16"><line x1="6" x2="6" y1="2" y2="14" stroke="var(--ink)" stroke-width="1.5"/></svg> value in the sheet</span>` +
+    `<span>none = the orbit never reaches that latitude</span>`;
+}
+
 // ---------- data quality ----------
 function drawQuality() {
   $('#comp').innerHTML = D.completeness.map(c => `<div class="barrow"><span class="lt">${esc(c.letter)}</span>` +
@@ -533,7 +635,7 @@ function drawKey(G) {
 function render() {
   const G = shown();
   drawKey(G);
-  drawScatter(G); drawLaunches(); drawStrips(G); drawFoot(G); drawTable(G);
+  drawScatter(G); drawLaunches(); drawStrips(G); drawFoot(G); drawTable(G); drawRevisit(G);
   const comm = G.filter(g => g.sector === 'Commercial').length;
   const tiles = a => a.map(([v, k]) => `<div class="tile"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join('');
   $('#tiles').innerHTML = tiles([[G.length, `constellations shown (${comm} commercial)`], [D.n_sensors, 'sensors in the sheet']]);
@@ -558,12 +660,32 @@ function init() {
     [D.edits.length, 'cell edits recorded']]);
   $('#tab-q-count').textContent = `${D.n_issues} flags · ${D.edits.length} edits`;
   $('#e-q').oninput = e => { S.eq = e.target.value; drawEdits(); };
-  const show = name => { for (const t of ['compare', 'quality']) {
+  const show = name => { for (const t of ['compare', 'revisit', 'quality']) {
       $('#tab-' + t).setAttribute('aria-selected', t === name); $('#panel-' + t).hidden = t !== name; }
-    history.replaceState(null, '', name === 'quality' ? '#quality' : location.pathname + location.search); };
-  $('#tab-compare').onclick = () => show('compare'); $('#tab-quality').onclick = () => show('quality');
+    $('#shared').hidden = name === 'quality'; $('#f-color-box').hidden = name === 'revisit';
+    history.replaceState(null, '', name === 'compare' ? location.pathname + location.search : '#' + name); };
+  for (const t of ['compare', 'revisit', 'quality']) $('#tab-' + t).onclick = () => show(t);
+  if (D.revisit) {
+    chips('#rv-view', [['cap', `≤ ${D.revisit.cap_deg}° (radiometric quality)`], ['max', 'Full agility (vendor-style)']], k => RV.view === k, k => RV.view = k);
+    chips('#rv-season', [['year', 'Whole year'], ['jja', 'June–August']], k => RV.season === k, k => RV.season = k);
+    chips('#rv-sort', LATS.map(([k], j) => [j, k + '°']), k => RV.sort === k, k => RV.sort = k);
+    $('#rv-note').innerHTML = `Average time between chances to image a site, from each constellation's orbit, swath and pointing (not the sheet's ` +
+      `<i>Revisit Time</i>, which mixes definitions; it is the black tick). One row per constellation, current satellites only. ` +
+      `Values below 1 day mean more than one chance per day. Hover a row for the inputs.`;
+    $('#rv-method').innerHTML = `Each orbit is simulated for a year (circular orbit at the sheet's altitude, with the Earth's oblateness turning the orbit plane) over ` +
+      `sites on 36 longitudes at each latitude; the result is the average over longitudes. A pass counts when the site is within the satellite's reach ` +
+      `(half the swath, plus the agility for satellites that point), within the view-angle limit (≤ ${D.revisit.cap_deg}° off nadir, or the full agility), ` +
+      `and the sun is at least ${D.revisit.sun_min_deg}° above the horizon. Satellites of a constellation are assumed spread evenly, so their passes add.<ul>` +
+      `<li><b>Inclination</b>: sun-synchronous from the altitude (crossing the equator southbound at 10:30); <i>Near polar</i> rows are treated the same. ` +
+      `Legion 3–6 (45°) and EROS-C3 (139.3°, retrograde) are given in <code>lib/vendor_specs.py</code>; the sheet has no inclination column.</li>` +
+      `<li><b>Agility not in the sheet</b>: wide-swath systematic mappers (Landsat, Sentinel, MODIS, VIIRS…) look at nadir; tasked satellites are assumed able ` +
+      `to point to ${D.revisit.cap_deg}°, so they appear in the ≤ ${D.revisit.cap_deg}° view only.</li>` +
+      `<li><b>Not included</b>: cloud, competing orders, how long the instrument can image per orbit, and the longest gap (the mean hides repeat-cycle structure).</li>` +
+      `<li><b>Season</b>: at 60°N the sun is too low in winter, so the whole-year value is longer than June–August.</li></ul>`;
+    revisitLegend();
+  }
   scatterLegend(); launchLegend(); drawQuality(); drawEdits(); render();
-  if (location.hash === '#quality') show('quality');
+  if (['#quality', '#revisit'].includes(location.hash)) show(location.hash.slice(1));
 }
 init();
 </script>
