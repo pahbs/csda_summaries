@@ -31,6 +31,7 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-03 · [6] Vendor Specs: *Revisit* tab: mean revisit at 0°, 40°N and 60°N simulated from each orbit (≤ 20° view angle or full agility; whole year or June–August), replacing the sheet's mixed-definition *Revisit Time* in the comparison.
 - 2026-11-03 · [3] Vantor and Airbus: simple "since September" summaries (new in CSDA STAC since 9/1; for Vantor also collected but not yet in CSDA) in `vantor_legion_supp_tracking.ipynb` §9 and `airbus_order_tracking.ipynb` §4b; timeline notes updated from them.
 - 2026-11-02 · [6] Timeline: Joint Activities entry *NASA-USGS Airbus Optical Evaluation Methods and Results mtg.* (2 Nov 2026).
 - 2026-11-03 · [6] Vendor Specs: all 138 recorded edits now in the Google Sheet (Apps Script `specs/apply_edits.gs`, sheet tab *Edit log*); the M77/M78 Orbit Type case change was withdrawn (rejected by the sheet's dropdown).
@@ -374,6 +375,30 @@ only if needed), never a separate search API.
 ---
 
 ## 6 · Evaluation results, RadCalNet and spectral response
+
+### 2026-11-03 · Vendor Specs: revisit time by latitude (Revisit tab)
+- **Why simulate**: the sheet's *Revisit Time (days, < 20° onva)* mixes vendor figures at full agility (Pléiades 1 d,
+  Legion 0.5 d) with single-satellite repeat cycles (Landsat 16 d), so it cannot be compared across constellations.
+- **Method** (`vs.revisit`, `vs.orbit_passes`, `vs.orbit_inputs`): circular orbit at the sheet altitude with J2 node drift,
+  one year in 2-minute steps, sites on 36 longitudes at 0°, 40°N, 60°N. A pass counts when the site is within reach
+  (half swath + agility), within the view-angle limit (20° or full agility) and the sun is ≥ 10° high. Revisit = 1 / passes
+  per day, satellites spread evenly; current satellites only. One simulation per distinct orbit (~2–3 min for all groups);
+  60 s and 120 s steps give the same pass counts.
+- **Latitudes**: 0° worst case for sun-synchronous orbits; 40°N our radiometric sites (23°S–46°N) and where vendors quote
+  revisit; 60°N boreal, out of reach of mid-inclination orbits.
+- **Inclination** is not in the sheet: sun-synchronous from altitude (Near polar rows treated the same); Legion 3–6 45°
+  (Maxar) and EROS-C3 139.3° (tracking data) in `vs.ORBIT_INCLINATION`; EROS-C2 unknown, not plotted. An
+  *Inclination (deg)* column in the sheet would be used first.
+- **Agility not in the sheet**: wide-swath systematic mappers (swath ≥ 100 km) look at nadir; tasked or narrow-swath
+  satellites are assumed able to point to 20° (shown in the ≤ 20° view only). Missing for SkySat C1/C2, EROS-C2/C3,
+  Runner-1, Satellogic Mark II, HotSat, Tanager, Kuva, Hydrosat. Pelican and BlackSky Gen 3 have no altitude.
+- **Results (whole year, ≤ 20°, days at 0° / 40° / 60°)**: Legion 1.0 / 0.5 / 2.0 (only LG-1/2 reach 60°); Pléiades Neo
+  2.9 / 2.2 / 1.7; WorldView-3 5.9 / 4.5 / 3.4; Sentinel-2 3.1 / 2.4 / 1.8; Landsat 8/9 7.3 / 5.5 / 4.3;
+  EROS-C3 5.6 / 1.2 / none. Vendor figures match the full-agility view, not ≤ 20°.
+- **Dashboard**: Revisit tab between Comparison and Database Quality (shares the sector / status / highlight filters):
+  one row per constellation, three markers (0° circle, 40° diamond, 60° triangle; one-hue blue ramp validated as
+  ordinal in light and dark), the sheet value as a tick, a number column per latitude, view / season / sort toggles,
+  hover for inputs. Notebook section 6; params `REVISIT_CAP_DEG`, `SUN_MIN_DEG`.
 
 ### 2026-11-02 · Vendor Specs: edits applied, with a record of every edit
 - **Edit record** `specs/edits_log.csv`: one row per sheet cell (`edit_id`, `date`, `batch`, `cell` e.g. `CI2`, sensor,

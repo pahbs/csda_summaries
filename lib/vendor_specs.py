@@ -644,6 +644,192 @@ def plot_completeness(df: pd.DataFrame, title: Optional[str] = None):
 
 
 # --------------------------------------------------------------------------
+# Revisit: how often a constellation can image a site, by latitude
+# --------------------------------------------------------------------------
+# The sheet's 'Revisit Time' mixes definitions (vendor figures at full agility, single-satellite repeat cycles), so
+# revisit is simulated from the orbit instead: circular orbit with J2 node drift, a year of 2-minute steps, sites on 36
+# longitudes at each latitude. A pass counts when the site is within the satellite's reach (half the swath, plus the
+# agility for pointable satellites), within the view-angle cap, and the sun is high enough. Revisit = 1 / (passes per day),
+# averaged over longitudes, with the constellation's satellites spread evenly (passes add). It is the mean gap, not
+# the longest; cloud, competing tasking and duty cycle are not included.
+
+R_EARTH, MU_EARTH, J2, OMEGA_EARTH = 6378.137, 398600.4418, 1.08263e-3, 7.2921159e-5
+REVISIT_LATS = (0, 40, 60)
+SEASONS = {"year": (1, 365), "jja": (152, 243)}          # day-of-year ranges: whole year, June-August
+# Inclination is not in the sheet (an 'Inclination (deg)' column would be used first). Sun-synchronous rows get it from
+# the altitude; these rows need it given.
+ORBIT_INCLINATION = {
+    ("Legion", "LG-3"): (45.0, "Maxar: mid-inclination orbit, 45°, 4 planes (Legion 3-6)"),
+    ("Legion", "LG-4"): (45.0, "Maxar: mid-inclination orbit, 45°, 4 planes (Legion 3-6)"),
+    ("Legion", "LG-5"): (45.0, "Maxar: mid-inclination orbit, 45°, 4 planes (Legion 3-6)"),
+    ("Legion", "LG-6"): (45.0, "Maxar: mid-inclination orbit, 45°, 4 planes (Legion 3-6)"),
+    ("ImageSat", "EROS-C3"): (139.3, "tracking data (NORAD 54880): retrograde, 139.3°"),
+    ("ISS", "DESIS"): (51.6, "ISS orbit"),
+}
+
+
+def sso_inclination(alt_km: float) -> float:
+    """Inclination (deg) that makes a circular orbit at this altitude sun-synchronous."""
+    a = R_EARTH + alt_km
+    n = np.sqrt(MU_EARTH / a ** 3)
+    rate = 2 * np.pi / (365.2422 * 86400)
+    return float(np.degrees(np.arccos(-rate / (1.5 * n * J2 * (R_EARTH / a) ** 2))))
+
+
+def _off_nadir(alt_km: float, central_deg):
+    """Off-nadir angle (deg) from the satellite to a ground point `central_deg` (Earth central angle) from nadir."""
+    d = np.radians(central_deg)
+    return np.degrees(np.arctan2(np.sin(d), (R_EARTH + alt_km) / R_EARTH - np.cos(d)))
+
+
+def half_swath_angle(alt_km: float, swath_km: float) -> float:
+    """Off-nadir angle (deg) of the swath edge, looking straight down."""
+    return float(_off_nadir(alt_km, np.degrees(swath_km / 2 / R_EARTH)))
+
+
+_PASS_CACHE: Dict[tuple, dict] = {}
+
+
+def orbit_passes(alt_km: float, incl_deg: float, sso: bool, lats=REVISIT_LATS, n_lon: int = 36, days: int = 365,
+                 step_s: float = 120, ltdn_h: float = 10.5, start: str = "2026-01-01") -> dict:
+    """Every pass of one satellite over sites at `lats` x `n_lon` longitudes for `days` days: arrays lat (index into
+    lats), day (day of year, 1 = start), off_nadir (deg, at closest approach) and sun (sun elevation at the site, deg).
+    Sun-synchronous orbits cross the equator southbound at `ltdn_h` local time. Cached."""
+    key = (round(alt_km, 1), round(incl_deg, 2), sso, tuple(lats), n_lon, days, step_s, ltdn_h, start)
+    if key in _PASS_CACHE:
+        return _PASS_CACHE[key]
+    a = R_EARTH + alt_km
+    i = np.radians(incl_deg)
+    n = np.sqrt(MU_EARTH / a ** 3)
+    t = np.arange(0, days * 86400, step_s)
+    d0 = (pd.Timestamp(start) - pd.Timestamp("2000-01-01 12:00")).total_seconds() / 86400   # days since J2000
+
+    def sun(d):                                     # low-precision solar ecliptic longitude, obliquity (rad)
+        g = np.radians(357.528 + 0.9856003 * d)
+        lam = np.radians(280.460 + 0.9856474 * d) + np.radians(1.915) * np.sin(g) + np.radians(0.020) * np.sin(2 * g)
+        return lam, np.radians(23.439 - 4e-7 * d)
+
+    lam0, eps0 = sun(d0)
+    ra0 = np.arctan2(np.cos(eps0) * np.sin(lam0), np.cos(lam0))
+    node_rate = -1.5 * n * J2 * (R_EARTH / a) ** 2 * np.cos(i)
+    raan = (ra0 + np.radians((ltdn_h + 12 - 12) * 15) if sso else 0.0) + node_rate * t
+    u = n * t                                       # argument of latitude
+    gmst = np.radians(280.46061837 + 360.98564736629 * d0) + OMEGA_EARTH * t
+    horizon = np.arccos(R_EARTH / a)
+    out = {k: [] for k in ("lat", "day", "off_nadir", "sun")}
+    for li, lat in enumerate(lats):
+        cp, sp = np.cos(np.radians(lat)), np.sin(np.radians(lat))
+        for lon in np.linspace(0, 2 * np.pi, n_lon, endpoint=False):
+            psi = lon + gmst - raan                 # site angle from the ascending node, in the equatorial plane
+            x, y = cp * np.cos(psi), np.cos(i) * cp * np.sin(psi) + sp * np.sin(i)
+            cross = np.arcsin(np.clip(-np.sin(i) * cp * np.sin(psi) + sp * np.cos(i), -1, 1))   # angle off the orbit plane
+            dl = np.angle(np.exp(1j * (u - np.arctan2(y, x))))                                    # along-track, (-pi, pi]
+            k = np.flatnonzero((dl[:-1] < 0) & (dl[1:] >= 0) & (dl[:-1] > -0.5))
+            f = dl[k] / (dl[k] - dl[k + 1])
+            c = np.abs(cross[k] + f * (cross[k + 1] - cross[k]))
+            tk = t[k] + f * step_s
+            ok = c < horizon
+            c, tk = c[ok], tk[ok]
+            ang = lon + np.radians(280.46061837 + 360.98564736629 * d0) + OMEGA_EARTH * tk
+            lam, eps = sun(d0 + tk / 86400)
+            s = np.stack([np.cos(lam), np.cos(eps) * np.sin(lam), np.sin(eps) * np.sin(lam)])
+            p = np.stack([cp * np.cos(ang), cp * np.sin(ang), np.full_like(ang, sp)])
+            out["lat"].append(np.full(len(tk), li))
+            out["day"].append(tk / 86400 + 1)
+            out["off_nadir"].append(_off_nadir(alt_km, np.degrees(c)))
+            out["sun"].append(np.degrees(np.arcsin(np.clip((s * p).sum(0), -1, 1))))
+    res = {k: np.concatenate(v) for k, v in out.items()}
+    res.update(lats=tuple(lats), n_lon=n_lon, days=days)
+    _PASS_CACHE[key] = res
+    return res
+
+
+def orbit_inputs(df: pd.DataFrame, inclination: Optional[dict] = None) -> pd.DataFrame:
+    """Per sheet row, the orbit and pointing used for revisit: altitude, inclination (+ source), whether
+    sun-synchronous, satellites, swath, reach (deg off-nadir: half swath + agility; NaN = agility not in the sheet
+    for a tasked satellite) and notes on what was assumed."""
+    inclination = {**ORBIT_INCLINATION, **(inclination or {})}
+    rows = []
+    for _, r in df.iterrows():
+        notes = []
+        alt, swath = to_number(r["Orbit Altitude (km)"]), to_number(r["Swath Width (km)"])
+        otype = str(r["Orbit Type"]).lower() if pd.notna(r["Orbit Type"]) else ""
+        given = to_number(r["Inclination (deg)"]) if "Inclination (deg)" in df.columns else np.nan
+        key = (str(r["Constellation/Platform"]).strip(), str(r["Sensor Name"]).strip())
+        sso, incl, src = False, np.nan, ""
+        if not np.isnan(given):
+            incl, src = given, "sheet"
+            sso = "sun" in otype
+        elif key in inclination:
+            incl, src = inclination[key]
+        elif ("sun" in otype or "polar" in otype) and not np.isnan(alt):
+            sso, incl, src = True, sso_inclination(alt), "sun-synchronous, from the altitude"
+            if "sun" not in otype:
+                notes.append(f"'{r['Orbit Type']}' treated as sun-synchronous")
+        nsat = to_number(r["n satellites"])
+        if np.isnan(nsat):
+            nsat = 1.0
+            notes.append("number of satellites not in the sheet: 1 assumed")
+        ag = r["Agility (off-nadir, ± degrees )"]
+        agility = 0.0 if str(ag).strip().lower() == "limited" else to_number(ag)
+        half = half_swath_angle(alt, swath) if not (np.isnan(alt) or np.isnan(swath)) else np.nan
+        if np.isnan(agility) and str(r["Acquisition Strategy"]).strip() == "Systematic" and swath >= 100:
+            agility = 0.0
+            notes.append("no agility in the sheet; wide-swath systematic mapper, so nadir-looking assumed")
+        missing = [k for k, v in (("altitude", alt), ("swath", swath), ("inclination", incl)) if np.isnan(v)]
+        rows.append(dict(sheet_row=r["sheet_row"], label=r["label"], current=r["Mission Status"] in CURRENT_STATUS,
+                         alt_km=alt, incl_deg=incl, incl_source=src, sso=sso, n_sat=nsat, swath_km=swath,
+                         half_swath_deg=half, agility_deg=agility, reach_deg=half + agility,
+                         missing=", ".join(missing), notes="; ".join(notes)))
+    return pd.DataFrame(rows)
+
+
+def revisit(df: pd.DataFrame, groups: pd.DataFrame, cap_deg: float = 20, sun_min_deg: float = 10,
+            lats=REVISIT_LATS, inclination: Optional[dict] = None, **sim):
+    """Mean revisit (days) per constellation group at each latitude, for two views ('cap' = view angle <= cap_deg,
+    'max' = full agility) and two seasons ('year', 'jja'), counting passes with the sun >= sun_min_deg.
+    Uses a group's current rows if it has any, else all its rows. A tasked satellite with no agility in the sheet
+    is assumed able to point to cap_deg (so it appears in the 'cap' view only). Returns (table, inputs):
+    table has one row per group x view x season x latitude (revisit_days NaN = no access; `why` = not computed)."""
+    inp = orbit_inputs(df, inclination)
+    out = []
+    for g in groups.itertuples():
+        rows = inp[inp.sheet_row.isin(int(x) for x in g.sheet_rows.split(", "))]
+        if rows.current.any():
+            rows = rows[rows.current]
+        for view in ("cap", "max"):
+            why, rates = "", []
+            for r in rows.itertuples():
+                if r.missing:
+                    why = f"{r.label}: {r.missing} not in the sheet"
+                    break
+                reach = r.reach_deg
+                if np.isnan(reach):
+                    if view == "max":
+                        why = f"{r.label}: agility not in the sheet"
+                        break
+                    reach = cap_deg                              # assumed able to point to the cap
+                limit = min(reach, cap_deg) if view == "cap" else reach
+                p = orbit_passes(r.alt_km, r.incl_deg, r.sso, lats=lats, **sim)
+                ok = (p["off_nadir"] <= limit) & (p["sun"] >= sun_min_deg)
+                rates.append((r.n_sat, ok, p))
+            for season, (d0, d1) in SEASONS.items():
+                for li, lat in enumerate(lats):
+                    if why:
+                        days = np.nan
+                    else:
+                        per_day = 0.0
+                        for nsat, ok, p in rates:
+                            sel = ok & (p["lat"] == li) & (p["day"] >= d0) & (p["day"] < d1 + 1)
+                            per_day += nsat * sel.sum() / (p["n_lon"] * (d1 - d0 + 1))
+                        days = 1 / per_day if per_day > 0 else np.inf
+                    out.append(dict(group=g.group, view=view, season=season, lat=lat, revisit_days=days, why=why))
+    table = pd.DataFrame(out)
+    table.attrs.update(cap_deg=cap_deg, sun_min_deg=sun_min_deg, lats=list(lats))
+    return table, inp
+
+
+# --------------------------------------------------------------------------
 # Interactive HTML dashboard
 # --------------------------------------------------------------------------
 
@@ -857,14 +1043,38 @@ def apps_script(log: pd.DataFrame, out_path: str) -> str:
     return str(Path(out_path).resolve())
 
 
+def _revisit_payload(revisit, g) -> Optional[dict]:
+    """One group's revisit for the page: days[view][season] = [one value per latitude] (None = not computed,
+    -1 = no access), why[view] = reason not computed, and the inputs per sheet row."""
+    if revisit is None:
+        return None
+    table, inp = revisit
+    t = table[table.group == g.group]
+    days, why = {}, {}
+    for (view, season), d in t.groupby(["view", "season"]):
+        d = d.sort_values("lat")
+        days.setdefault(view, {})[season] = [None if np.isnan(v) else (-1 if np.isinf(v) else round(float(v), 3))
+                                             for v in d.revisit_days]
+        why[view] = d.why.iloc[0]
+    rows = inp[inp.sheet_row.isin(int(x) for x in g.sheet_rows.split(", "))]
+    if rows.current.any():
+        rows = rows[rows.current]
+    num = lambda v: None if pd.isna(v) else round(float(v), 2)
+    inputs = [dict(label=r.label, alt_km=num(r.alt_km), incl_deg=num(r.incl_deg), incl_source=r.incl_source,
+                   n_sat=num(r.n_sat), half_swath_deg=num(r.half_swath_deg), agility_deg=num(r.agility_deg),
+                   notes=r.notes) for r in rows.itertuples()]
+    return dict(days=days, why=why, inputs=inputs)
+
+
 def write_dashboard(raw: pd.DataFrame, groups: pd.DataFrame, issues: pd.DataFrame, edit_log: Optional[pd.DataFrame],
                     out_path: str, template: Optional[str] = None,
-                    footprint_max_km: float = 100, sheet_url: Optional[str] = None) -> str:
+                    footprint_max_km: float = 100, sheet_url: Optional[str] = None, revisit=None) -> str:
     """Write the interactive dashboard (one self-contained HTML file): scatter of GSD
     vs swath, launches, aligned spec strips, cross-track swath widths, completeness, checks,
     the edit record and a table view, with hover details for every constellation.
     `raw`: the sheet with the edits applied; `edit_log`: apply_edits() log (with `status`);
-    `groups`: constellations() output (all rows; the page filters by sector / status)."""
+    `groups`: constellations() output (all rows; the page filters by sector / status);
+    `revisit`: revisit() output (table, inputs), for the Revisit tab."""
     import json
     from pathlib import Path
     template = template or str(Path(__file__).with_name("vendor_specs_dashboard.html"))
@@ -885,7 +1095,7 @@ def write_dashboard(raw: pd.DataFrame, groups: pd.DataFrame, issues: pd.DataFram
             tir_gsd=num(g.tir_gsd), swath_km=num(g.swath_km), ms_bands=num(g.ms_bands), total_bands=num(g.total_bands),
             revisit_days=num(g.revisit_days), ce90_m=num(g.ce90_m), scanner=g.scanner if pd.notna(g.scanner) else None,
             acquisition=g.acquisition if pd.notna(g.acquisition) else None, sheet_rows=g.sheet_rows,
-            qa=qa, edits=ed, n_flags=len(qa) + len(ed)))
+            qa=qa, edits=ed, n_flags=len(qa) + len(ed), revisit=_revisit_payload(revisit, g)))
     # One row per sensor for the launch timeline (launch / end dates, orbit, size class)
     def orbit_class(v):
         v = str(v).lower() if pd.notna(v) else ""
@@ -922,6 +1132,7 @@ def write_dashboard(raw: pd.DataFrame, groups: pd.DataFrame, issues: pd.DataFram
         f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit?gid={GID['Vendor Specs']}",
         n_sensors=len(raw), pct_filled=float(comp.to_numpy().mean() * 100), n_issues=len(issues),
         groups=out, sensors=sensors, footprint_max_km=footprint_max_km,
+        revisit=None if revisit is None else revisit[0].attrs,
         affiliation_colors=affiliation_colors(raw["Affiliation"].dropna().unique()),
         edits=edit_log.to_dict("records"),
         edit_status=edit_log["status"].value_counts().to_dict(),
