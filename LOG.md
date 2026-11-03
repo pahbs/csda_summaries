@@ -31,6 +31,7 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-03 · [6] Vendor Specs: Pixxel Firefly added as 6 new rows (86–91, 162 cells) from public sources, through the edit record (`specs/public_check_2026-11-03_pixxel.csv`); not yet in the Google Sheet.
 - 2026-11-03 · [6] Vendor Specs: revisit estimates for the Google Sheet (6 columns + notes, `specs/revisit_estimates.csv`, Apps Script `specs/write_revisit.gs`); Revisit tab grouped by sector / data owner and colored by *Color by*; byline on the dashboard.
 - 2026-11-03 · [6] Vendor Specs: *Revisit* tab: mean revisit at 0°, 40°N and 60°N simulated from each orbit (≤ 20° view angle or full agility; whole year or June–August), replacing the sheet's mixed-definition *Revisit Time* in the comparison.
 - 2026-11-03 · [3] Vantor and Airbus: simple "since September" summaries (new in CSDA STAC since 9/1; for Vantor also collected but not yet in CSDA) in `vantor_legion_supp_tracking.ipynb` §9 and `airbus_order_tracking.ipynb` §4b; timeline notes updated from them.
@@ -376,6 +377,22 @@ only if needed), never a separate search API.
 ---
 
 ## 6 · Evaluation results, RadCalNet and spectral response
+
+### 2026-11-03 · Vendor Specs: Pixxel Firefly rows added
+- Firefly was never in the Vendor Specs tab (not in the 2 Nov snapshot or any saved notebook output since Feb 2026); it
+  was only in the acquisition-request tab (gid 900814542, 16 FF01 rows).
+- 6 rows, one per satellite: FF01–FF03 (launched 2025-01-14) and Ffly 01–03 (2025-08-26, SpaceX NAOS), Pixxel's own
+  designations. 27 fields from the CSDA vendor page first (590 km SSO, 40 km swath, 5.36 m GSD, ±30° slew, 135 bands
+  470–900 nm, 10-bit, pushbroom, revisit "1 - 2 days"), then Pixxel docs (names, 4–11.5 nm bandwidths), Pixxel news
+  (second launch), skyrocket.de (first launch date, 60 kg); period and size class computed. Where sources differ
+  (Pixxel docs: 589 km, 38 km, ±20°, revisit <7 / <4 d) it is in the cell note and the row's Notes. Hypersp Min/Max in nm,
+  as in the other hyperspectral rows. assessment status left empty.
+- `record_edits` now takes rows below the last sheet row as new rows (before = empty, label from the proposed
+  Constellation/Platform + Sensor Name); `apply_edits` adds them until the sheet has them. The Apps Script writes number
+  ranges such as `1-2` as text so Sheets does not turn them into dates. Mock test: 162 cells written, rows 86–91 created,
+  nothing else changed.
+- Revisit (≤20°, whole year): 1.0 / 0.77 / 0.60 d at 0° / 40°N / 60°N; in `specs/revisit_estimates.csv` and
+  `write_revisit.gs` (run after `applyEdits`, so the rows exist). Display name *Pixxel Firefly* (notebook `LABELS`).
 
 ### 2026-11-03 · Vendor Specs: revisit estimates into the sheet; Revisit tab grouping
 - **Sheet columns** (`vs.revisit_sheet_columns`, `vs.revisit_apps_script`, notebook section 6): `Revisit est. 0° / 40°N /
