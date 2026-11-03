@@ -882,23 +882,36 @@ def load_edit_log(path: str) -> pd.DataFrame:
 def record_edits(raw: pd.DataFrame, edits: pd.DataFrame, log_path: str, batch: str, date: str) -> pd.DataFrame:
     """Add a batch of proposed edits (public_check_*.csv: one row per field and row span) to the edit record as
     one row per sheet cell, with the cell address and the sheet value it replaces. Rows with change != True are
-    left out. A batch already in the record is not added again. Returns the full record."""
+    left out. A batch already in the record is not added again. Rows below the last sheet row are new rows (every
+    cell empty before; label from their proposed Constellation/Platform and Sensor Name). Returns the full record."""
     log = load_edit_log(log_path)
     if batch in set(log["batch"]):
         return log
     cols = list(raw.columns[2:])                     # sheet columns (after sheet_row, label)
     start = int(pd.to_numeric(log["edit_id"]).max()) if len(log) else 0
+    edits = edits[edits["change"].astype(str) == "True"] if "change" in edits else edits
+    last = int(raw.sheet_row.max())
+    added = {}                                        # new sheet row -> {field: proposed}
+    for e in edits.itertuples():
+        for row in _rows(e.sheet_rows):
+            if row > last:
+                added.setdefault(row, {})[e.field] = str(e.proposed).strip()
+    if added and sorted(added) != list(range(last + 1, last + 1 + len(added))):
+        raise ValueError(f"new rows must follow the last sheet row ({last}) without gaps: {sorted(added)}")
+    labels = {row: f"{f.get('Constellation/Platform', '')} {f.get('Sensor Name', '')}".strip() for row, f in added.items()}
     new = []
     for e in edits.itertuples():
-        if "change" in edits and str(e.change) != "True":
-            continue
         letter = column_letter(cols.index(e.field))
         if e.column and e.column != letter:
             raise ValueError(f"{e.field}: column {e.column} in the edits, {letter} in the sheet")
         for row in _rows(e.sheet_rows):
-            r = raw.loc[raw.sheet_row == row].iloc[0]
+            if row > last:
+                label, before = labels[row], EMPTY
+            else:
+                r = raw.loc[raw.sheet_row == row].iloc[0]
+                label, before = r["label"], _cell_text(r[e.field])
             new.append(dict(edit_id=start + len(new) + 1, date=date, batch=batch, cell=f"{letter}{row}", sheet_row=row,
-                            label=r["label"], column=letter, field=e.field, before=_cell_text(r[e.field]),
+                            label=label, column=letter, field=e.field, before=before,
                             after=_cell_text(e.proposed), source=e.source, source_url=e.source_url, note=e.note))
     log = pd.concat([log, pd.DataFrame(new, columns=EDIT_LOG_COLUMNS).astype(str)], ignore_index=True)
     log.to_csv(log_path, index=False)
@@ -918,7 +931,13 @@ def apply_edits(raw: pd.DataFrame, log: pd.DataFrame):
     'in sheet' = the sheet already holds the new value; 'applied (not yet in sheet)' = the sheet still holds the
     old value, so the new one is used here; 'skipped: sheet changed' = the sheet holds a third value (edited since
     the record was made): the sheet wins. Later edits of the same cell win over earlier ones.
+    Rows the record adds that the sheet does not have yet are added (empty) before the edits are applied.
     Returns (edited copy of raw, log with `now` = sheet value and `status`)."""
+    raw = raw.copy()
+    rows = pd.to_numeric(log["sheet_row"]).astype(int) if len(log) else pd.Series(dtype=int)
+    for row in sorted(set(rows) - set(raw.sheet_row)):
+        raw.loc[len(raw)] = {"sheet_row": row, "label": log.loc[rows == row, "label"].iloc[0]}
+    raw = raw.reset_index(drop=True)
     out = raw.copy()
     log = log.copy()
     now, status = [], []
@@ -993,6 +1012,7 @@ function run_(write) {
         try {
           if (e.after === EMPTY) rng.clearContent();
           else {
+            if (/^\d+(\.\d+)?-\d+(\.\d+)?$/.test(e.after)) rng.setNumberFormat('@');   // a range ('1-2'), not a date
             rng.setValue(e.after);
             if (/^\d{4}-\d{2}-\d{2}$/.test(e.after)) rng.setNumberFormat('yyyy-mm-dd');
           }
