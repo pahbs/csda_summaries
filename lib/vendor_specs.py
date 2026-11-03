@@ -1043,6 +1043,167 @@ def apps_script(log: pd.DataFrame, out_path: str) -> str:
     return str(Path(out_path).resolve())
 
 
+def revisit_header(lat: int, view: str, cap_deg: float = 20) -> str:
+    """Sheet column name for one revisit estimate, e.g. 'Revisit est. 40°N (days, ≤20° view)'."""
+    where = "0°" if lat == 0 else f"{lat}°N"
+    return f"Revisit est. {where} (days, " + (f"≤{cap_deg:g}° view)" if view == "cap" else "full agility)")
+
+
+REVISIT_NOTE_HEADER = "Revisit est. notes"
+
+
+def revisit_sheet_columns(revisit, groups: pd.DataFrame, df: pd.DataFrame, date: str) -> pd.DataFrame:
+    """The revisit estimates as sheet columns, one row per sheet row: whole-year constellation mean (days) at each
+    latitude for both views, and a note. A group's value goes on the rows it was computed from (its current
+    satellites, or all rows of a group with none current); other rows get only a note. 'no access' = the orbit
+    never reaches that latitude; empty = not computed (reason in the note)."""
+    table, inp = revisit
+    cap, sun, lats = table.attrs["cap_deg"], table.attrs["sun_min_deg"], table.attrs["lats"]
+    year = table[table.season == "year"]
+    heads = [(lat, view, revisit_header(lat, view, cap)) for view in ("cap", "max") for lat in lats]
+    base = (f"Simulated {date} (csda_summaries csda_specs_compare.ipynb §6): mean revisit of the constellation's "
+            f"current satellites, whole year, sun ≥ {sun:g}°")
+    by_row = {}
+    for g in groups.itertuples():
+        rows = inp[inp.sheet_row.isin(int(x) for x in g.sheet_rows.split(", "))]
+        used = rows[rows.current] if rows.current.any() else rows
+        t = year[year.group == g.group]
+        for r in rows.itertuples():
+            rec = {h: "" for _, _, h in heads}
+            if r.sheet_row in set(used.sheet_row):
+                notes = [base + f" ({g.group}: {', '.join(used.label)})"]
+                for lat, view, h in heads:
+                    v = t[(t.view == view) & (t.lat == lat)].revisit_days.iloc[0]
+                    rec[h] = "" if np.isnan(v) else ("no access" if np.isinf(v) else round(float(v), 2))
+                why = t[t.why != ""].drop_duplicates("view")
+                notes += [f"{'≤' + format(cap, 'g') + '° view' if w.view == 'cap' else 'full agility'} not computed: "
+                          f"{w.why.split(': ', 1)[-1]}" for w in why.itertuples()]
+                notes += [n for n in used.notes.unique() if n]
+                if r.incl_source and not r.sso:
+                    notes.append(f"inclination {r.incl_deg:g}° ({r.incl_source})")
+            else:
+                status = df.loc[df.sheet_row == r.sheet_row, "Mission Status"].iloc[0]
+                notes = [f"Not estimated: status {status}; the {g.group} estimate covers current satellites only"]
+            rec[REVISIT_NOTE_HEADER] = "; ".join(notes)
+            by_row[r.sheet_row] = rec
+    out = df[["sheet_row", "Constellation/Platform", "Sensor Name"]].copy()
+    recs = pd.DataFrame.from_dict(by_row, orient="index")
+    return out.join(recs, on="sheet_row").fillna("")
+
+
+REVISIT_SCRIPT = r"""/**
+ * Write the simulated revisit estimates into the CSDA Vendor Specs sheet: __NCOL__ columns x __NROW__ rows.
+ * Written by csda_summaries lib/vendor_specs.py (revisit_apps_script) on __DATE__ (record: specs/revisit_estimates.csv).
+ *
+ * Use: open the spreadsheet > Extensions > Apps Script, paste this file, save.
+ *   1. Run previewRevisit: changes nothing; the log lists the columns and how many cells would change.
+ *   2. Run writeRevisit: writes the cells and adds one row per column to the tab 'Edit log'.
+ * Columns are found by header; a missing one is added after the last header in row 1 (only into empty columns).
+ * Each value goes to the row whose Sensor Name and Constellation/Platform match (found again if rows moved; a row
+ * not found is skipped and listed). Rows not in this file are left as they are. Running it again changes nothing.
+ */
+const SHEET_ID = '__SHEET_ID__';
+const TAB_GID = __GID__;
+const LOG_TAB = 'Edit log';
+const BATCH = '__BATCH__';
+const HEADERS = __HEADERS__;
+const ROWS = __ROWS__;
+
+function previewRevisit() { run_(false); }
+function writeRevisit() { run_(true); }
+
+function run_(write) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (ss.getId() !== SHEET_ID) throw new Error('Wrong spreadsheet: run this from the CSDA Vendor Specs sheet.');
+  const sh = ss.getSheets().find(s => s.getSheetId() === TAB_GID);
+  if (!sh) throw new Error('Vendor Specs tab (gid ' + TAB_GID + ') not found.');
+  const nRows = sh.getLastRow();
+  const head = sh.getRange(1, 1, 1, sh.getMaxColumns()).getDisplayValues()[0].map(h => String(h).trim());
+  const names = sh.getRange(1, 1, nRows, 2).getDisplayValues().map(r => [String(r[0]).trim(), String(r[1]).trim()]);
+  const iSensor = head.indexOf('Sensor Name'), iCon = head.indexOf('Constellation/Platform');
+  if (iSensor !== 0 || iCon !== 1) throw new Error('Expected Sensor Name in A and Constellation/Platform in B.');
+  // rows: at the recorded row if the names match, else the one row with the same names
+  const target = [], missing = [];
+  for (const r of ROWS) {
+    const at = names[r.sheet_row - 1];
+    let row = at && at[0] === r.sensor && at[1] === r.constellation ? r.sheet_row : 0;
+    if (!row) {
+      const hits = names.map((n, i) => n[0] === r.sensor && n[1] === r.constellation ? i + 1 : 0).filter(i => i > 1);
+      row = hits.length === 1 ? hits[0] : 0;
+    }
+    if (row) target.push([row, r]); else missing.push(r.constellation + ' ' + r.sensor);
+  }
+  // columns: existing by header, else appended after the last header (must be empty)
+  let last = head.reduce((m, h, i) => h ? i + 1 : m, 0);
+  const cols = [];
+  for (const h of HEADERS) {
+    let c = head.indexOf(h) + 1, added = false;
+    if (!c) {
+      c = ++last; added = true;
+      if (c <= sh.getMaxColumns()) {
+        const used = sh.getRange(1, c, Math.max(nRows, 1), 1).getDisplayValues().some(v => String(v[0]).trim());
+        if (used) throw new Error('Column ' + c + ' (for "' + h + '") is not empty; nothing written.');
+      }
+    }
+    cols.push([h, c, added]);
+  }
+  if (write && last > sh.getMaxColumns()) sh.insertColumnsAfter(sh.getMaxColumns(), last - sh.getMaxColumns());
+  const stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
+  const logRows = [];
+  for (const [h, c, added] of cols) {
+    const letter = added && c > sh.getMaxColumns() ? '(new)' :
+      sh.getRange(1, c).getA1Notation().replace(/\d+$/, '');
+    let changed = 0;
+    let vals = c <= sh.getMaxColumns() ? sh.getRange(1, c, nRows, 1).getValues() : names.map(() => ['']);
+    for (const [row, r] of target) {
+      const v = r[h];
+      if (String(vals[row - 1][0]) !== String(v)) { vals[row - 1][0] = v; changed++; }
+    }
+    Logger.log([write ? 'write' : 'would write', 'column ' + letter + (added ? ' (new)' : ''), h, changed + ' cells change'].join(' | '));
+    if (write) {
+      vals[0][0] = h;
+      const rng = sh.getRange(1, c, nRows, 1);
+      rng.setValues(vals);
+      if (h !== '__NOTE__') sh.getRange(2, c, nRows - 1, 1).setNumberFormat('0.00');
+      if (added) sh.getRange(1, c).setFontWeight('bold');
+      if (changed) logRows.push([stamp, 'written', h, BATCH, letter + '2:' + letter + nRows, '(all rows)', h, '',
+                                 changed + ' cells', 'computed', '', 'Simulated revisit (csda_specs_compare.ipynb §6)']);
+    }
+  }
+  if (missing.length) Logger.log('Rows not found (skipped): ' + missing.join(', '));
+  if (write && logRows.length) {
+    let lg = ss.getSheetByName(LOG_TAB);
+    if (!lg) {
+      lg = ss.insertSheet(LOG_TAB);
+      lg.appendRow(['logged', 'result', 'edit_id', 'batch', 'cell', 'sensor', 'field', 'before', 'after', 'source',
+                    'source_url', 'note']);
+      lg.setFrozenRows(1);
+    }
+    lg.getRange(lg.getLastRow() + 1, 1, logRows.length, logRows[0].length).setNumberFormat('@').setValues(logRows);
+  }
+  Logger.log((write ? 'Written: ' : 'Preview: ') + target.length + ' rows matched, ' + missing.length + ' not found');
+}
+"""
+
+
+def revisit_apps_script(cols: pd.DataFrame, out_path: str, batch: str) -> str:
+    """Write a Google Apps Script that puts revisit_sheet_columns() into the sheet (see the header of
+    REVISIT_SCRIPT). Returns the path."""
+    import json
+    from pathlib import Path
+    heads = [c for c in cols.columns if c.startswith("Revisit est.")]
+    rows = ",\n  ".join(json.dumps(dict(sheet_row=int(r.sheet_row), constellation=str(r["Constellation/Platform"]).strip(),
+                                        sensor=str(r["Sensor Name"]).strip(), **{h: r[h] for h in heads}),
+                                   ensure_ascii=False) for _, r in cols.iterrows())
+    js = (REVISIT_SCRIPT.replace("__NCOL__", str(len(heads))).replace("__NROW__", str(len(cols)))
+          .replace("__DATE__", pd.Timestamp.today().strftime("%Y-%m-%d")).replace("__SHEET_ID__", SHEET_ID)
+          .replace("__GID__", str(GID["Vendor Specs"])).replace("__BATCH__", batch)
+          .replace("__NOTE__", REVISIT_NOTE_HEADER)
+          .replace("__HEADERS__", json.dumps(heads, ensure_ascii=False)).replace("__ROWS__", "[\n  " + rows + "\n]"))
+    Path(out_path).write_text(js)
+    return str(Path(out_path).resolve())
+
+
 def _revisit_payload(revisit, g) -> Optional[dict]:
     """One group's revisit for the page: days[view][season] = [one value per latitude] (None = not computed,
     -1 = no access), why[view] = reason not computed, and the inputs per sheet row."""
