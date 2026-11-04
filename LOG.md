@@ -31,7 +31,8 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
-- 2026-11-04 · [6] Timeline: *Augmentation data on ADAPT* entries (4 Nov) for Airbus and Vantor-Legion, each linking a per-site summary table (claude.ai pages; private until shared).
+- 2026-11-04 · [6] Timeline: Highlight and Find controls as on the Vendor Specs page; Joint Activities is now a lane like each evaluation (chip, card, rows).
+- 2026-11-04 · [6] Timeline: *Augmentation data on ADAPT* entries (4 Nov) for Airbus and Vantor-Legion, each linking a per-site summary table in `html/augmentation/`.
 - 2026-11-04 · [3] Vantor Legion: 48 CSDA acquisitions at the request sites not on ADAPT downloaded (134 products, 225 GB) to `Data/Maxar/Legion/augmentation` (`vantor_legion_supp_tracking.ipynb` §10); 19 passes delivered twice (radiometric enhancement off + ACOMP).
 - 2026-11-04 · [2] `multistac_site_analysis_kuva.ipynb`: Kuva Sense acquisitions at the CSDA sites (618 acquisitions, 1,804 products, 22 sites, cloud ≤ 20%).
 - 2026-11-03 · [1] Multistac: Kuva Space enabled (`kuva` provider): Kuva Sense Products search as STAC-like items, password-grant tokens (8 h, renewed automatically).
@@ -423,6 +424,14 @@ only if needed), never a separate search API.
 ---
 
 ## 6 · Evaluation results, RadCalNet and spectral response
+
+### 2026-11-04 · Timeline: Highlight, Find and Joint Activities lane (`lib/timeline_template.html`)
+- **Highlight** dims all but one evaluation or activity type; **Find** hides activities that do not match (activity, notes,
+  status, dates, link labels), in the cards, chart and list. Filter bar sticks to the top on scroll.
+- **Joint Activities** events are converted to activities in the template, so they get a filter chip, card, lane, status
+  pills, list rows and tooltips like any evaluation. Picking a vendor chip now hides them, and the gray event bands behind
+  the chart show only with the Joint Activities lane.
+- Augmentation summary tables moved to `html/augmentation/` (GitHub Pages), replacing the claude.ai page links.
 
 ### 2026-11-03 · Vendor Specs: Pixxel Firefly rows added
 - Firefly was never in the Vendor Specs tab (not in the 2 Nov snapshot or any saved notebook output since Feb 2026); it
