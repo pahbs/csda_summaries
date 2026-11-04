@@ -31,6 +31,10 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-04 · [6] Timeline: *Augmentation data on ADAPT* entries (4 Nov) for Airbus and Vantor-Legion, each linking a per-site summary table (claude.ai pages; private until shared).
+- 2026-11-04 · [3] Vantor Legion: 48 CSDA acquisitions at the request sites not on ADAPT downloaded (134 products, 225 GB) to `Data/Maxar/Legion/augmentation` (`vantor_legion_supp_tracking.ipynb` §10); 19 passes delivered twice (radiometric enhancement off + ACOMP).
+- 2026-11-04 · [2] `multistac_site_analysis_kuva.ipynb`: Kuva Sense acquisitions at the CSDA sites (618 acquisitions, 1,804 products, 22 sites, cloud ≤ 20%).
+- 2026-11-03 · [1] Multistac: Kuva Space enabled (`kuva` provider): Kuva Sense Products search as STAC-like items, password-grant tokens (8 h, renewed automatically).
 - 2026-11-03 · [6] Vendor Specs: Pixxel Firefly added as 6 new rows (86–91, 162 cells) from public sources, through the edit record (`specs/public_check_2026-11-03_pixxel.csv`); not yet in the Google Sheet.
 - 2026-11-03 · [6] Vendor Specs: revisit estimates for the Google Sheet (6 columns + notes, `specs/revisit_estimates.csv`, Apps Script `specs/write_revisit.gs`); Revisit tab grouped by sector / data owner and colored by *Color by*; byline on the dashboard.
 - 2026-11-03 · [6] Vendor Specs: *Revisit* tab: mean revisit at 0°, 40°N and 60°N simulated from each orbit (≤ 20° view angle or full agility; whole year or June–August), replacing the sheet's mixed-definition *Revisit Time* in the comparison.
@@ -80,6 +84,24 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 ---
 
 ## 1 · Multistac: unified search library
+
+### 2026-11-03 · Kuva Space enabled (`kuva`)
+- Access: Kuva Sense account, Products endpoints only (no downloads). Login = OAuth2 password grant at
+  `/api/login/token` (form: username, password); tokens last 8 h, no long-lived keys. New auth type
+  `oauth2_password` (`stac_auth.OAuth2Password`): INI section `[Kuva_STAC_API]` with `username` and `password`; token
+  requested again before 8 h (`token_lifetime_s: 28800`) or after a 401; only the HTTP status is reported on failure.
+- The account's STAC API (`/api/stac`, collection `Hyperfield-1`) authenticates but returns no items, so a new backend
+  `api: kuva_products` (`multistac.KuvaProductsProvider`) wraps `/api/products/search` (geometry, dates, cloud cover,
+  processing level, page / page_size) and returns STAC-like items, as the CMR backend does. Collections = processing
+  levels `L1B`, `L1C`, `L2A` (default all three). Each level of a capture is its own product id;
+  `kuva:raw_product_landing_id` is shared by a capture's levels, so it is the `acquisition_id`. Cloud cover (percent)
+  is sent with the request (`cloud_cover_percentage`, required) and re-applied locally. `overview()` gives first / last /
+  total per level; monthly catalog counts work too.
+- `sensor_catalog.yaml`: Hyperfield-1A / HF-1A -> Kuva Space, Hyperfield, HF-1A.
+- Smoke test (2025-01-01 to 2026-12-31, cloud ≤ 20%): catalog L1B 2,181 / L1C 1,821 / L2A 1,815 products since
+  2025-01-24; Gobabeb 121 and Railroad Valley 99 acquisitions (HF-1A and HF-1B), none at Valencia or WLEF; heatmap by
+  site and sensor works.
+- Use: `EXTRA_PROVIDERS = {'kuva': None}` (or `['L2A']`) in the site-analysis notebooks.
 
 Goal: one search call and one normalized table across every catalog with access (STAC and CMR), with breakdowns by
 affiliation (data owner; Maxar = Vantor), constellation and sensor. New vendors are a YAML profile (plus an auth plugin
@@ -215,6 +237,13 @@ only if needed), never a separate search API.
 
 ## 2 · Archive analyses: site and global
 
+### 2026-11-04 · Kuva site analysis (`multistac_site_analysis_kuva.ipynb`)
+- From the Satellogic notebook: `kuva` L1B / L1C / L2A + CSDA `kuvaspace` (no items found there), 2025-01-01 to
+  2026-12-31, cloud ≤ 20%. Acquisition heatmaps by site and satellite (one acquisition = `raw_product_landing_id`, all
+  levels), per-site tables, density map. No skyplot: Kuva products have no view or sun angles. Kernel: ILAB TensorFlow.
+- Per-site counts use `res.gdf` (one row per site an item falls on): the de-duplicated `gdf` dropped captures that cover
+  two nearby sites (La Crau / Salon-de-Provence, the FMI CR Array sub-sites), 18 instead of 22 sites.
+
 ### 2026-10-15 · `multistac_site_analysis.ipynb` usable for one vendor only
 - Parameters for Satellogic only: `CSDA_INCLUDE = []`, `EXTRA_PROVIDERS = {'satellogic': ['quickview-visual']}`.
 - Cells made provider-agnostic: distributions fall back from `csda:item_type` to `collection`; the footprint map falls
@@ -242,6 +271,23 @@ only if needed), never a separate search API.
 ---
 
 ## 3 · Data requests and downloads
+
+### 2026-11-04 · Legion download to `Data/Maxar/Legion/augmentation` (`vantor_legion_supp_tracking.ipynb` §10)
+- Same method as the Airbus download (`CsdaClient` + `csdalib_download.download_all_assets`): CSDA Legion acquisitions at the
+  request sites that section 5 does not find on ADAPT. `MEETS_ONLY = False` (all of them; `True` = meeting the requirements).
+  `legion_request_products.csv` in the folder gives site and acquisition per product.
+- 4 Nov: 48 of 65 acquisitions (Libya-4 10, Valencia 9, WLEF 9, Gobabeb 8, Golmud 7, Railroad Valley 4, Baotou 1),
+  134 LV2A products (`M2AS` / `P2AS`), 225 GB, all complete.
+- Footprints rerun after the download (`footprint_CSDA_eval_all_data.ipynb`, 4 Nov): all 48 found, so all 65 CSDA Legion
+  acquisitions at the request sites are now on ADAPT (598 unique local acquisitions, 120 Legion).
+- **19 passes come under two order IDs**, same scenes and tiling, different radiometry (`.IMD` `radiometricEnhancement`):
+  `Off` (with `absCalFactor`) and `ACOMP` (atmospheric compensation, `absCalFactor = -999`, no standard TOA conversion).
+  10 more passes exist only as ACOMP. CSDA STAC shows both as LV2A, so only the IMD tells them apart.
+- Resume fix (here and in `airbus_order_tracking.ipynb` §6): a product counts as downloaded only when its folder holds all
+  of the item's assets. The old check (any file in the folder) would never refetch a tile missing after an interrupted
+  download (2 Legion pan products were one tile short; refetched).
+- `Data/Airbus/augmentation` was owner-only (`drwx------`, likely the JupyterLab umask); `chmod -R go+rX` on 4 Nov. Check
+  permissions after future downloads from JupyterLab.
 
 ### 2026-11-03 · Since-September summaries for Vantor and Airbus (timeline notes)
 - Both notebooks end their analysis with a short section: a per-site table, plain-language conclusions and the timeline
