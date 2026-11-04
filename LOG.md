@@ -31,6 +31,7 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-04 · [7] Published maps moved from `notebooks/` to `html/` (`footprints_csda_map.html`, `aoi_csda_sites_map.html`, `aoi_eval_sites_map.html`); notebooks and links updated.
 - 2026-11-04 · [7] Repository cleanup: working code, site AOIs and notebooks committed; checkpoints untracked; local `.gitignore` extended (secrets, generated files, vendor order tracking, draft evaluation results).
 - 2026-11-04 · [6] Timeline: Highlight and Find controls as on the Vendor Specs page; Joint Activities is now a lane like each evaluation (chip, card, rows).
 - 2026-11-04 · [6] Timeline: *Augmentation data on ADAPT* entries (4 Nov) for Airbus and Vantor-Legion, each linking a per-site summary table in `html/augmentation/`.
@@ -632,6 +633,16 @@ only if needed), never a separate search API.
 ---
 
 ## 7 · Repository and docs
+
+### 2026-11-04 · Published maps moved to `html/`
+- `footprints_csda_map.html`, `aoi_csda_sites_map.html`, `aoi_eval_sites_map.html` moved from `notebooks/`; old
+  `.../notebooks/*.html` URLs no longer work. Updated: `footprint_CSDA_eval_all_data.ipynb` and `footprint_CSDA_eval_refactored.ipynb`
+  (`out_html`, and the printed URL, which pointed at maap_tools), `csda_eval_sites_map.ipynb`, `csda_stac_search_legion.ipynb`,
+  `timeline.ipynb`, and the 4 links in the `pahbs.github.io` site.
+- `csda_eval_sites_map.ipynb` still saves in `notebooks/`, then moves the map to `html/`: `saveWidget` to another folder leaves a
+  `<name>_files` folder behind, which would be published.
+- `html/eval_results_structure.html` moved too, still ignored (draft). `lib/timeline_template.html` and
+  `lib/vendor_specs_dashboard.html` stay in `lib/`: they are templates, not published pages.
 
 ### 2026-11-04 · Repository cleanup
 - Committed: library code (incl. `csdalib_download.py`, which the tracking notebooks need), 16 site request AOIs + `WV_request_AOIs.zip`,
