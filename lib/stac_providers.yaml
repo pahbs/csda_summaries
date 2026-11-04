@@ -322,3 +322,39 @@ vantor:
     view_azimuth: [view:azimuth]
     # item id = Vantor catalog ID
     vendor_item_id: [id]
+
+kuva:
+  label: Kuva Sense (Kuva Space)
+  display_name: Kuva Space
+  # Kuva Sense account (username + password): OAuth2 password grant at /api/login/token; tokens are valid 8 h and
+  # requested again when they expire. Products endpoints only (no downloads). The account's STAC API
+  # (/api/stac, collection Hyperfield-1) returned no items (checked 2026-11-03), so searches use
+  # /api/products/search; collections are processing levels.
+  # https://beta.kuvasense.com/api/docs, https://beta.kuvasense.com/api/stac/docs
+  api: kuva_products
+  enabled: true
+  url: https://beta.kuvasense.com/api
+  auth:
+    type: oauth2_password
+    credentials_section: Kuva_STAC_API
+    token_url: https://beta.kuvasense.com/api/login/token
+    token_lifetime_s: 28800
+  collections: [L1B, L1C, L2A]
+  default_collections: [L1B, L1C, L2A]
+  search: {page_size: 100, max_concurrency: 2, timeout: 120}
+  geometry: intersects
+  # cloud_cover_percentage is a required search parameter: the cloud filter is sent with it
+  filter_mode: filter
+  queryables: [eo:cloud_cover]
+  affiliation: {default: Kuva Space}
+  spectral_mode: {default: hyperspectral}
+  # Each level of a capture is its own product id; raw_product_landing_id is shared by the levels of one capture
+  # (checked 2026-11-03: 220 captures at Gobabeb and Railroad Valley, 218 with L1B + L1C + L2A)
+  acquisition_id: {default: {from: 'kuva:raw_product_landing_id'}}
+  fields:
+    cloud_cover: [eo:cloud_cover]
+    processing_level: [processing:level]
+    product_type: [processing:level]
+    platform: [platform]
+    sensor: [platform, 'kuva:satellite_short_name']
+    vendor_item_id: [kuva:product_id]

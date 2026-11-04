@@ -112,6 +112,36 @@ class OAuth2ClientCredentials(NoAuth):
         return {name: f"Bearer {self.token()}"}
 
 
+class OAuth2Password(OAuth2ClientCredentials):
+    """OAuth2 password grant: account username + password from the INI, posted as a form to token_url (e.g. Kuva
+    Sense /api/login/token). No long-lived keys: a token is requested again before it expires (lifetime from
+    `expires_in`, else `token_lifetime_s` in the profile; Kuva: 8 h) or after a 401.
+
+    INI keys: `username` and `password` (other names via `username_key` / `password_key` in the profile)."""
+
+    def _token_payload(self, creds: Dict[str, str]) -> Dict[str, str]:
+        keys = (self.cfg.get("username_key", "username"), self.cfg.get("password_key", "password"))
+        missing = [k for k in keys if not creds.get(k)]
+        if missing:
+            raise AuthError(f"Section [{self.cfg['credentials_section']}] needs {' and '.join(missing)}")
+        payload = {"grant_type": "password", "username": creds[keys[0]], "password": creds[keys[1]]}
+        if self.cfg.get("scope"):
+            payload["scope"] = self.cfg["scope"]
+        return payload
+
+    def _fetch_token(self) -> None:
+        token_url = self.cfg.get("token_url")
+        if not token_url:
+            raise AuthError(f"No token_url configured for {self.profile['name']}")
+        creds = _read_section(self.cfg["credentials_section"])
+        response = requests.post(token_url, data=self._token_payload(creds), timeout=60)
+        if response.status_code != 200:
+            raise AuthError(f"Token request failed (HTTP {response.status_code})")   # body may echo the request
+        data = response.json()
+        self._token = data["access_token"]
+        self._expires_at = time.time() + float(data.get("expires_in") or self.cfg.get("token_lifetime_s", 3600))
+
+
 class SatellogicAuth(OAuth2ClientCredentials):
     """Satellogic: OAuth2 token in an `authorizationToken` header + contract ID.
 
@@ -172,6 +202,7 @@ class ApiKeyHeader(NoAuth):
 AUTH_TYPES = {
     "none": NoAuth,
     "oauth2_client_credentials": OAuth2ClientCredentials,
+    "oauth2_password": OAuth2Password,
     "satellogic": SatellogicAuth,
     "bearer_env": BearerEnv,
     "api_key_header": ApiKeyHeader,
