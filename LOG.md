@@ -7,7 +7,7 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 **Areas**
 1. [Multistac: unified search library](#1--multistac-unified-search-library): `lib/multistac*.py`, `lib/stac_providers.yaml`,
    `lib/stac_auth.py`, `lib/sensor_catalog.yaml`, `tests/smoke_multistac.py`
-2. [Archive analyses: site and global](#2--archive-analyses-site-and-global): `notebooks/multistac_site_analysis.ipynb`,
+2. [Archive analyses: site and global](#2--archive-analyses-site-and-global): `notebooks/multistac_site_analysis_*.ipynb`,
    `multistac_global_analysis.ipynb`, `multistac_search_tutorial.ipynb`, older `csda_stac_search*.ipynb`
 3. [Data requests and downloads](#3--data-requests-and-downloads): CSDA download API, Earthdata / S3, vendor requests
 4. [Sites and AOIs](#4--sites-and-aois): `sites/*.geojson`, `lib/siteslib.py`, AOI maps
@@ -639,8 +639,9 @@ only if needed), never a separate search API.
 - Kept out on purpose (public repo): `sites/OnRamp2_OrderTracking_*.xlsx`, Kuva overlap files, the Onramp2 site-request CSV,
   `eval_results_*` notebooks (draft results). `stac_search_tutorial-satellogic.ipynb` has signed URLs in its outputs.
 - `.gitignore` is local only: `.git/info/exclude` excludes it, so the rules (incl. `*credentials*.json`) do not reach other clones.
-- Open: `multistac_site_analysis.ipynb`, `results_legion_*.ipynb` and `csdalib_refactored.py` deleted locally but still tracked;
-  `.readthedocs.yaml` untracked (points to ignored `docs/`); `sites/alaska_agb_validation_sites.geojson` undecided.
+- Removed from the repo (still in git history): `multistac_site_analysis.ipynb`, `results_legion_geometric.ipynb`,
+  `results_legion_radiometric.ipynb`, `csdalib_refactored.py`.
+- Left uncommitted for now: `.readthedocs.yaml` (points to ignored `docs/`), `sites/alaska_agb_validation_sites.geojson`.
 
 ### 2026-10-15 · Uncommitted state
 - Modified: multistac libs, `stac_auth.py`, `stac_providers.yaml`, `staclib.py`, many notebooks; deleted:
