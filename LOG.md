@@ -635,11 +635,11 @@ only if needed), never a separate search API.
 ## 7 · Repository and docs
 
 ### 2026-11-04 · Published maps moved to `html/`
-- `footprints_csda_map.html`, `aoi_csda_sites_map.html`, `aoi_eval_sites_map.html` moved from `notebooks/`; old
-  `.../notebooks/*.html` URLs no longer work. Updated: `footprint_CSDA_eval_all_data.ipynb` and `footprint_CSDA_eval_refactored.ipynb`
+- `footprints_csda_map.html`, `aoi_csda_sites_map.html`, `aoi_eval_sites_map.html` moved from `notebooks/`; the old
+  `.../notebooks/*.html` URLs are now small redirect pages to the new ones (keep them). Updated: `footprint_CSDA_eval_all_data.ipynb` and `footprint_CSDA_eval_refactored.ipynb`
   (`out_html`, and the printed URL, which pointed at maap_tools), `csda_eval_sites_map.ipynb`, `csda_stac_search_legion.ipynb`,
   `timeline.ipynb`, and the 4 links in the `pahbs.github.io` site.
-- `csda_eval_sites_map.ipynb` still saves in `notebooks/`, then moves the map to `html/`: `saveWidget` to another folder leaves a
+- `csda_eval_sites_map.ipynb` still saves in `notebooks/` (as `tmp_<name>`, so the redirect is not overwritten), then moves the map to `html/`: `saveWidget` to another folder leaves a
   `<name>_files` folder behind, which would be published.
 - `html/eval_results_structure.html` moved too, still ignored (draft). `lib/timeline_template.html` and
   `lib/vendor_specs_dashboard.html` stay in `lib/`: they are templates, not published pages.
