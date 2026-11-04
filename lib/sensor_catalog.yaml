@@ -36,6 +36,9 @@ rules:
   - {pattern: '(?P<id>[0-9a-f]{4})',                    affiliation: Planet, constellation: PlanetScope, sensor: 'PS-{id}', when_affiliation: Planet}
   - {pattern: 'PlanetScope|PS2(?:\.SD)?|PSB\.SD',       affiliation: Planet, constellation: PlanetScope, sensor: PlanetScope}
 
+  # --- Kuva Space (Kuva Sense satellite_name Hyperfield-1B, short name HF-1B) ---
+  - {pattern: '(?:Hyperfield|HF)-?(?P<n>\d+)(?P<s>[A-Z])', affiliation: Kuva Space, constellation: Hyperfield, sensor: 'HF-{n}{s}'}
+
   # --- Satellogic ---
   - {pattern: '(?:newsat|SN)-?0*(?P<n>\d+)',            affiliation: Satellogic, constellation: Aleph-1, sensor: 'SN{n:02d}'}
   - {pattern: 'NewSat|Aleph-?1',                        affiliation: Satellogic, constellation: Aleph-1, sensor: NewSat}

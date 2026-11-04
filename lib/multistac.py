@@ -1,8 +1,9 @@
 """Search many satellite catalogs (CSDA, Satellogic, NASA CMR, ...) with one call.
 
 Vendor differences live in stac_providers.yaml; auth lives in stac_auth.py.
-Each profile has an `api`: `stac` (default) or `cmr`. CMR granules are converted
-to STAC-like items, so every provider returns the same columns and item dicts.
+Each profile has an `api`: `stac` (default), `cmr` or `kuva_products`. CMR granules
+and Kuva Sense products are converted to STAC-like items, so every provider returns
+the same columns and item dicts.
 
     import multistac
     multistac.overview({"csda": ["planet"], "csda-cmr": None}, "2023-01-01", "2026-10-01")
@@ -556,7 +557,100 @@ class CMRProvider(Provider):
         return assets
 
 
-BACKENDS = {"stac": Provider, "cmr": CMRProvider}
+# --------------------------------------------------------------------------
+# Kuva Sense Products backend: product search (not STAC) as STAC items
+# --------------------------------------------------------------------------
+
+_WORLD = {"type": "Polygon", "coordinates": [[[-180, -85], [180, -85], [180, 85], [-180, 85], [-180, -85]]]}
+
+
+class KuvaProductsProvider(Provider):
+    """Kuva Sense /api/products/search behind the Provider API (Kuva accounts can have Products access without
+    STAC access). Collections are processing levels (L1B, L1C, L2A): each level of a capture is its own product
+    (own id), returned as a STAC-like item; `kuva:raw_product_landing_id` is shared by the levels of one capture
+    (the acquisition). The footprint is the product's WKT; cloud cover is in percent. Paged with page / page_size."""
+
+    def _get(self, params: dict) -> dict:
+        return self._send("GET", f"{self.url}/products/search", params=params).json()
+
+    def _params(self, payload: dict) -> dict:
+        start, end = (payload.get("datetime") or "../..").split("/")
+        cloud = 100
+        node = payload.get("filter") or {}
+        if node.get("op") in ("<=", "<") and (node.get("args") or [{}])[0].get("property") == "eo:cloud_cover":
+            cloud = node["args"][1]
+        level = (payload.get("collections") or [None])[0]
+        params = {"geometry": json.dumps(payload.get("intersects") or _WORLD), "cloud_cover_percentage": cloud,
+                  "start_date": "2000-01-01T00:00:00Z" if start == ".." else start,
+                  "end_date": "2100-01-01T00:00:00Z" if end == ".." else end,
+                  "page_size": int(payload.get("limit", self.search_cfg.get("page_size", 100))),
+                  "return_quicklook": "false"}
+        if level:
+            params["processing_levels"] = [level]
+        return params
+
+    def search(self, payload: dict, max_items: Optional[int] = None) -> List[dict]:
+        params, features, page = self._params(payload), [], 1
+        level = (payload.get("collections") or [None])[0]
+        self._local.last_matched = None
+        while True:
+            data = self._get({**params, "page": page})
+            if self._local.last_matched is None:
+                self._local.last_matched = data.get("count")
+            features += [self.to_feature(item, level) for item in data.get("items", [])]
+            if page >= int(data.get("total_pages") or 0) or not data.get("items") or (max_items and len(features) >= max_items):
+                break
+            page += 1
+        return features[:max_items] if max_items else features
+
+    def to_feature(self, item: dict, level: Optional[str]) -> dict:
+        from shapely import wkt
+        geom = wkt.loads(item["footprint"].split(";", 1)[-1]) if item.get("footprint") else None
+        props = {
+            "datetime": item.get("acquisition_date"),
+            "platform": item.get("satellite_name"),
+            "eo:cloud_cover": item.get("cloud_cover_percentage"),
+            "processing:level": level,
+            "kuva:product_id": item.get("id"),
+            "kuva:raw_product_landing_id": item.get("raw_product_landing_id"),
+            "kuva:satellite_short_name": item.get("satellite_short_name"),
+            "kuva:area_coverage_percentage": item.get("area_coverage_percentage"),
+            "kuva:available_processing_levels": item.get("available_processing_levels"),
+            "kuva:qc_passed": item.get("qc_passed"),
+        }
+        return {"type": "Feature", "stac_version": "1.0.0", "id": item["id"],
+                "collection": level, "geometry": mapping(geom) if geom else None,
+                "bbox": list(geom.bounds) if geom else None, "properties": props, "assets": {}, "links": []}
+
+    def list_collections(self) -> pd.DataFrame:
+        return pd.DataFrame([{"id": c, "title": f"Kuva Sense products, processing level {c}"}
+                             for c in self.profile.get("collections", ["L1B", "L1C", "L2A"])])
+
+    def queryables(self, collection: str) -> Optional[set]:
+        return set(self.profile.get("queryables", []))
+
+    def _count(self, collection: str, interval: Optional[str] = None) -> Optional[int]:
+        body = {"collections": [collection], "limit": 1}
+        if interval:
+            body["datetime"] = _iso_interval(interval)
+        return self._get(self._params(body)).get("count")
+
+    def overview(self, collection: str) -> Dict[str, Any]:
+        row: Dict[str, Any] = {"title": f"processing level {collection}", "first": None, "last": None,
+                               "total": None, "dates_from": "items"}
+        try:
+            params = {**self._params({"collections": [collection], "limit": 1}), "page": 1}
+            for key, descending in (("first", "false"), ("last", "true")):
+                data = self._get({**params, "descending": descending})
+                row["total"] = data.get("count")
+                if data.get("items"):
+                    row[key] = data["items"][0]["acquisition_date"]
+        except Exception as error:
+            row["error"] = str(error)[:200]
+        return row
+
+
+BACKENDS = {"stac": Provider, "cmr": CMRProvider, "kuva_products": KuvaProductsProvider}
 
 
 def display_names() -> Dict[str, str]:
