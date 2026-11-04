@@ -22,39 +22,81 @@ def stac_items_to_gdf(items, properties_to_extract=None):
     Parameters:
     -----------
     items : list
-        List of pystac.Item objects
+        List of pystac.Item objects or dict representations
     properties_to_extract : list, optional
         Specific properties to extract. If None, extracts all properties.
     """
+    from datetime import datetime
+    
     records = []
     
     for item in items:
-        # Extract geometry
-        geom = shape(item.geometry)
+        # Handle both pystac.Item and dict
+        if isinstance(item, dict):
+            # Dict from Satellogic
+            geom = shape(item['geometry'])
+            item_id = item.get('id')
+            
+            # Try multiple field names for collection
+            collection = (item.get('collection') or 
+                         item.get('collection_id') or
+                         item.get('properties', {}).get('collection') or
+                         'unknown')
+            
+            properties = item.get('properties', {})
+            assets = item.get('assets', {})
+            bbox_val = item.get('bbox')
+            
+            # Parse datetime
+            dt_str = (properties.get('datetime') or 
+                     properties.get('start_datetime') or
+                     item.get('datetime'))
+            if dt_str:
+                try:
+                    dt = datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
+                except:
+                    dt = None
+            else:
+                dt = None
+        else:
+            # pystac.Item from CSDA
+            geom = shape(item.geometry)
+            item_id = item.id
+            collection = item.collection_id
+            properties = item.properties
+            assets = item.assets
+            bbox_val = item.bbox
+            dt = item.datetime
         
         # Base record
         record = {
-            'id': item.id,
-            'collection': item.collection_id,
-            'datetime': item.datetime,
+            'id': item_id,
+            'collection': collection,
+            'datetime': dt,
             'geometry': geom,
         }
         
         # Extract bbox
-        if item.bbox:
-            record['bbox'] = item.bbox
+        if bbox_val:
+            record['bbox'] = bbox_val
         
         # Extract specific or all properties
         if properties_to_extract:
             for prop in properties_to_extract:
-                record[prop] = item.properties.get(prop)
+                record[prop] = properties.get(prop)
         else:
-            record.update(item.properties)
+            record.update(properties)
         
-        # Add asset URLs (useful for downloading)
-        for asset_key, asset in item.assets.items():
-            record[f'asset_{asset_key}_href'] = asset.href
-            record[f'asset_{asset_key}_type'] = asset.media_type
+        # Add asset URLs
+        for asset_key, asset in assets.items():
+            if isinstance(asset, dict):
+                # Dict format
+                record[f'asset_{asset_key}_href'] = asset.get('href')
+                record[f'asset_{asset_key}_type'] = asset.get('type')
+            else:
+                # pystac.Asset object
+                record[f'asset_{asset_key}_href'] = asset.href
+                record[f'asset_{asset_key}_type'] = asset.media_type
         
         records.append(record)
     
@@ -208,6 +250,79 @@ def stac_search_site(site_tuple, end_date, start_date='2010-01-01',
         else:
             return (site_name, None, None, 'No items found')
 
+    except Exception as e:
+        return (site_name, None, None, f'Error: {str(e)}')
+
+def stac_search_site_satellogic(site_tuple, end_date, start_date='2010-01-01',
+                                collections=['quickview-visual'],
+                                months=None,
+                                satellogic_creds='/home/pmontesa/code/credentials.ini'):
+    """
+    Search a single site using Satellogic STAC API
+    
+    Returns
+    -------
+    tuple : (site_name, gdf, items, message)
+        site_name : str
+        gdf       : GeoDataFrame or None
+        items     : list of dict or None
+        message   : str
+    """
+    import numpy as np
+    import pandas as pd
+    import geopandas as gpd
+    from satellogic_auth import SatellogicAuth
+    from satellogic_stac import SatellogicSTACClient
+    
+    site_name, site_info = site_tuple
+    bbox = site_info['bbox']
+    
+    if bbox is None or len(bbox) != 4 or any(np.isnan(bbox)):
+        return (site_name, None, None, 'Invalid bbox')
+    
+    # Build search intervals
+    if months is None:
+        intervals = [f'{start_date}/{end_date}']
+    else:
+        intervals = _build_seasonal_intervals(start_date, end_date, months)
+        if not intervals:
+            return (site_name, None, None, 'No valid seasonal intervals')
+    
+    try:
+        # Initialize Satellogic client
+        auth = SatellogicAuth(satellogic_creds)
+        catalog = SatellogicSTACClient(auth)
+        
+        all_gdfs = []
+        all_items = []
+        
+        for interval in intervals:
+            search = catalog.search(
+                bbox=bbox,
+                datetime=interval,
+                collections=collections,
+                max_items=None
+            )
+            
+            items = list(search.items())
+            
+            if items:
+                all_items.extend(items)
+                gdf = stac_items_to_gdf(items)
+                gdf['site_name'] = site_name
+                all_gdfs.append(gdf)
+        
+        if all_gdfs:
+            combined = pd.concat(all_gdfs, ignore_index=True)
+            combined = gpd.GeoDataFrame(combined,
+                                       geometry='geometry',
+                                       crs=all_gdfs[0].crs)
+            season_note = f' (months={months})' if months else ''
+            return (site_name, combined, all_items,
+                   f'Found {len(all_items)} items across {len(intervals)} interval(s){season_note}')
+        else:
+            return (site_name, None, None, 'No items found')
+            
     except Exception as e:
         return (site_name, None, None, f'Error: {str(e)}')
 
