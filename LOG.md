@@ -31,6 +31,7 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-04 · [7] Repository cleanup: working code, site AOIs and notebooks committed; checkpoints untracked; local `.gitignore` extended (secrets, generated files, vendor order tracking, draft evaluation results).
 - 2026-11-04 · [6] Timeline: Highlight and Find controls as on the Vendor Specs page; Joint Activities is now a lane like each evaluation (chip, card, rows).
 - 2026-11-04 · [6] Timeline: *Augmentation data on ADAPT* entries (4 Nov) for Airbus and Vantor-Legion, each linking a per-site summary table in `html/augmentation/`.
 - 2026-11-04 · [3] Vantor Legion: 48 CSDA acquisitions at the request sites not on ADAPT downloaded (134 products, 225 GB) to `Data/Maxar/Legion/augmentation` (`vantor_legion_supp_tracking.ipynb` §10); 19 passes delivered twice (radiometric enhancement off + ACOMP).
@@ -631,6 +632,15 @@ only if needed), never a separate search API.
 ---
 
 ## 7 · Repository and docs
+
+### 2026-11-04 · Repository cleanup
+- Committed: library code (incl. `csdalib_download.py`, which the tracking notebooks need), 16 site request AOIs + `WV_request_AOIs.zip`,
+  working notebooks, `footprints_csda_map.html`, SPOT6 write-ups, `run_distributed_global_search.sh`. Secret scan clean first.
+- Kept out on purpose (public repo): `sites/OnRamp2_OrderTracking_*.xlsx`, Kuva overlap files, the Onramp2 site-request CSV,
+  `eval_results_*` notebooks (draft results). `stac_search_tutorial-satellogic.ipynb` has signed URLs in its outputs.
+- `.gitignore` is local only: `.git/info/exclude` excludes it, so the rules (incl. `*credentials*.json`) do not reach other clones.
+- Open: `multistac_site_analysis.ipynb`, `results_legion_*.ipynb` and `csdalib_refactored.py` deleted locally but still tracked;
+  `.readthedocs.yaml` untracked (points to ignored `docs/`); `sites/alaska_agb_validation_sites.geojson` undecided.
 
 ### 2026-10-15 · Uncommitted state
 - Modified: multistac libs, `stac_auth.py`, `stac_providers.yaml`, `staclib.py`, many notebooks; deleted:
