@@ -1,0 +1,31 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Airbus augmentation data on ADAPT (4 Nov 2026)</title>
+<style>
+:root{color-scheme:light dark;--bg:#fff;--fg:#1d1d1f;--mut:#5f6368;--line:#dadce0;--tot:#f1f3f4}
+@media (prefers-color-scheme:dark){:root{--bg:#1e1f22;--fg:#e8eaed;--mut:#9aa0a6;--line:#3c4043;--tot:#2a2b2e}}
+body{font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--fg);max-width:1100px;margin:2rem auto;padding:0 1rem}
+h1{font-size:1.35rem;margin:0 0 .25rem} p,li{color:var(--mut)} .meta{margin:0 0 1.25rem}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums} th,td{padding:.45rem .6rem;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-weight:600;font-size:.85rem;color:var(--mut)} td.n,th.n{text-align:right} tr.tot td{font-weight:600;background:var(--tot)}
+.wrap{overflow-x:auto} code{font-size:.9em}
+</style></head><body>
+<h1>Airbus augmentation data on ADAPT</h1>
+<p class="meta">Acquisitions downloaded from CSDA STAC (22 Oct – 3 Nov 2026) into <code>CSDA_eval/Data/Airbus/augmentation</code>, now in the CSDA_eval footprints (4 Nov 2026).<br>Affiliation <b>Airbus</b> · constellations <b>Pléiades</b>, <b>Pléiades Neo</b>, <b>SPOT</b> · all products <b>ORTHO</b>, each acquisition has a pan (<code>P</code>) and a multispectral (<code>MS</code>) product.</p>
+<div class="wrap"><table><thead><tr><th>Site</th><th class=n>Acqs</th><th class=n>Products</th><th class=n>TOA only</th><th class=n>SR only</th><th class=n>TOA + SR</th><th>Constellation: sensors (acqs)</th><th>Acquired</th></tr></thead><tbody>
+<tr><td>Railroad Valley</td><td class=n>21</td><td class=n>42</td><td class=n>21</td><td class=n>0</td><td class=n>0</td><td>Pleiades: PHR1A (3), PHR1B (5); Pleiades Neo: PNEO3 (6), PNEO4 (6); SPOT: SPOT6 (1)</td><td>2023-04-14 – 2026-09-18</td></tr>
+<tr><td>Gobabeb, Gobabeb TIR</td><td class=n>17</td><td class=n>34</td><td class=n>17</td><td class=n>0</td><td class=n>0</td><td>Pleiades: PHR1A (4), PHR1B (2); Pleiades Neo: PNEO3 (5), PNEO4 (5); SPOT: SPOT6 (1)</td><td>2016-04-07 – 2026-08-23</td></tr>
+<tr><td>La Crau, La Crau TIR</td><td class=n>17</td><td class=n>34</td><td class=n>17</td><td class=n>0</td><td class=n>0</td><td>Pleiades: PHR1A (5), PHR1B (5); Pleiades Neo: PNEO3 (3), PNEO4 (4)</td><td>2023-06-28 – 2026-07-28</td></tr>
+<tr><td>Baotou</td><td class=n>16</td><td class=n>32</td><td class=n>16</td><td class=n>0</td><td class=n>0</td><td>Pleiades: PHR1A (5), PHR1B (4); Pleiades Neo: PNEO3 (4), PNEO4 (3)</td><td>2023-10-04 – 2026-10-30</td></tr>
+<tr><td>Valencia</td><td class=n>15</td><td class=n>40</td><td class=n>10</td><td class=n>0</td><td class=n>5</td><td>Pleiades: PHR1A (5), PHR1B (5); Pleiades Neo: PNEO3 (2), PNEO4 (3)</td><td>2023-04-25 – 2026-10-07</td></tr>
+<tr><td>WLEF</td><td class=n>8</td><td class=n>26</td><td class=n>3</td><td class=n>0</td><td class=n>5</td><td>Pleiades: PHR1A (2), PHR1B (1); Pleiades Neo: PNEO3 (4), PNEO4 (1)</td><td>2023-11-13 – 2026-10-24</td></tr>
+<tr><td>PICS Libya-4</td><td class=n>4</td><td class=n>8</td><td class=n>4</td><td class=n>0</td><td class=n>0</td><td>Pleiades: PHR1A (2), PHR1B (2)</td><td>2024-09-04 – 2026-09-09</td></tr>
+<tr><td>Golmud</td><td class=n>3</td><td class=n>6</td><td class=n>3</td><td class=n>0</td><td class=n>0</td><td>Pleiades: PHR1A (1); Pleiades Neo: PNEO3 (1), PNEO4 (1)</td><td>2025-07-06 – 2026-10-13</td></tr>
+<tr class="tot"><td>Total</td><td class=n>101</td><td class=n>222</td><td class=n>91</td><td class=n>0</td><td class=n>10</td><td>Pleiades: PHR1A (27), PHR1B (24); Pleiades Neo: PNEO3 (25), PNEO4 (23); SPOT: SPOT6 (2)</td><td>2016-04-07 – 2026-10-30</td></tr>
+</tbody></table></div>
+<h2 style="font-size:1rem;margin-top:1.5rem">Notes</h2>
+<ul>
+<li><b>Acquisition</b> = one satellite collect (Airbus acquisition / datastrip ID). <b>Products</b> = pan and MS products; an acquisition delivered at both radiometric levels has four.</li>
+<li><b>TOA</b> = Airbus radiometric processing <code>REFLECTANCE</code> (top-of-atmosphere reflectance). <b>SR</b> = <code>SURFACE_REFLECTANCE</code>.</li>
+<li>2 SPOT6 acquisitions (Gobabeb 2025-08-30, Railroad Valley 2025-10-23) were already on ADAPT in <code>Data/Airbus/SPOT</code>; they are counted here, so 99 of the 101 acquisitions are new to ADAPT.</li>
+<li>Gobabeb and La Crau counts include their TIR sites (same footprints).</li>
+</ul></body></html>

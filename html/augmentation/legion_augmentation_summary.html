@@ -1,0 +1,30 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Legion augmentation data on ADAPT (4 Nov 2026)</title>
+<style>
+:root{color-scheme:light dark;--bg:#fff;--fg:#1d1d1f;--mut:#5f6368;--line:#dadce0;--tot:#f1f3f4}
+@media (prefers-color-scheme:dark){:root{--bg:#1e1f22;--fg:#e8eaed;--mut:#9aa0a6;--line:#3c4043;--tot:#2a2b2e}}
+body{font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--fg);max-width:1100px;margin:2rem auto;padding:0 1rem}
+h1{font-size:1.35rem;margin:0 0 .25rem} p,li{color:var(--mut)} .meta{margin:0 0 1.25rem}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums} th,td{padding:.45rem .6rem;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-weight:600;font-size:.85rem;color:var(--mut)} td.n,th.n{text-align:right} tr.tot td{font-weight:600;background:var(--tot)}
+.wrap{overflow-x:auto} code{font-size:.9em}
+</style></head><body>
+<h1>Vantor Legion augmentation data on ADAPT</h1>
+<p class="meta">New acquisitions downloaded from CSDA STAC on 4 Nov 2026 into <code>CSDA_eval/Data/Maxar/Legion/augmentation</code>, now in the CSDA_eval footprints.<br>Affiliation <b>Maxar (Vantor)</b> · constellation <b>Legion</b> · all products <b>LV2A</b>, each acquisition has a pan (<code>P2AS</code>) and a multispectral (<code>M2AS</code>) product.</p>
+<div class="wrap"><table><thead><tr><th>Site</th><th class=n>Acqs</th><th class=n>Products</th><th class=n>TOA only</th><th class=n>SR only</th><th class=n>TOA + SR</th><th>Sensors (acqs)</th><th>Acquired</th></tr></thead><tbody>
+<tr><td>PICS Libya-4</td><td class=n>10</td><td class=n>20</td><td class=n>0</td><td class=n>10</td><td class=n>0</td><td>LG01 (1), LG02 (2), LG03 (1), LG04 (2), LG05 (3), LG06 (1)</td><td>2026-05-03 – 2026-07-19</td></tr>
+<tr><td>Valencia</td><td class=n>9</td><td class=n>36</td><td class=n>0</td><td class=n>0</td><td class=n>9</td><td>LG01 (1), LG02 (3), LG03 (2), LG04 (1), LG05 (2)</td><td>2026-09-19 – 2026-10-26</td></tr>
+<tr><td>WLEF</td><td class=n>9</td><td class=n>36</td><td class=n>0</td><td class=n>0</td><td class=n>9</td><td>LG01 (1), LG03 (3), LG04 (1), LG05 (2), LG06 (2)</td><td>2026-09-23 – 2026-10-24</td></tr>
+<tr><td>Gobabeb, Gobabeb TIR</td><td class=n>8</td><td class=n>16</td><td class=n>8</td><td class=n>0</td><td class=n>0</td><td>LG01 (2), LG02 (2), LG03 (1), LG04 (1), LG05 (1), LG06 (1)</td><td>2025-03-02 – 2026-05-29</td></tr>
+<tr><td>Golmud</td><td class=n>7</td><td class=n>16</td><td class=n>6</td><td class=n>0</td><td class=n>1</td><td>LG01 (1), LG02 (1), LG04 (1), LG05 (2), LG06 (2)</td><td>2025-11-19 – 2026-10-27</td></tr>
+<tr><td>Railroad Valley</td><td class=n>4</td><td class=n>8</td><td class=n>4</td><td class=n>0</td><td class=n>0</td><td>LG01 (1), LG02 (1), LG03 (1), LG06 (1)</td><td>2025-03-02 – 2026-05-13</td></tr>
+<tr><td>Baotou</td><td class=n>1</td><td class=n>2</td><td class=n>1</td><td class=n>0</td><td class=n>0</td><td>LG03 (1)</td><td>2026-05-03</td></tr>
+<tr class="tot"><td>Total</td><td class=n>48</td><td class=n>134</td><td class=n>19</td><td class=n>10</td><td class=n>19</td><td>LG01 (7), LG02 (9), LG03 (9), LG04 (6), LG05 (10), LG06 (7)</td><td>2025-03-02 – 2026-10-27</td></tr>
+</tbody></table></div>
+<h2 style="font-size:1rem;margin-top:1.5rem">Notes</h2>
+<ul>
+<li><b>Acquisition</b> = one satellite pass (Vantor catalog ID). <b>Products</b> = pan and MS products; an acquisition delivered with both radiometric versions has four.</li>
+<li><b>TOA</b> = radiometric enhancement off: calibrated DN with <code>absCalFactor</code> in the metadata, converts to top-of-atmosphere radiance / reflectance.</li>
+<li><b>SR</b> = Vantor ACOMP (atmospheric compensation), read as surface reflectance. The metadata do not say "surface reflectance"; its <code>absCalFactor</code> is −999 and pixel values are consistent with reflectance × 10,000.</li>
+<li>Gobabeb counts include the Gobabeb TIR site (same footprints).</li>
+</ul></body></html>

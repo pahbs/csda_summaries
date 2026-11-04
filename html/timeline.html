@@ -93,7 +93,7 @@ header.top { display: flex; align-items: flex-end; justify-content: space-betwee
 h1 { font-size: 28px; line-height: 1.15; margin: 0; font-weight: 650; letter-spacing: -.01em; }
 .sub { color: var(--text-secondary); margin: 6px 0 0; }
 .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
+.seg { display: inline-flex; flex-wrap: wrap; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
 .seg button, .icon-btn {
   font: inherit; font-size: 13px; color: var(--text-secondary); background: transparent;
   border: 0; border-radius: 6px; padding: 6px 12px; cursor: pointer;
@@ -101,6 +101,15 @@ h1 { font-size: 28px; line-height: 1.15; margin: 0; font-weight: 650; letter-spa
 .seg button[aria-pressed="true"] { background: var(--surface-1); color: var(--text-primary); box-shadow: 0 1px 2px rgba(0,0,0,.08); font-weight: 600; }
 .seg button:focus-visible, .icon-btn:focus-visible, .bar:focus-visible, .ms:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .icon-btn { border: 1px solid var(--border); background: var(--surface-1); padding: 4px 10px; font-size: 18px; line-height: 1.2; }
+
+/* ── Highlight / Find ───────────────────────────────────────────────────── */
+.filters { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; padding: 10px 0; margin-bottom: 12px; background: var(--surface-0); }
+.filters label { font-size: 13px; color: var(--text-secondary); display: inline-flex; gap: 6px; align-items: center; }
+.filters select, .filters input { font: inherit; font-size: 13px; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); }
+.filters input { width: 240px; }
+.filters .count { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.dim { opacity: .18; }
+.empty { padding: 28px 20px; color: var(--text-muted); }
 
 /* ── Up-next cards ──────────────────────────────────────────────────────── */
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-bottom: 20px; }
@@ -176,13 +185,6 @@ h1 { font-size: 28px; line-height: 1.15; margin: 0; font-weight: 650; letter-spa
 .when { position: absolute; top: 11px; font-size: 12px; color: var(--text-secondary); white-space: nowrap; font-variant-numeric: tabular-nums; pointer-events: none; }
 .when.flip { transform: translateX(-100%); }
 
-.row.ev { height: 34px; }
-.row.ev .name { color: var(--text-secondary); font-size: 13px; }
-.evbar { position: absolute; top: 10px; height: 14px; border-radius: 4px; background: var(--event-bar); min-width: 6px; }
-.evbar::after { content: ""; position: absolute; inset: -10px 0; }
-.ev-head .cell-label { padding: 14px 20px 4px; }
-.ev-head h3 { font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
-
 /* ── Table view ─────────────────────────────────────────────────────────── */
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
@@ -208,8 +210,7 @@ td .links a { color: var(--type-0); text-decoration: none; font-weight: 550; }
 td .links a:hover { text-decoration: underline; }
 tr.flash td { animation: flash 1.6s ease-out; }
 @keyframes flash { from { background: color-mix(in srgb, var(--type-0) 22%, transparent); } to { background: transparent; } }
-.bar.has-links, .ms.has-links, .evbar.has-links { cursor: pointer; }
-.ms.evms { top: 10px; }
+.bar.has-links, .ms.has-links { cursor: pointer; }
 .quick-links { margin: 10px 0 0; display: flex; gap: 8px; flex-wrap: wrap; }
 .quick-links a { font-size: 13px; color: var(--text-primary); text-decoration: none; border: 1px solid var(--border); background: var(--surface-1); border-radius: 999px; padding: 4px 12px; }
 .quick-links a:hover { border-color: var(--text-secondary); }
@@ -249,6 +250,12 @@ footer a { color: inherit; }
       <button type="button" class="icon-btn" id="theme" aria-label="Toggle dark mode" title="Toggle dark mode">◐</button>
     </div>
   </header>
+
+  <div class="filters" role="group" aria-label="Filters">
+    <label>Highlight <select id="f-hl"></select></label>
+    <label>Find <input type="search" id="f-q" placeholder="activity, notes, status…"></label>
+    <span class="count" id="f-n" aria-live="polite"></span>
+  </div>
 
   <section class="cards" id="cards" aria-label="Up next"></section>
 
@@ -351,7 +358,7 @@ const DATA = {
    "links": [
     {
      "label": "Summary table: Airbus augmentation data on ADAPT",
-     "url": "https://claude.ai/artifact/DLT78N6Wm6WnP5wN8DoBEp"
+     "url": "https://pahbs.github.io/csda_summaries/html/augmentation/airbus_augmentation_summary.html"
     }
    ]
   },
@@ -451,7 +458,7 @@ const DATA = {
    "links": [
     {
      "label": "Summary table: Legion augmentation data on ADAPT",
-     "url": "https://claude.ai/artifact/2DFoMkBJe9JcwPn1nSoiSD"
+     "url": "https://pahbs.github.io/csda_summaries/html/augmentation/legion_augmentation_summary.html"
     }
    ]
   },
@@ -693,17 +700,17 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const now = new Date();
 const TODAY = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
 
-const typeIdx = Object.fromEntries(DATA.types.map((t, i) => [t, i]));
-const typeColor = t => `var(--type-${typeIdx[t] ?? 0})`;
+const EV_LABEL = 'Joint Activities';
+const LANES = [EV_LABEL, ...DATA.evaluations];   // Joint Activities is a lane like each evaluation
 
-const tasks = DATA.tasks.map((t, i) => {
+const typeIdx = Object.fromEntries(DATA.types.map((t, i) => [t, i]));
+const typeColor = t => t === EV_LABEL ? 'var(--event-bar)' : `var(--type-${typeIdx[t] ?? 0})`;
+
+const tasks = [...DATA.tasks, ...DATA.events.map(e => ({ ...e, evaluation: EV_LABEL, type: EV_LABEL }))].map((t, i) => {
   const s = parse(t.start), f = parse(t.finish), e = f + DAY;
   const status = t.flag === 'pending' ? 'tbd' : e <= TODAY ? 'done' : s <= TODAY ? 'active' : 'upcoming';
   return { ...t, id: i, s, f, e, milestone: s === f, status };
 });
-const events = DATA.events.map(t => ({ ...t, s: parse(t.start), f: parse(t.finish), e: parse(t.finish) + DAY }))
-  .sort((a, b) => a.s - b.s || a.f - b.f).map((t, i) => ({ ...t, ev: i, milestone: t.start === t.finish }));
-const EV_LABEL = 'Joint Activities';
 
 const statusLabel = { done: '✓ Done', active: '● In progress', upcoming: 'Upcoming', tbd: 'Date TBD' };
 const dateRange = t => t.milestone ? fmt(t.s) : `${fmt(t.s)} – ${fmt(t.f)}`;
@@ -714,24 +721,23 @@ const relDays = t => {
 };
 
 // ── Domain: first of the earliest month → first of the month after the last date
-const all = [...tasks, ...events];
-const minS = Math.min(...all.map(t => t.s), TODAY), maxE = Math.max(...all.map(t => t.e), TODAY);
+const minS = Math.min(...tasks.map(t => t.s), TODAY), maxE = Math.max(...tasks.map(t => t.e), TODAY);
 const d0 = (() => { const d = new Date(minS); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1); })();
 const d1 = (() => { const d = new Date(maxE - 1); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1); })();
 const pct = t => ((t - d0) / (d1 - d0)) * 100;
 
-let state = { eval: 'All', view: 'chart' };
+let state = { eval: 'All', view: 'chart', hl: '', q: '' };
 
 // ── Header bits ─────────────────────────────────────────────────────────────
 document.getElementById('sub').textContent =
-  `${DATA.evaluations.join(' · ')} — ${fmtY(d0)} to ${fmt(d1 - DAY, { month: 'short', year: 'numeric' })}`;
+  `${LANES.join(' · ')} — ${fmtY(d0)} to ${fmt(d1 - DAY, { month: 'short', year: 'numeric' })}`;
 document.getElementById('asof').textContent = `Schedule as of ${fmtY(parse(DATA.updated))} · viewed ${fmtY(TODAY)}`;
 
 document.getElementById('quickLinks').innerHTML = (DATA.page_links || []).map(l =>
   `<a href="${esc(l.url)}" target="_blank" rel="noopener">↗ ${esc(l.label)}</a>`).join('');
 
 const filterEl = document.getElementById('filter');
-filterEl.innerHTML = ['All', ...DATA.evaluations].map(e =>
+filterEl.innerHTML = ['All', ...LANES].map(e =>
   `<button type="button" data-eval="${esc(e)}" aria-pressed="${e === state.eval}">${esc(e)}</button>`).join('');
 filterEl.addEventListener('click', ev => {
   const b = ev.target.closest('button'); if (!b) return;
@@ -739,6 +745,14 @@ filterEl.addEventListener('click', ev => {
   filterEl.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
   render();
 });
+// Highlight dims everything else; Find hides what does not match
+const hlEl = document.getElementById('f-hl');
+const opts = (k, vals) => vals.map(v => `<option value="${k}:${esc(v)}">${esc(v)}</option>`).join('');
+hlEl.innerHTML = `<option value="">all activities</option><optgroup label="Evaluation">${opts('e', LANES)}</optgroup>
+  <optgroup label="Activity type">${opts('t', DATA.types.filter(t => tasks.some(x => x.type === t)))}</optgroup>`;
+hlEl.addEventListener('change', e => { state.hl = e.target.value; render(); });
+document.getElementById('f-q').addEventListener('input', e => { state.q = e.target.value; render(); });
+
 document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => {
   state.view = b.dataset.view;
   document.querySelectorAll('[data-view]').forEach(x => x.setAttribute('aria-pressed', x === b));
@@ -760,22 +774,28 @@ document.getElementById('legend').innerHTML =
   `<span class="k"><span class="sw ev"></span>${esc(EV_LABEL)}</span>` +
   `<span class="k"><span class="sw today"></span>Today</span>`;
 
-const evals = () => state.eval === 'All' ? DATA.evaluations : [state.eval];
+const inEval = t => state.eval === 'All' || t.evaluation === state.eval;
+const text = t => [t.evaluation, t.task, t.type, t.notes, statusLabel[t.status], dateRange(t), ...(t.links || []).map(l => l.label)].join(' ').toLowerCase();
+const shown = () => { const q = state.q.trim().toLowerCase(); return tasks.filter(t => inEval(t) && (!q || text(t).includes(q))); };
+const lit = t => !state.hl || (state.hl[0] === 'e' ? t.evaluation : t.type) === state.hl.slice(2);
+const dim = t => lit(t) ? '' : ' dim';
+const lanes = () => { const s = shown(); return LANES.filter(l => s.some(t => t.evaluation === l)); };
 const byStart = (a, b) => a.s - b.s || a.f - b.f;
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
 function renderCards() {
-  document.getElementById('cards').innerHTML = evals().map(ev => {
-    const ts = tasks.filter(t => t.evaluation === ev);
+  const s = shown();
+  document.getElementById('cards').innerHTML = lanes().map(ev => {
+    const ts = tasks.filter(t => t.evaluation === ev), hits = s.filter(t => t.evaluation === ev);
     const done = ts.filter(t => t.status === 'done').length;
-    const next = ts.filter(t => t.status !== 'done').sort(byStart).slice(0, 3);
+    const next = hits.filter(t => t.status !== 'done').sort(byStart).slice(0, 3);
     const last = ts.reduce((m, t) => t.f > m.f ? t : m, ts[0]);
-    return `<article class="card">
+    return `<article class="card${hits.some(lit) ? '' : ' dim'}">
       <h2>${esc(ev)}</h2>
       <div class="meta">${done} of ${plural(ts.length, 'activity', 'activities')} complete · ${next.length ? `wraps up ${fmtY(last.f)}` : 'next steps not yet scheduled'}</div>
       <div class="progress" aria-hidden="true"><span style="width:${(done / ts.length) * 100}%"></span></div>
       <ul class="next">${next.map(t => `
-        <li><span class="dot" style="--c:${typeColor(t.type)}"></span>
+        <li class="${dim(t).trim()}"><span class="dot" style="--c:${typeColor(t.type)}"></span>
           <span><span class="t">${esc(t.task)}</span><br><span class="d">${dateRange(t)}${t.status === 'tbd' ? ' (TBD)' : ''}</span></span>
           <span class="in">${t.status === 'tbd' ? 'TBD' : relDays(t)}</span></li>`).join('') || '<li><span></span><span class="d">No upcoming activities scheduled yet</span></li>'}
       </ul></article>`;
@@ -804,29 +824,22 @@ function renderChart() {
     if (t !== d0) lines += `<span class="gl ${m === 0 ? 'yr' : ''}" style="left:${pct(t)}%"></span>`;
   }
   const todayIn = TODAY >= d0 && TODAY < d1;
-  const bands = events.map(e => `<span class="band" style="left:${pct(e.s)}%;width:${pct(e.e) - pct(e.s)}%"></span>`).join('');
+  const s = shown();
+  const bands = s.filter(t => t.evaluation === EV_LABEL).map(e => `<span class="band" style="left:${pct(e.s)}%;width:${pct(e.e) - pct(e.s)}%"></span>`).join('');
 
   let rows = '';
-  rows += `<div class="lane-head ev-head"><div class="cell-label"><h3>${esc(EV_LABEL)}</h3></div><div class="track"></div></div>`;
-  events.forEach(e => {
-    const lk = e.links?.length ? ' has-links' : '', x = pct(e.s + DAY / 2);
-    const mark = e.milestone
-      ? `<div class="ms evms${lk}" style="left:${x}%;--c:var(--event-bar)" tabindex="0" data-ev="${e.ev}" aria-label="${esc(e.task)}, ${fmt(e.s)}"></div>`
-      : `<div class="evbar${lk}" style="left:${pct(e.s)}%;width:${pct(e.e) - pct(e.s)}%" tabindex="0" data-ev="${e.ev}" aria-label="${esc(e.task)}"></div>`;
-    rows += `<div class="row ev"><div class="cell-label"><span class="swatch" style="--c:var(--event-bar)"></span><span class="name" title="${esc(e.task)}">${esc(e.task)}</span></div>
-      <div class="track">${mark}<span class="when" style="left:calc(${e.milestone ? x : pct(e.e)}% + ${e.milestone ? 14 : 8}px)">${e.milestone ? fmt(e.s) : `${fmt(e.s)} – ${fmt(e.f)}`}</span></div></div>`;
-  });
-  evals().forEach(ev => {
-    const ts = tasks.filter(t => t.evaluation === ev).sort(byStart);
-    rows += `<div class="lane-sep"></div><div class="lane-head"><div class="cell-label"><h3>${esc(ev)}</h3>
-      <div class="meta">${plural(ts.length, 'activity', 'activities')}</div></div><div class="track"></div></div>`;
+  lanes().forEach((ev, i) => {
+    const ts = s.filter(t => t.evaluation === ev).sort(byStart);
+    const n = tasks.filter(t => t.evaluation === ev).length;
+    rows += `${i ? '<div class="lane-sep"></div>' : ''}<div class="lane-head"><div class="cell-label"><h3>${esc(ev)}</h3>
+      <div class="meta">${ts.length < n ? `${ts.length} of ` : ''}${plural(n, 'activity', 'activities')}</div></div><div class="track"></div></div>`;
     ts.forEach(t => {
-      rows += `<div class="row ${t.status}"><div class="cell-label"><span class="swatch" style="--c:${typeColor(t.type)}"></span>
+      rows += `<div class="row ${t.status}${dim(t)}"><div class="cell-label"><span class="swatch" style="--c:${typeColor(t.type)}"></span>
         <span class="name" title="${esc(t.task)}">${esc(t.task)}</span><span class="pill ${t.status}">${statusLabel[t.status]}</span></div>
         <div class="track">${bar(t)}</div></div>`;
     });
   });
-  rows += `<div style="height:14px"></div>`;
+  rows += s.length ? `<div style="height:14px"></div>` : `<div class="empty">No activities match.</div>`;
 
   document.getElementById('chart').innerHTML = `
     <div class="axis"><div class="cell-label">Activity</div><div class="track">${months}
@@ -838,20 +851,21 @@ const linksHTML = t => t.links?.length
   ? `<div class="links">${t.links.map(l => `<a href="${esc(l.url)}" target="_blank" rel="noopener">↗ ${esc(l.label)}</a>`).join('')}</div>` : '';
 
 function renderTable() {
-  const ts = tasks.filter(t => evals().includes(t.evaluation)).sort(byStart);
-  const evRows = events.map(e => ({ ...e, evaluation: 'Joint Activities', type: 'Joint Activities', status: e.e <= TODAY ? 'done' : 'upcoming', isEv: true }));
-  const rowsAll = [...ts, ...evRows].sort(byStart);
+  const rowsAll = shown().sort(byStart);
   document.getElementById('tableView').innerHTML = `<table>
     <thead><tr><th>Evaluation</th><th>Activity</th><th>Type</th><th>Start</th><th>Finish</th><th>Status</th><th>Notes</th></tr></thead>
-    <tbody>${rowsAll.map(t => `<tr class="${t.status}" id="${t.isEv ? `ev-${t.ev}` : `row-${t.id}`}">
+    <tbody>${rowsAll.map(t => `<tr class="${t.status}${dim(t)}" id="row-${t.id}">
       <td>${esc(t.evaluation)}</td><td>${esc(t.task)}</td>
-      <td><span class="tp"><i style="--c:${t.isEv ? 'var(--event-bar)' : typeColor(t.type)}"></i>${esc(t.type)}</span></td>
+      <td><span class="tp"><i style="--c:${typeColor(t.type)}"></i>${esc(t.type)}</span></td>
       <td class="date">${fmtY(t.s)}</td><td class="date">${fmtY(t.f)}</td>
-      <td class="date">${t.isEv ? (t.status === 'done' ? '✓ Done' : 'Upcoming') : statusLabel[t.status]}</td>
-      <td class="notes">${esc(t.notes)}${linksHTML(t)}</td></tr>`).join('')}</tbody></table>`;
+      <td class="date">${statusLabel[t.status]}</td>
+      <td class="notes">${esc(t.notes)}${linksHTML(t)}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">No activities match.</td></tr>'}</tbody></table>`;
 }
 
-function render() { renderCards(); renderChart(); renderTable(); }
+function render() {
+  renderCards(); renderChart(); renderTable();
+  document.getElementById('f-n').textContent = state.q.trim() ? `${shown().length} of ${plural(tasks.filter(inEval).length, 'activity', 'activities')}` : '';
+}
 render();
 
 // ── Tooltip ─────────────────────────────────────────────────────────────────
@@ -859,14 +873,9 @@ const tip = document.getElementById('tip');
 const linksTip = t => t.links?.length
   ? `<div class="lk">${t.links.map(l => `↗ ${esc(l.label)}`).join('<br>')}<div class="hint">Click to open links in List view</div></div>` : '';
 function tipHTML(el) {
-  if (el.dataset.ev !== undefined) {
-    const e = events[+el.dataset.ev];
-    return `<div class="k" style="--c:var(--event-bar)"><i></i>${esc(EV_LABEL)}</div><div class="t">${esc(e.task)}</div>
-      <div class="dt">${e.milestone ? fmtY(e.s) : `${fmtY(e.s)} – ${fmtY(e.f)}`}</div>${e.notes ? `<div class="n">${esc(e.notes)}</div>` : ''}${linksTip(e)}`;
-  }
   const t = tasks[+el.dataset.id];
   const dur = Math.round((t.e - t.s) / DAY);
-  return `<div class="k" style="--c:${typeColor(t.type)}"><i></i>${esc(t.evaluation)} · ${esc(t.type)}</div>
+  return `<div class="k" style="--c:${typeColor(t.type)}"><i></i>${esc(t.evaluation === t.type ? t.type : `${t.evaluation} · ${t.type}`)}</div>
     <div class="t">${esc(t.task)}</div>
     <div class="dt">${t.milestone ? fmtY(t.s) : `${fmtY(t.s)} → ${fmtY(t.f)} · ${dur} days`}</div>
     <div class="dt">${statusLabel[t.status]}${t.status === 'upcoming' || t.status === 'active' ? ` · ${relDays(t)}` : ''}</div>
@@ -880,7 +889,7 @@ function place(x, y) {
   if (top + r.height > innerHeight - 8) top = y - r.height - pad;
   tip.style.left = Math.max(8, left) + 'px'; tip.style.top = Math.max(8, top) + 'px';
 }
-const target = e => e.target.closest?.('.bar, .ms, .evbar');
+const target = e => e.target.closest?.('.bar, .ms');
 document.addEventListener('mouseover', e => { const el = target(e); if (!el) return; tip.innerHTML = tipHTML(el); tip.classList.add('show'); place(e.clientX, e.clientY); });
 document.addEventListener('mousemove', e => { if (target(e)) place(e.clientX, e.clientY); });
 document.addEventListener('mouseout', e => { if (target(e) && !target({ target: e.relatedTarget || document.body })) tip.classList.remove('show'); });
@@ -890,7 +899,7 @@ function openLinks(el) {
   if (!el?.classList.contains('has-links')) return;
   tip.classList.remove('show');
   document.querySelector('[data-view="table"]').click();
-  const row = document.getElementById(el.dataset.ev !== undefined ? `ev-${el.dataset.ev}` : `row-${el.dataset.id}`);
+  const row = document.getElementById(`row-${el.dataset.id}`);
   if (row) { row.scrollIntoView({ behavior: 'smooth', block: 'center' }); row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash'); }
 }
 document.addEventListener('click', e => openLinks(target(e)));
