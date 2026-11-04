@@ -210,9 +210,10 @@ csda-cmr:
   enabled: true
   url: https://cmr.earthdata.nasa.gov/search
   cmr_provider: CSDA
-  # Search is public; downloads need Earthdata Login ([EarthData] in the INI)
+  # Search is public. Protected files (data.csdap.earthdata.nasa.gov) need
+  # CSDA's Cognito sign-in: multistac_download.cumulus_login() before download()
   auth: {type: none}
-  download: {type: earthdata}
+  download: {type: cumulus}
   csda_holdings: true
   search: {page_size: 1000, max_concurrency: 4, timeout: 180}
   geometry: intersects
@@ -263,17 +264,26 @@ csda-cmr:
 hydrosat:
   label: Hydrosat
   display_name: Hydrosat
-  # Disabled until API credentials and the OAuth2 token URL are known
-  enabled: false
+  # Discovery Portal API client (client ID + secret), OAuth2 client credentials, form-encoded token request:
+  # https://satdocs.hydrosat.com/api-reference-and-specification/authentication
+  enabled: true
   stac_url: https://stac.hydrosat.com
   auth:
     type: oauth2_client_credentials
     credentials_section: Hydrosat_STAC_API
-    token_url: TBD
+    token_url: https://auth.hydrosat.com/oauth2/token
+    token_request: form
+  # Same scene in every processing level (vz-viri-l1a, vz-liri-l1a, vz-l1b, vz-l2; night-only: vz-liri-l1a-night,
+  # vz-l1b-night). Default: L1B and L2; one acquisition = one hydrosat:scene_id across levels.
+  default_collections: [vz-l1b, vz-l2]
+  acquisition_id:
+    default: {from: 'hydrosat:scene_id'}
   search: {page_size: 100, max_concurrency: 2, timeout: 120}
   geometry: intersects
   filter_mode: client
   affiliation: {default: Hydrosat}
+  spectral_mode:
+    default: {from: instruments, map: {'liri.*viri|viri.*liri': ms+tir, 'liri': tir, 'viri': ms}}
   fields:
     cloud_cover: [eo:cloud_cover]
     processing_level: [processing:level]

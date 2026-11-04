@@ -121,6 +121,20 @@ METADATA PARSING
         gsd              — ground sampling distance (m)
         cloud_percent    — cloud cover %
         sun_elevation, sun_azimuth, view_angle, satellite_azimuth — geometry
+        satellite_elevation — satellite elevation above the horizon at the target
+        incidence_angle  — satellite zenith angle at the target (90 - elevation)
+
+    XML tags may be ElementTree paths, e.g.
+        "Located_Geometric_Values[LOCATION_TYPE='Center']//AZIMUTH_ANGLE"
+
+'satellite_elevation_from_incidence' : bool  [optional]
+    True when the vendor reports incidence_angle (a zenith angle) instead of
+    satellite_elevation; csdalib sets satellite_elevation = 90 - incidence_angle.
+
+'track_azimuth_missions' : list  [optional]
+    Missions whose satellite_azimuth field holds the along-track direction;
+    csdalib rotates it by incidence_angle_along_track / _across_track to get
+    the azimuth from the target to the satellite.
 
 ----------------------------------------------------------------------
 FILENAME EXTRACTION (fallback when metadata is missing)
@@ -398,6 +412,9 @@ DESIGN PRINCIPLES
 """
 
 # ---- SENSOR_PROFILES dict starts below ----
+
+# ElementTree path to the scene-center angles block in Airbus DIMAP
+AIRBUS_CENTER = "Located_Geometric_Values[LOCATION_TYPE='Center']"
 
 SENSOR_PROFILES = {
 
@@ -703,12 +720,22 @@ SENSOR_PROFILES = {
             'radiometric_type': {'tag': 'RADIOMETRIC_PROCESSING'},
             'cloud_percent': {'tag': 'CLOUD_COVERAGE'},
             'gsd':             {'tag': 'GSD_ACROSS_TRACK'},
-            'sun_elevation':       {'tag': 'SUN_ELEVATION', 'cast': 'int'},
-            'sun_azimuth':         {'tag': 'SUN_AZIMUTH', 'cast': 'int'},
-            'satellite_azimuth':   {'tag': 'AZIMUTH_ANGLE', 'cast': 'int'},
-            'satellite_elevation': {'tag': 'INCIDENCE_ANGLE', 'cast': 'int'},
+            # Angles at the scene center (the first Located_Geometric_Values is Top Center / TopLeft)
+            'sun_elevation':       {'tag': f"{AIRBUS_CENTER}//SUN_ELEVATION", 'fallback_tags': ['SUN_ELEVATION'], 'cast': 'float'},
+            'sun_azimuth':         {'tag': f"{AIRBUS_CENTER}//SUN_AZIMUTH", 'fallback_tags': ['SUN_AZIMUTH'], 'cast': 'float'},
+            # Satellite azimuth (target -> satellite) for PNEO and SPOT; along-track direction for PHR,
+            # corrected in csdalib.derive_satellite_geometry
+            'satellite_azimuth':   {'tag': f"{AIRBUS_CENTER}//AZIMUTH_ANGLE", 'fallback_tags': ['AZIMUTH_ANGLE'], 'cast': 'float'},
+            # Incidence is a zenith angle: satellite_elevation = 90 - incidence_angle
+            'incidence_angle':     {'tag': f"{AIRBUS_CENTER}//INCIDENCE_ANGLE", 'fallback_tags': ['INCIDENCE_ANGLE'], 'cast': 'float'},
+            'incidence_angle_along_track':  {'tag': f"{AIRBUS_CENTER}//INCIDENCE_ANGLE_ALONG_TRACK", 'cast': 'float'},
+            'incidence_angle_across_track': {'tag': f"{AIRBUS_CENTER}//INCIDENCE_ANGLE_ACROSS_TRACK", 'cast': 'float'},
             'view_angle':          {'tag': 'VIEWING_ANGLE_ACROSS_TRACK', 'cast': 'int'},
         },
+        'satellite_elevation_from_incidence': True,
+        # Missions whose AZIMUTH_ANGLE is the along-track direction (~180 on north-up products),
+        # not the satellite azimuth. Checked against strip NADIR_LAT/LON (2026-10-23).
+        'track_azimuth_missions': ['PHR'],
         'geometry_source': {'type': 'raster_bounds'},
         'constellation_from_mission': {
             r'^PNEO':                'Pleiades Neo',
@@ -749,9 +776,10 @@ SENSOR_PROFILES = {
             'sun_elevation':       'properties.view:sun_elevation',
             'sun_azimuth':         'properties.view:sun_azimuth',
             'satellite_azimuth':   'properties.view:azimuth',
-            'satellite_elevation': 'properties.view:incidence_angle',
+            'incidence_angle':     'properties.view:incidence_angle',
             'view_angle':          'properties.view:off_nadir',
         },
+        'satellite_elevation_from_incidence': True,
         'geometry_source': {'type': 'inline_geojson', 'path': 'geometry', 'crs': 'EPSG:4326'},
         'sensor_lookup_regex': r'NEWSAT(\d+)',
         'sensor_format':       'SN{n:02d}',

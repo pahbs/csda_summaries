@@ -88,9 +88,11 @@ class OAuth2ClientCredentials(NoAuth):
         if not token_url or token_url == "TBD":
             raise AuthError(f"No token_url configured for {self.profile['name']}")
         creds = _read_section(self.cfg["credentials_section"])
-        response = requests.post(
-            token_url, json=self._token_payload(creds), timeout=60
-        )
+        payload = self._token_payload(creds)
+        if self.cfg.get("token_request", "json") == "form":   # application/x-www-form-urlencoded (e.g. Hydrosat)
+            response = requests.post(token_url, data=payload, timeout=60)
+        else:
+            response = requests.post(token_url, json=payload, timeout=60)
         if response.status_code != 200:
             raise AuthError(f"Token request failed ({_short(response)})")
         data = response.json()

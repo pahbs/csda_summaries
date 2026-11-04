@@ -346,6 +346,7 @@ make_eval_site_overview <- function(
                                    title = 'CSDA Evaluation Sites', domain_col =  'Evaluation.Category',
                                    legend_title = NULL),
     map_fusion   = build_overview_map(sites_proj, base_map, my_colors,
+                                      highlight_sites = highlight_sites, label_sites = label_sites,
                                       title = 'SLI-FUSION Evaluation Sites',
                                       legend_title = 'SME Domain ')
     # map_priority = build_priority_map(sites_proj, base_map,
