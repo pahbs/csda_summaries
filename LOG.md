@@ -31,6 +31,7 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-06 · [6] Vendor Specs dashboard: *Cross-track swath width* gets a Map view (swath squares at true scale around a chosen evaluation site; Esri imagery or terrain layers); the panels stay as a second tab. EnMAP added, systematic imagers' revisit corrected, Vantor recolored.
 - 2026-11-06 · [4] Evaluation Sites: 41 SLI-FUSION AOIs in the sheet (rows 623-663, 8 new columns, `site_id` repaired), sites file and evaluation map rebuilt (662 sites); map header shows a Work in progress badge and Last update date.
 - 2026-11-04 · [6] Draft *Suggested Best Practices for Compiling Joint Evaluation Results* and data frame templates, for the 4 SME groups, USGS and ESA (`eval_results_exchange/`); `evallib.r` now standardizes site names from the sites database.
 - 2026-11-04 · [7] Published maps moved from `notebooks/` to `html/` (`footprints_csda_map.html`, `aoi_csda_sites_map.html`, `aoi_eval_sites_map.html`); notebooks and links updated.
@@ -452,6 +453,20 @@ only if needed), never a separate search API.
 ---
 
 ## 6 · Evaluation results, RadCalNet and spectral response
+
+### 2026-11-06 · Vendor Specs: footprint map (`lib/vendor_specs_dashboard.html`, trial)
+- *Cross-track swath width* has a View switch: **Map** (new, default) and **Panels** (unchanged). Map: Leaflet 1.9.4 from unpkg (pinned with SRI);
+  one square per constellation at ground scale, degrees per km taken at the center latitude; Esri World_Imagery or World_Terrain_Base, World_Hillshade and World_Light_Gray_Base with its label layer. Past a layer's last real zoom Esri serves a "Map data not yet available" tile, so each is capped and stretched beyond that: imagery 17, terrain 9, hillshade 13, light gray 16 (sampled at 50-60 evaluation sites, 2026-11-06). Credits taken from each service.
+  Follows the shared filters, Color by and Highlight. Includes swaths wider than `footprint_max_km`, which Panels lists as text.
+- Keyword box picks one of the 662 evaluation sites (`eval_sites()` reads `sites/eval_sites_aoi.geojson`; default Railroad Valley). Backgrounds are a Leaflet layers list.
+- **Revisit:** a systematic imager collects its whole swath on every pass, so `revisit()` now counts the full swath in the ≤20° view too (it had been cut to the central 20°). 13 sheet rows change, none in full agility: MODIS 2.61 → 0.58 d at 0°, also VIIRS, Sentinel-3, MERIS, PROBA-V, ADEOS, ADEOS-II, GCOM-C. MODIS is Terra + Aqua together; one satellite alone is ~1.16 / 0.88 / 0.67 d at 0° / 40° / 60°.
+- **EnMAP** added as row 89 (batch `enmap_2026-11-06`, 27 cells, `specs/public_check_2026-11-06_enmap.csv`). Sources: enmap.org spec sheet, eoPortal; 224 bands from DLR's tutorial (eoPortal says 228; the spec sheet gives no count). Revisit Time left empty: no published figure for <20°. `record_edits` now counts rows the record added when placing a new row.
+- Colors: Vantor gray → `#00B8D9`, DLR `#00441B` (`csda_specs_multispec_smry.ipynb` still has Vantor gray). Sector chips show swatches only when *Color by* = Sector.
+- **Firefly:** Ffly 01-03 (sheet rows 89-91) were wrong and redundant; removed from the sheet by hand. Their 81 cells are taken out of `specs/edits_log.csv` and the batch CSV, the one exception to the append-only record (the old rows are in git; the sheet's *Edit log* tab still lists them). Firefly now counts 3 satellites: ≤20° revisit 2.03 / 1.55 / 1.19 d at 0° / 40° / 60° (was 1.02 / 0.77 / 0.60).
+- MODIS stays as Terra + Aqua combined (checked with Paul).
+- AOIs: the chosen AOI is shaded behind the swath squares (polygons from `sites/eval_sites_aoi.geojson`, simplified to 1% of each extent; page now ~880 KB). Section renamed *Cross-track swaths with evaluation AOIs*, box *Evaluation AOI*, tile *sensors in database*; the *Preliminary* sentence is gone from the subtitle.
+- **Tabs reorganized** by the question each answers: *Imaging Specs* (footprint vs. detail, key specs), *Coverage* (swath map, revisit, method), *Launches & Orbits*, *Data Table*, *Database Quality*. Replaces Comparison and Revisit; old `#revisit` links open Coverage. The map starts on the first Coverage visit.
+- **Open:** sheet not written: `specs/apply_edits.gs` holds EnMAP's 27 cells, `specs/write_revisit.gs` the new revisit values. Uncommitted.
 
 ### 2026-11-04 · Results exchange guide and templates (`eval_results_exchange/`, draft v0.1)
 - `Suggested_Best_Practices_Compiling_Joint_Evaluation_Results.md` + 7 results templates and `methods_template.csv`. Existing column names kept where notebooks use them;

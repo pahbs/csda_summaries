@@ -370,8 +370,8 @@ AFFILIATION_COLORS = {
     "Airbus": "#E41A1C", "BlackSky": "#000000", "DLR / Teledyne": "#4DAF4A", "Earth Fire Alliance / Muon": "#984EA3",
     "EarthDaily": "#FF7F00", "ESA": "#FFFF33", "HydroSat": "#A65628", "ImageSat": "#F781BF", "JAXA": "#1B9E77",
     "Kuva": "#C16610", "OroraTech": "#8D6B86", "Planet Labs": "#BC4399", "Satellogic": "#A66753",
-    "Satlantis": "#96A713", "SatVu": "#D59D08", "US Agency": "#0000FF", "Vantor": "#666666",
-    "OrbitalSideKick": "#7570B3",   # added (not in the sheet when the R palette was made)
+    "Satlantis": "#96A713", "SatVu": "#D59D08", "US Agency": "#0000FF", "Vantor": "#00B8D9",
+    "OrbitalSideKick": "#7570B3", "DLR": "#00441B",   # added (not in the sheet when the R palette was made)
 }
 EXTRA_COLORS = ["#E7298A", "#66A61E", "#E6AB02", "#D95F02", "#A6761D", "#377EB8"]   # for owners new to the sheet
 SURFACE, INK, INK_2, INK_3, GRID = "#fcfcfb", "#0b0b0b", "#52514e", "#8a8984", "#e8e7e2"
@@ -747,7 +747,7 @@ def orbit_passes(alt_km: float, incl_deg: float, sso: bool, lats=REVISIT_LATS, n
 def orbit_inputs(df: pd.DataFrame, inclination: Optional[dict] = None) -> pd.DataFrame:
     """Per sheet row, the orbit and pointing used for revisit: altitude, inclination (+ source), whether
     sun-synchronous, satellites, swath, reach (deg off-nadir: half swath + agility; NaN = agility not in the sheet
-    for a tasked satellite) and notes on what was assumed."""
+    for a tasked satellite), whether it maps systematically, and notes on what was assumed."""
     inclination = {**ORBIT_INCLINATION, **(inclination or {})}
     rows = []
     for _, r in df.iterrows():
@@ -780,6 +780,7 @@ def orbit_inputs(df: pd.DataFrame, inclination: Optional[dict] = None) -> pd.Dat
         rows.append(dict(sheet_row=r["sheet_row"], label=r["label"], current=r["Mission Status"] in CURRENT_STATUS,
                          alt_km=alt, incl_deg=incl, incl_source=src, sso=sso, n_sat=nsat, swath_km=swath,
                          half_swath_deg=half, agility_deg=agility, reach_deg=half + agility,
+                         systematic=str(r["Acquisition Strategy"]).strip() == "Systematic",
                          missing=", ".join(missing), notes="; ".join(notes)))
     return pd.DataFrame(rows)
 
@@ -789,7 +790,8 @@ def revisit(df: pd.DataFrame, groups: pd.DataFrame, cap_deg: float = 20, sun_min
     """Mean revisit (days) per constellation group at each latitude, for two views ('cap' = view angle <= cap_deg,
     'max' = full agility) and two seasons ('year', 'jja'), counting passes with the sun >= sun_min_deg.
     Uses a group's current rows if it has any, else all its rows. A tasked satellite with no agility in the sheet
-    is assumed able to point to cap_deg (so it appears in the 'cap' view only). Returns (table, inputs):
+    is assumed able to point to cap_deg (so it appears in the 'cap' view only). A systematic imager collects its whole
+    swath on every pass, so the full swath counts in both views, even past cap_deg (MODIS). Returns (table, inputs):
     table has one row per group x view x season x latitude (revisit_days NaN = no access; `why` = not computed)."""
     inp = orbit_inputs(df, inclination)
     out = []
@@ -810,6 +812,8 @@ def revisit(df: pd.DataFrame, groups: pd.DataFrame, cap_deg: float = 20, sun_min
                         break
                     reach = cap_deg                              # assumed able to point to the cap
                 limit = min(reach, cap_deg) if view == "cap" else reach
+                if r.systematic:
+                    limit = max(limit, r.half_swath_deg)
                 p = orbit_passes(r.alt_km, r.incl_deg, r.sso, lats=lats, **sim)
                 ok = (p["off_nadir"] <= limit) & (p["sun"] >= sun_min_deg)
                 rates.append((r.n_sat, ok, p))
@@ -890,7 +894,7 @@ def record_edits(raw: pd.DataFrame, edits: pd.DataFrame, log_path: str, batch: s
     cols = list(raw.columns[2:])                     # sheet columns (after sheet_row, label)
     start = int(pd.to_numeric(log["edit_id"]).max()) if len(log) else 0
     edits = edits[edits["change"].astype(str) == "True"] if "change" in edits else edits
-    last = int(raw.sheet_row.max())
+    last = max([int(raw.sheet_row.max())] + pd.to_numeric(log["sheet_row"]).astype(int).tolist())   # incl. rows the record added
     added = {}                                        # new sheet row -> {field: proposed}
     for e in edits.itertuples():
         for row in _rows(e.sheet_rows):
@@ -1099,6 +1103,8 @@ def revisit_sheet_columns(revisit, groups: pd.DataFrame, df: pd.DataFrame, date:
                 notes += [f"{'≤' + format(cap, 'g') + '° view' if w.view == 'cap' else 'full agility'} not computed: "
                           f"{w.why.split(': ', 1)[-1]}" for w in why.itertuples()]
                 notes += [n for n in used.notes.unique() if n]
+                if (used.systematic & (used.half_swath_deg > cap)).any():
+                    notes.append(f"systematic imager: full swath counted in the ≤{cap:g}° view too")
                 if r.incl_source and not r.sso:
                     notes.append(f"inclination {r.incl_deg:g}° ({r.incl_source})")
             else:
@@ -1247,6 +1253,28 @@ def _revisit_payload(revisit, g) -> Optional[dict]:
     return dict(days=days, why=why, inputs=inputs)
 
 
+def eval_sites(path: Optional[str] = None) -> List[dict]:
+    """Evaluation site names, points and AOIs for the dashboard's footprint map, from the sites database export.
+    Each AOI is simplified to 1% of its extent and rounded to 5 decimals, to keep the page small."""
+    import json
+    from pathlib import Path
+    import shapely
+    from shapely.geometry import mapping, shape
+
+    def aoi(geometry):
+        g = shape(geometry)
+        x0, y0, x1, y1 = g.bounds
+        return mapping(shapely.transform(g.simplify(0.01 * max(x1 - x0, y1 - y0)), lambda c: np.round(c, 5)))
+
+    path = path or Path(__file__).resolve().parents[1] / "sites" / "eval_sites_aoi.geojson"
+    out = []
+    for f in json.loads(Path(path).read_text())["features"]:
+        p = f["properties"]
+        out.append(dict(name=p["Site Name"], lat=float(p["Latitude"]), lon=float(p["Longitude"]), aoi=aoi(f["geometry"]),
+                        place=" · ".join(str(p[k]) for k in ("Location Name", "Country", "Program Use") if p.get(k))))
+    return sorted(out, key=lambda x: x["name"].lower())
+
+
 def write_dashboard(raw: pd.DataFrame, groups: pd.DataFrame, issues: pd.DataFrame, edit_log: Optional[pd.DataFrame],
                     out_path: str, template: Optional[str] = None,
                     footprint_max_km: float = 100, sheet_url: Optional[str] = None, revisit=None) -> str:
@@ -1255,7 +1283,7 @@ def write_dashboard(raw: pd.DataFrame, groups: pd.DataFrame, issues: pd.DataFram
     the edit record and a table view, with hover details for every constellation.
     `raw`: the sheet with the edits applied; `edit_log`: apply_edits() log (with `status`);
     `groups`: constellations() output (all rows; the page filters by sector / status);
-    `revisit`: revisit() output (table, inputs), for the Revisit tab."""
+    `revisit`: revisit() output (table, inputs), for the Coverage tab."""
     import json
     from pathlib import Path
     template = template or str(Path(__file__).with_name("vendor_specs_dashboard.html"))
@@ -1312,7 +1340,7 @@ def write_dashboard(raw: pd.DataFrame, groups: pd.DataFrame, issues: pd.DataFram
         asof=pd.Timestamp.today().strftime("%d %b %Y"), sheet_url=sheet_url or
         f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit?gid={GID['Vendor Specs']}",
         n_sensors=len(raw), pct_filled=float(comp.to_numpy().mean() * 100), n_issues=len(issues),
-        groups=out, sensors=sensors, footprint_max_km=footprint_max_km,
+        groups=out, sensors=sensors, footprint_max_km=footprint_max_km, sites=eval_sites(),
         revisit=None if revisit is None else revisit[0].attrs,
         affiliation_colors=affiliation_colors(raw["Affiliation"].dropna().unique()),
         edits=edit_log.to_dict("records"),
@@ -1323,9 +1351,9 @@ def write_dashboard(raw: pd.DataFrame, groups: pd.DataFrame, issues: pd.DataFram
         footer=("Built by csda_summaries/notebooks/csda_specs_compare.ipynb (lib/vendor_specs.py). Constellation groups merge "
                 "sensors of one data owner with the same GSD, swath and band count. Numbers are parsed from the sheet text "
                 "(ranges -> first value). Band counts: Total Bands (MS) includes the pan band. Data-owner colors follow "
-                "csda_specs_multispec_smry.ipynb (Set1 + Dark2); sector colors: commercial blue, government orange. "
+                "csda_specs_multispec_smry.ipynb (Set1 + Dark2), except Vantor and DLR; sector colors: commercial blue, government orange. "
                 "Black ring = has a panchromatic band."))
     html = Path(template).read_text().replace("/*__DATA__*/null",
-                                              json.dumps(payload, default=str).replace("</", "<\\/"))
+                                              json.dumps(payload, default=str, separators=(",", ":")).replace("</", "<\\/"))
     Path(out_path).write_text(html)
     return str(Path(out_path).resolve())
