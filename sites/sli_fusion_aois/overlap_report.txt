@@ -1,0 +1,13 @@
+SLI-FUSION AOI reconciliation report
+========================================
+
+Total new AOIs: 41
+site_key collisions with existing sheet keys: 0 []
+
+Cross-references to existing sites (NOT overwritten; new demo AOIs added):
+  bathy_apra_harbor_guam_2026  ->  existing 'SDB_Guam' (144.707,13.265)  [cross-ref existing validation site]
+  bathy_florida_keys_2026  ->  existing 'SDB_Florida_KeyWest' (-81.682,24.604)  [cross-ref existing validation site]
+  bathy_sw_puerto_rico_2026  ->  existing 'SDB_PuertoRico' (-67.202,17.933)  [cross-ref existing validation site]
+  (Chesapeake Bay bathymetry: doc gives no bbox; existing 'Chesapeake_Bay' point retained.)
+  (Alaska Coastal Waters bathymetry: doc gives no bbox; stretch AOI, not staged.)
+  (Amazon surface water: doc gives no bbox; existing 'Amazon' SAR point retained.)

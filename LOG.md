@@ -31,6 +31,8 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-06 · [4] Evaluation Sites: 41 SLI-FUSION AOIs in the sheet (rows 623-663, 8 new columns, `site_id` repaired), sites file and evaluation map rebuilt (662 sites); map header shows a Work in progress badge and Last update date.
+- 2026-11-04 · [6] Draft *Suggested Best Practices for Compiling Joint Evaluation Results* and data frame templates, for the 4 SME groups, USGS and ESA (`eval_results_exchange/`); `evallib.r` now standardizes site names from the sites database.
 - 2026-11-04 · [7] Published maps moved from `notebooks/` to `html/` (`footprints_csda_map.html`, `aoi_csda_sites_map.html`, `aoi_eval_sites_map.html`); notebooks and links updated.
 - 2026-11-04 · [7] Repository cleanup: working code, site AOIs and notebooks committed; checkpoints untracked; local `.gitignore` extended (secrets, generated files, vendor order tracking, draft evaluation results).
 - 2026-11-04 · [6] Timeline: Highlight and Find controls as on the Vendor Specs page; Joint Activities is now a lane like each evaluation (chip, card, rows).
@@ -372,6 +374,30 @@ only if needed), never a separate search API.
 
 ## 4 · Sites and AOIs
 
+### 2026-11-05 · SLI-FUSION AOIs in the Evaluation Sites database (`sites/sli_fusion_aois/`)
+- Package built with NASA Chat from the SLI FUSION SharePoint material: 41 AOIs (12 wildfire, 9 FireSense-campaign fires, 11 USGS ARD
+  tiles, 4 bathymetry, 5 surface water). Sheet tab `Evaluation Sites`: rows 623-663, new columns Z:AG (`aoi_id` to `geometry_version`).
+  Read back through `read_from_sheet`: 662 sites, 165 CSDA unchanged, 0 cells changed in the 621 existing rows, 0 mismatches.
+- `new_eval_sites_rows_checked.csv` is what was written. Changes from NASA Chat's file: `parent_aoi` for both Little Giant rows (spatial
+  join gives 3 links, file had 1), ISO dates, and per Paul: `Evaluation Category = All`, `Remote Sensing Domain = Misc`,
+  `Program Use = SLI-FUSION` for all. `Assessment type(s)` left as `Radiometric & Geometric`.
+- `csda_eval_sites_process.ipynb`: 5 GeoJSONs added to `multi_site_geojson_dict`; SLI-FUSION geometry simplified (0.0003 deg, ~30 m, then
+  `buffer(0)`, because simplifying left 3 invalid) for `eval_sites_aoi.geojson` only: 4.4 MB instead of 25.5 MB, max boundary shift 30 m.
+- The package expected 663 sites; 662 is right: the old file had Fort Huachuca twice.
+- Column A (`site_id`) was `#REF!` on every row; formula restored (`=IF(C2<>"",MAX($A$1:A1)+1,"")`), so it numbers rows in sheet order, 1-662. Not
+  a stable ID: sorting or inserting rows renumbers sites; use `Site Name`. Nothing in the code reads it.
+- Rebuilt 5 Nov: `eval_sites_aoi.geojson` 662 sites, 4.4 MB; `html/aoi_eval_sites_map.html` regenerated (uncommitted). Old files in
+  `CSDA_eval/sites/backup_before_sli_fusion_2026-11-05/`. After the write, the sheet's 41 rows were edited to `Program Use = SLI`, `Source = NASA`,
+  so `new_eval_sites_rows_checked.csv` no longer matches those two columns; the sheet rules. Simplify step selects rows by `aoi_id`.
+- `csda_eval_sites_map.ipynb`: point sites drawn as 1 km circles (Leetown has no `aoi_shape`; the notebook had not run since it was added).
+  Run on ADAPT needs `PROJ_LIB`, `PROJ_DATA`, `GDAL_DATA` from the R kernel and pandoc on the path; `CSDA_ONLY = FALSE` for this map.
+- CSDA files had drifted since their last builds (13 Oct, 24 Jun), not from this work: all 165 CSDA site geometries unchanged. New corner
+  reflector row `Atlantic Doldrums 1`; 14 corner reflector rows have no geometry (e.g. `Pacific Doldrums 1`: `cr:lat` -94.36, `cr:lon` 0, looks
+  swapped). `onramp2` lost `Konya` (now `Konya-airport` / `Konya-city`) and Railroad Valley changed shape.
+- Open: check maps before commit (illustrative boxes,
+  ARD tiles). Raise with USGS: only 3 of 21 perimeters fall inside the ARD tiles. Backup of the tab before the edit:
+  `specs/backups/evaluation_sites_before_sli_fusion_2026-11-05.csv`.
+
 ### 2026-10-13 · Leetown Science Campus (USGS) added (`520e882`)
 ### 2026-09-22 to 2026-10-02 · Vendor request AOIs (uncommitted files in `sites/`)
 - HydroSat (Kerry; per-site files for Algodones Dunes, Gobabeb TIR, Lake Tahoe, Oklahoma Ag Station, Salton Sea),
@@ -426,6 +452,20 @@ only if needed), never a separate search API.
 ---
 
 ## 6 · Evaluation results, RadCalNet and spectral response
+
+### 2026-11-04 · Results exchange guide and templates (`eval_results_exchange/`, draft v0.1)
+- `Suggested_Best_Practices_Compiling_Joint_Evaluation_Results.md` + 7 results templates and `methods_template.csv`. Existing column names kept where notebooks use them;
+  new: `agency`, `team`, `method_id`, `status`, `product_id`, `radiometric_type`, `reference_name`, uncertainty columns.
+- Design: delivery files are owned by each agency and never overwritten; common tables are rebuilt from them, never edited.
+- Checked: `gain` = measured / reference at normalized view geometry. All templates pass `read_evaluation_files`.
+- Needed before use: `build_eval_results_db.ipynb` must take the new file names and abscal / tempstab shape (one row per reference).
+- Found in the database: `acq_id` empty in radiometric tables; geometric dates have no time; BBR pooled to `All_geometric`; combined
+  `product_level` values; geometric build hard-coded to `09012026` files (Satellogic geometric not included).
+- All 14 ESA sites (`ESA_misc_20260924` tab) are in `csda_sites_aoi.geojson` under the same names, with geometry.
+- `evallib.r`: `read_evaluation_files` takes `site_name` from the sites database (ignoring case, spaces, hyphens and underscores) after the
+  crosswalk, instead of title-casing everything (`PICS Libya-4` became `Pics Libya-4`; `WLEF` would have become `Wlef`). Unmatched names
+  stay title case and are reported. Old vs new on all files in the build: only `Pics Libya-4` -> `PICS Libya-4` changes. The database
+  still has the old name until the next build.
 
 ### 2026-11-04 · Timeline: Highlight, Find and Joint Activities lane (`lib/timeline_template.html`)
 - **Highlight** dims all but one evaluation or activity type; **Find** hides activities that do not match (activity, notes,
