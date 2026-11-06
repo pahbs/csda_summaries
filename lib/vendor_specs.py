@@ -1275,15 +1275,76 @@ def eval_sites(path: Optional[str] = None) -> List[dict]:
     return sorted(out, key=lambda x: x["name"].lower())
 
 
+RSR_CSV = "/explore/nobackup/projects/CSDA_eval/results/csda_rsr_curve_data.csv"
+RSR_OWNER = {"Maxar": "Vantor", "Planet": "Planet Labs", "NASA/USGS": "US Agency"}   # as named on the dashboard
+RSR_CONSTELLATION = {"Sentinel": "Sentinel-2"}
+RSR_GROUPS = {   # dashboard constellation groups each RSR panel belongs to, so the dashboard's filters apply to it
+    "Sentinel-2": ["Sentinel-2"], "Landsat": ["Landsat 8/9"], "Pleiades": ["Pléiades"], "PleiadesNeo": ["Pléiades Neo"],
+    "SPOT": ["SPOT-6/7"], "Global": ["BlackSky Gen 1", "BlackSky Gen 2", "BlackSky Gen 3"],
+    "Dove-Classic": ["PlanetScope Dove-Classic/Dove-R"], "Dove-R": ["PlanetScope Dove-Classic/Dove-R"],
+    "SuperDove": ["PlanetScope SuperDove"], "RapidEye": ["RapidEye"], "SkySat": ["SkySat A/B", "SkySat C1", "SkySat C2"],
+    "Aleph-1": [f"Satellogic Mark {m}" for m in ("I", "II", "III", "IV", "V")], "GeoEye": ["GeoEye-1"], "Legion": ["Legion"],
+    "QuickBird": ["QuickBird"], "WV2": ["WorldView-2"], "WV3": ["WorldView-3"]}
+
+
+def rsr_curves(path: str = RSR_CSV) -> Optional[dict]:
+    """Relative spectral response curves for the dashboard (see build_rsr_db.ipynb), None if the file is not there.
+    TIR is left out, as in the notebook's comparison plots. Bands that share a name and wavelengths are two real bands
+    (SuperDove's two greens), so they are split; a few repeated wavelengths in a band keep the larger value. Each
+    curve drops its near-zero ends and is simplified to within 0.3 nm or 0.003 response to keep the page small."""
+    from pathlib import Path
+    from shapely.geometry import LineString
+    if not Path(path).exists():
+        return None
+    d = pd.read_csv(path).dropna(subset=["wavelength_nm", "rsr", "band", "sensor", "constellation"])
+    d = d[~d["band"].str.startswith("TIR")].assign(
+        owner=lambda x: x["affiliation"].replace(RSR_OWNER), name=lambda x: x["constellation"].replace(RSR_CONSTELLATION),
+        sector=lambda x: x["sector"].replace({"Civil": "Government"}))
+
+    def group(band):
+        for pattern, label in (("(?i)swir", "SWIR"), ("(?i)rededge", "RedEdge"), ("(?i)^nir", "NIR"), ("^Green", "Green")):
+            if re.search(pattern, band):
+                return label
+        return band
+
+    keys = d[["sector", "owner", "name"]].drop_duplicates()
+    keys = sorted(keys.itertuples(index=False), key=lambda k: (k.sector != "Government", k.owner, k.name))
+    panels, curves = [], []
+    for i, k in enumerate(keys):
+        c = d[(d["sector"] == k.sector) & (d["owner"] == k.owner) & (d["name"] == k.name)]
+        panels.append(dict(name=k.name, owner=k.owner, sector=k.sector, sensors=int(c["sensor"].nunique()),
+                           groups=RSR_GROUPS.get(k.name, []), sensor_names=" ".join(c["sensor"].unique())))
+        for (sensor, band), x in c.groupby(["sensor", "band"], sort=False):
+            if x.duplicated("wavelength_nm", keep=False).mean() > 0.5:
+                parts = [(f"{band} {n + 1}", y) for n, y in x.groupby(x.groupby("wavelength_nm").cumcount())]
+            else:
+                parts = [(band, x.groupby("wavelength_nm", as_index=False)["rsr"].max())]
+            for label, y in parts:
+                y = y.sort_values("wavelength_nm")
+                w, r = y["wavelength_nm"].to_numpy(float), y["rsr"].clip(lower=0).to_numpy(float)
+                on = np.flatnonzero(r >= 0.002)
+                if len(on) < 2:
+                    continue
+                w, r = w[on[0]:on[-1] + 1], r[on[0]:on[-1] + 1]
+                half = w[r >= r.max() / 2]
+                line = np.array(LineString(np.c_[w / 100, r]).simplify(0.003).coords)
+                curves.append(dict(p=i, sensor=sensor, band=label, group=group(band), center=round(float((w * r).sum() / r.sum()), 1),
+                                   fwhm=round(float(half.max() - half.min()), 1), w=[round(v * 100, 1) for v in line[:, 0]],
+                                   r=[round(v, 3) for v in line[:, 1]]))
+    return dict(panels=panels, curves=curves, source=Path(path).name)
+
+
 def write_dashboard(raw: pd.DataFrame, groups: pd.DataFrame, issues: pd.DataFrame, edit_log: Optional[pd.DataFrame],
                     out_path: str, template: Optional[str] = None,
-                    footprint_max_km: float = 100, sheet_url: Optional[str] = None, revisit=None) -> str:
+                    footprint_max_km: float = 100, sheet_url: Optional[str] = None, revisit=None,
+                    rsr_path: Optional[str] = RSR_CSV) -> str:
     """Write the interactive dashboard (one self-contained HTML file): scatter of GSD
     vs swath, launches, aligned spec strips, cross-track swath widths, completeness, checks,
     the edit record and a table view, with hover details for every constellation.
     `raw`: the sheet with the edits applied; `edit_log`: apply_edits() log (with `status`);
     `groups`: constellations() output (all rows; the page filters by sector / status);
-    `revisit`: revisit() output (table, inputs), for the Coverage tab."""
+    `revisit`: revisit() output (table, inputs), for the Revisit tab.
+    `rsr_path`: RSR curves CSV for the Spectral Response tab; the tab is hidden if it is None or not there."""
     import json
     from pathlib import Path
     template = template or str(Path(__file__).with_name("vendor_specs_dashboard.html"))
@@ -1340,7 +1401,7 @@ def write_dashboard(raw: pd.DataFrame, groups: pd.DataFrame, issues: pd.DataFram
         asof=pd.Timestamp.today().strftime("%d %b %Y"), sheet_url=sheet_url or
         f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit?gid={GID['Vendor Specs']}",
         n_sensors=len(raw), pct_filled=float(comp.to_numpy().mean() * 100), n_issues=len(issues),
-        groups=out, sensors=sensors, footprint_max_km=footprint_max_km, sites=eval_sites(),
+        groups=out, sensors=sensors, footprint_max_km=footprint_max_km, sites=eval_sites(), rsr=rsr_curves(rsr_path) if rsr_path else None,
         revisit=None if revisit is None else revisit[0].attrs,
         affiliation_colors=affiliation_colors(raw["Affiliation"].dropna().unique()),
         edits=edit_log.to_dict("records"),

@@ -31,6 +31,9 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-06 · [6] Vendor Specs dashboard: one set of filters pinned above the tabs, driving every tab.
+- 2026-11-06 · [6] Vendor Specs dashboard: new *Spectral Response* tab (interactive RSR curves in the style of `build_rsr_db.ipynb`).
+- 2026-11-06 · [6] Timeline: Vendor Specs dashboard linked in the page links beside the footprints map.
 - 2026-11-06 · [6] Vendor Specs dashboard: *Cross-track swath width* gets a Map view (swath squares at true scale around a chosen evaluation site; Esri imagery or terrain layers); the panels stay as a second tab. EnMAP added, systematic imagers' revisit corrected, Vantor recolored.
 - 2026-11-06 · [4] Evaluation Sites: 41 SLI-FUSION AOIs in the sheet (rows 623-663, 8 new columns, `site_id` repaired), sites file and evaluation map rebuilt (662 sites); map header shows a Work in progress badge and Last update date.
 - 2026-11-04 · [6] Draft *Suggested Best Practices for Compiling Joint Evaluation Results* and data frame templates, for the 4 SME groups, USGS and ESA (`eval_results_exchange/`); `evallib.r` now standardizes site names from the sites database.
@@ -453,6 +456,22 @@ only if needed), never a separate search API.
 ---
 
 ## 6 · Evaluation results, RadCalNet and spectral response
+
+### 2026-11-06 · Vendor Specs: one pinned set of filters
+- Sector, Status, Highlight, Find, Color by and the owner key now sit above the tabs and stay on screen with them (static on phones and very short windows). Tiles moved above the bar.
+- Every tab reads the same filters: Spectral Response through `RSR_GROUPS` (panel to dashboard groups), replacing its own constellation picker; the Edit record through each sensor's group, replacing its own Find. Core fields and Automated checks stay whole-database. Color by is off on tabs without owner colors.
+- Revisit moved out of Coverage to its own tab, so `#revisit` links open it again; Coverage is now the swath map.
+- Find takes comma-separated names. Chart-specific settings (revisit view, wavelength range, AOI, Map / Panels) stay with their charts.
+
+### 2026-11-06 · Vendor Specs: Spectral Response tab (`lib/vendor_specs_dashboard.html`)
+- Panels per constellation, the notebook's band colors, thin lines over faint fills. Controls: wavelength range, response axis (0.25–1 as in the notebook, or 0–1), constellations, band key; hover gives sensor, band, response, center and FWHM. A table lists band centers and widths.
+- `rsr_curves()` reads `RSR_CSV` (`CSDA_eval/results/csda_rsr_curve_data.csv`, 10 Sep) into 416 curves, simplified to within 0.3 nm or 0.003 response; center and FWHM come from the full curves. The tab hides if the file is not there (it is not on the Hub). Owners and Sentinel-2 are named as on the dashboard.
+- All RSR curves cleared for the public page by Paul, 2026-11-06. They go in as numbers.
+- Data issues found, none changed in the source:
+  - Two copies of the file: `evaluation_results_db/rsr/` (6 Oct, what the notebook writes) adds newsat51-52 but lacks WV3 SWIR, Cirrus and thermal bands. Shared rows match.
+  - SuperDove has two bands named `Green` (peaks 528 and 557 nm); the tab splits them into Green 1 and Green 2. The notebook plots them as one zigzag line.
+  - SkySat 1-13 are not normalized (peaks 0.27-0.44); SkySat 14-19 reach 1.0.
+  - Landsat thermal: `TIRS-2` wavelengths are ~10x too small (980-1300 nm) and `OLI-1` has a TIR1 band at 9000-14000 nm. Thermal is left out of the tab.
 
 ### 2026-11-06 · Vendor Specs: footprint map (`lib/vendor_specs_dashboard.html`, trial)
 - *Cross-track swath width* has a View switch: **Map** (new, default) and **Panels** (unchanged). Map: Leaflet 1.9.4 from unpkg (pinned with SRI);

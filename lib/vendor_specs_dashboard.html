@@ -92,6 +92,23 @@ table.data td.n { text-align: right; font-variant-numeric: tabular-nums; }
 .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); font-weight: 600; }
 .tabs .count { font-size: 11.5px; color: var(--ink-3); margin-left: 4px; }
 [role=tabpanel][hidden] { display: none; }
+#shared { position: sticky; top: 0; z-index: 6; background: var(--surface); margin-bottom: 16px; }
+#shared .filters { position: static; margin: 0; padding: 8px 0 6px; border: 0; gap: 6px 18px; }
+#shared .tabs { margin: 4px 0 0; }
+#shared.no-color .key .sw, #shared.no-color #f-sector .sw { display: none; }
+#f-color-box[inert] { opacity: .4; }
+#f-q { width: 170px; }
+#f-aff { max-width: 150px; }
+@media (max-width: 760px), (max-height: 560px) { #shared { position: static; } }
+.rs-grid { display: grid; grid-template-columns: minmax(0, 1fr) 104px; gap: 12px; align-items: start; }
+.rs-title { font-size: 12.5px; font-weight: 650; margin: 4px 0 6px; }
+#rs-key { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+#rs-key .sw { width: 13px; height: 13px; border-radius: 2px; }
+#rs-key button[aria-pressed="true"] { text-decoration: none; font-weight: 400; }
+#rs-key button[aria-pressed="false"] { opacity: .35; }
+#rs-tbl th.n { text-align: right; }
+#rs-tbl th { cursor: default; }
+@media (max-width: 760px) { .rs-grid { grid-template-columns: minmax(0, 1fr); } #rs-key { flex-direction: row; flex-wrap: wrap; } }
 .fm-grid { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 12px; margin: 6px 0 8px; }
 #foot-map { height: 560px; border: 1px solid var(--grid); border-radius: 8px; isolation: isolate; }
 #fm-list { height: 560px; overflow-y: auto; border: 1px solid var(--grid); border-radius: 8px; padding: 4px; }
@@ -118,24 +135,25 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
   <div class="sub byline">Paul Montesano, PhD · NASA Goddard Space Flight Center; ESSIC · CSDA multispectral SME ·
     <a href="mailto:paul.m.montesano@nasa.gov">paul.m.montesano@nasa.gov</a></div>
   <div class="sub" id="subtitle"></div>
-  <div class="tabs" role="tablist" aria-label="Views">
-    <button role="tab" id="tab-specs" aria-controls="panel-specs" aria-selected="true">Imaging Specs</button>
-    <button role="tab" id="tab-coverage" aria-controls="panel-coverage" aria-selected="false">Coverage</button>
-    <button role="tab" id="tab-launches" aria-controls="panel-launches" aria-selected="false">Launches &amp; Orbits</button>
-    <button role="tab" id="tab-table" aria-controls="panel-table" aria-selected="false">Data Table</button>
-    <button role="tab" id="tab-quality" aria-controls="panel-quality" aria-selected="false">Database Quality <span class="count" id="tab-q-count"></span></button>
-  </div>
-
-  <div id="shared">
   <div class="tiles" id="tiles"></div>
-
+  <div id="bar-top"></div>
+  <div id="shared">
   <div class="filters" role="group" aria-label="Filters">
     <label>Sector <span id="f-sector"></span></label>
     <label>Status <span id="f-scope"></span></label>
     <label>Highlight <select id="f-aff"><option value="">all data owners</option></select></label>
-    <label>Find <input type="search" id="f-q" placeholder="constellation, owner…"></label>
+    <label>Find <input type="search" id="f-q" placeholder="e.g. Legion, WorldView-3" title="Constellation, owner or sensor; separate names with commas to compare"></label>
     <label id="f-color-box">Color by <span id="f-color"></span></label>
     <div class="key" id="key" aria-label="Color key"></div>
+  </div>
+  <div class="tabs" role="tablist" aria-label="Views">
+    <button role="tab" id="tab-specs" aria-controls="panel-specs" aria-selected="true">Imaging Specs</button>
+    <button role="tab" id="tab-spectral" aria-controls="panel-spectral" aria-selected="false">Spectral Response</button>
+    <button role="tab" id="tab-coverage" aria-controls="panel-coverage" aria-selected="false">Coverage</button>
+    <button role="tab" id="tab-revisit" aria-controls="panel-revisit" aria-selected="false">Revisit</button>
+    <button role="tab" id="tab-launches" aria-controls="panel-launches" aria-selected="false">Launches &amp; Orbits</button>
+    <button role="tab" id="tab-table" aria-controls="panel-table" aria-selected="false">Data Table</button>
+    <button role="tab" id="tab-quality" aria-controls="panel-quality" aria-selected="false">Database Quality <span class="count" id="tab-q-count"></span></button>
   </div>
   </div>
 
@@ -155,6 +173,30 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
     <div class="note">One row per constellation, sorted by multispectral GSD; each panel has its own log axis. Filled dot = multispectral GSD,
       open dot = panchromatic GSD. Hover a row.</div>
     <svg id="strips" width="100%" role="img" aria-label="GSD, swath and number of bands by constellation"></svg>
+  </section>
+  </div>
+
+  <div role="tabpanel" id="panel-spectral" aria-labelledby="tab-spectral" hidden>
+  <section class="card" aria-labelledby="h-rsr">
+    <h2 id="h-rsr">Relative spectral response curves</h2>
+    <div class="note">One panel per constellation on a shared wavelength axis; each line is one band of one sensor, colored by band. Hover a curve for its
+      sensor, band and response. Click a band in the key to hide or show it. To compare a few, list them in <i>Find</i>, separated by commas.</div>
+    <div class="filters" style="position:static;border:0;padding:8px 0">
+      <label>Wavelength <span id="rs-range"></span></label>
+      <label>Response axis <span id="rs-floor"></span></label>
+    </div>
+    <div class="rs-grid">
+      <svg id="rsr" width="100%" role="img" aria-label="Relative spectral response by wavelength, one panel per constellation"></svg>
+      <div><div class="rs-title">Spectral band</div><div class="key" id="rs-key" aria-label="Spectral band key"></div></div>
+    </div>
+    <div class="note" id="rs-left"></div>
+  </section>
+
+  <section class="card" aria-labelledby="h-rsr-table">
+    <h2 id="h-rsr-table">Band centers and widths</h2>
+    <div class="note">For the constellations and bands shown above. Center = response-weighted mean wavelength; FWHM = width at half the peak response. Where a
+      constellation has several sensors, the center is a range and the FWHM a median.</div>
+    <div class="scroll"><table class="data" id="rs-tbl"></table></div>
   </section>
   </div>
 
@@ -182,7 +224,9 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
       <div class="note" id="foot-left"></div>
     </div>
   </section>
+  </div>
 
+  <div role="tabpanel" id="panel-revisit" aria-labelledby="tab-revisit" hidden>
   <section class="card" aria-labelledby="h-revisit">
     <h2 id="h-revisit">Revisit time (estimated) at 0°, 40° and 60° latitude</h2>
     <div class="note" id="rv-note"></div>
@@ -224,12 +268,12 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
   </div>
 
   <div role="tabpanel" id="panel-quality" aria-labelledby="tab-quality" hidden>
-  <div class="note" style="margin-top:12px">How complete and consistent the database is, and the record of every edit made to it. Kept apart from the
-    other tabs so they stay readable.</div>
+  <div class="note" style="margin-top:12px">How complete and consistent the database is, and the record of every edit made to it. Core fields and Automated
+    checks always cover the whole database; the Edit record follows the filters.</div>
   <div class="tiles" id="qtiles"></div>
   <div class="two">
     <section class="card" aria-labelledby="h-comp">
-      <h2 id="h-comp">Core fields filled (columns A–AS)</h2>
+      <h2 id="h-comp">Core fields filled</h2>
       <div class="note">Share of the sheet's sensors with each field filled.</div>
       <div id="comp" style="margin-top:8px"></div>
     </section>
@@ -243,7 +287,6 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
   <section class="card" aria-labelledby="h-edits">
     <h2 id="h-edits">Edit record</h2>
     <div class="note" id="edits-note"></div>
-    <div class="filters" style="position:static;border:0;padding:8px 0"><label>Find <input type="search" id="e-q" placeholder="cell, sensor, field, note…"></label></div>
     <div class="scroll"><table class="data" id="edits"></table></div>
   </section>
 
@@ -278,11 +321,11 @@ function chips(target, items, isOn, onClick) {
     b.onclick = () => { onClick(key); chips(target, items, isOn, onClick); render(); }; box.appendChild(b);
   });
 }
-function shown() {
-  const q = S.q.toLowerCase();
-  return D.groups.filter(g => S.sectors.has(g.sector) && (S.scope === 'all' || g.current) &&
-    (!q || [g.group, g.affiliation, g.sensors, g.constellation].join(' ').toLowerCase().includes(q)));
-}
+// Find takes several names, separated by commas
+const terms = () => S.q.toLowerCase().split(',').map(t => t.trim()).filter(Boolean);
+const found = text => { const t = terms(), s = text.toLowerCase(); return !t.length || t.some(x => s.includes(x)); };
+const inScope = g => S.sectors.has(g.sector) && (S.scope === 'all' || g.current);
+const shown = () => D.groups.filter(g => inScope(g) && found([g.group, g.affiliation, g.sensors, g.constellation].join(' ')));
 const lit = g => !S.aff || g.affiliation === S.aff;
 
 // ---------- tooltip ----------
@@ -405,11 +448,7 @@ function shapePath(shape, cx, cy, r) {
   if (shape === 'square') { const h = r * .9; return `M${cx - h},${cy - h}h${2 * h}v${2 * h}h${-2 * h}Z`; }
   return `M${cx - r},${cy}a${r},${r} 0 1,0 ${2 * r},0a${r},${r} 0 1,0 ${-2 * r},0`;
 }
-function shownSensors() {
-  const q = S.q.toLowerCase();
-  return D.sensors.filter(x => S.sectors.has(x.sector) && (S.scope === 'all' || x.current) &&
-    (!q || [x.label, x.affiliation, x.constellation].join(' ').toLowerCase().includes(q)));
-}
+const shownSensors = () => D.sensors.filter(x => inScope(x) && found([x.label, x.group, x.affiliation, x.constellation].join(' ')));
 function showSensorTip(ev, x) {
   const rows = [['Data owner', `${esc(x.affiliation)} · ${esc(x.sector)}`], ['Status', esc(x.status || '–')],
     ['Launch', esc(x.launch || '–')], ['End', esc(x.end || (x.current ? 'in operation' : '–'))],
@@ -622,6 +661,92 @@ function fmGo() {
   drawFootMap(shown());
 }
 
+// ---------- spectral response ----------
+const RS_BANDS = {Pan: '#bebebe', Coastal: '#4f3a89', Blue: '#1f78b4', Green: '#33a02c', Yellow: '#ffd92f', Red: '#e31a1c',
+  RedEdge: '#b15928', NIR: '#cd5c5c', Cirrus: '#4682b4', SWIR: '#4682b4'};   // as in build_rsr_db.ipynb
+const RS_RANGES = {full: ['350–2500 nm', 350, 2500], vnir: ['VNIR 400–1000', 400, 1000], swir: ['SWIR 1300–2400', 1300, 2400]};
+const RS = { range: 'full', floor: .25, on: new Set(), off: new Set() };
+// A panel follows the dashboard's filters through its constellation groups; Find also matches its own name and sensors
+function rsShown(p, G) {
+  const groups = D.groups.filter(g => p.groups.includes(g.group));
+  return groups.some(g => G.includes(g)) || (terms().length > 0 && groups.some(inScope) && found(`${p.name} ${p.sensor_names}`));
+}
+// Response of a curve at wavelength v; null outside it
+function rsAt(c, v) {
+  if (v < c.w[0] || v > c.w[c.w.length - 1]) return null;
+  let i = c.w.findIndex(x => x >= v); if (i === 0) return c.r[0];
+  return c.r[i - 1] + (c.r[i] - c.r[i - 1]) * (v - c.w[i - 1]) / (c.w[i] - c.w[i - 1]);
+}
+function drawRsr() {
+  const svg = $('#rsr'); if (!D.rsr) return;
+  svg.innerHTML = '';
+  const G = shown(); RS.on = new Set(D.rsr.panels.flatMap((p, i) => rsShown(p, G) ? [i] : []));
+  const [, x0, x1] = RS_RANGES[RS.range], W = 1060, left = 50, strip = 136, right = W - strip, ph = 76, gap = 7, top = 4;
+  const panels = D.rsr.panels.map((p, i) => [p, i]).filter(([, i]) => RS.on.has(i)), H = top + panels.length * (ph + gap) + 44;
+  const X = v => left + (v - x0) / (x1 - x0) * (right - left), Y0 = RS.floor, Y1 = 1.04;
+  const ticks = RS.range === 'full' ? [500, 1000, 1500, 2000, 2500] : RS.range === 'vnir' ? [400, 500, 600, 700, 800, 900, 1000] : [1400, 1600, 1800, 2000, 2200, 2400];
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const on = c => RS.on.has(c.p) && !RS.off.has(c.group);
+  const hl = [];
+  panels.forEach(([p, i], n) => { const y0 = top + n * (ph + gap), Y = v => y0 + ph - (v - Y0) / (Y1 - Y0) * ph;
+    const clip = el('clipPath', {id: 'rs-clip-' + i}, svg); el('rect', {x: left, y: y0, width: right - left, height: ph}, clip);
+    for (const v of [0, .2, .4, .6, .8, 1]) if (v >= Y0) {
+      el('line', {x1: left, x2: right, y1: Y(v), y2: Y(v), class: 'gridline'}, svg);
+      el('text', {x: left - 6, y: Y(v) + 3.5, 'text-anchor': 'end', 'font-size': 10, class: 'muted'}, svg).textContent = v.toFixed(1); }
+    for (const v of ticks) el('line', {x1: X(v), x2: X(v), y1: y0, y2: y0 + ph, class: 'gridline'}, svg);
+    const box = el('g', {'clip-path': `url(#rs-clip-${i})`, class: lit({affiliation: p.owner}) ? '' : 'dim'}, svg), base = y0 + ph + 2;
+    const here = D.rsr.curves.filter(c => c.p === i && on(c));
+    for (const c of here) { const col = RS_BANDS[c.group] || 'var(--ink-3)';
+      const pts = c.w.map((v, j) => `${X(v).toFixed(1)} ${Y(c.r[j]).toFixed(1)}`).join('L');
+      el('path', {d: `M${X(c.w[0]).toFixed(1)} ${base}L${pts}L${X(c.w[c.w.length - 1]).toFixed(1)} ${base}Z`, fill: col, 'fill-opacity': .1}, box);
+      el('path', {d: 'M' + pts, fill: 'none', stroke: col, 'stroke-width': .8, 'stroke-opacity': .9}, box); }
+    el('rect', {x: left, y: y0, width: right - left, height: ph, fill: 'none', stroke: 'var(--ink-3)'}, svg);
+    el('rect', {x: right, y: y0, width: strip, height: ph, fill: 'var(--surface-2)', stroke: 'var(--ink-3)'}, svg);
+    el('text', {x: right + 9, y: y0 + 23, 'font-size': 12, 'font-weight': 650}, svg).textContent = p.name;
+    el('text', {x: right + 9, y: y0 + 40, 'font-size': 10.5, class: 'muted'}, svg).textContent = p.owner;
+    el('text', {x: right + 9, y: y0 + 55, 'font-size': 10.5, class: 'muted'}, svg).textContent = `${p.sector} · ${p.sensors} sensor${p.sensors > 1 ? 's' : ''}`;
+    hl.push({p, y0, ph, Y, here, clip: `url(#rs-clip-${i})`}); });
+  const bottom = top + panels.length * (ph + gap) - gap;
+  if (panels.length) {
+    for (const v of ticks) el('text', {x: X(v), y: bottom + 15, 'text-anchor': 'middle', 'font-size': 10.5, class: 'muted'}, svg).textContent = fmt(v);
+    el('text', {x: (left + right) / 2, y: bottom + 33, 'text-anchor': 'middle', 'font-size': 12, class: 'muted'}, svg).textContent = 'Wavelength (nm)';
+    el('text', {transform: `translate(13 ${(top + bottom) / 2}) rotate(-90)`, 'text-anchor': 'middle', 'font-size': 12, class: 'muted'}, svg).textContent = 'Relative spectral response';
+  }
+  const cross = el('line', {y1: top, y2: bottom, stroke: 'var(--ink-2)', 'stroke-dasharray': '3 3', visibility: 'hidden'}, svg), mark = el('g', {}, svg);
+  const hit = el('rect', {x: left, y: top, width: right - left, height: Math.max(bottom - top, 0), fill: 'transparent'}, svg);
+  hit.addEventListener('mousemove', ev => { const b = svg.getBoundingClientRect(), k = W / b.width, px = (ev.clientX - b.left) * k, py = (ev.clientY - b.top) * k;
+    const v = x0 + (px - left) / (right - left) * (x1 - x0), panel = hl.find(h => py >= h.y0 && py <= h.y0 + h.ph + gap);
+    cross.setAttribute('x1', px); cross.setAttribute('x2', px); cross.setAttribute('visibility', 'visible'); mark.innerHTML = '';
+    if (!panel) return hideTip();
+    const r = Y0 + (panel.y0 + panel.ph - py) / panel.ph * (Y1 - Y0);
+    const near = panel.here.map(c => [c, rsAt(c, v)]).filter(([, a]) => a != null && Math.abs(a - r) < .12).sort((a, b) => Math.abs(a[1] - r) - Math.abs(b[1] - r));
+    if (!near.length) { tip.innerHTML = `<b>${fmt(Math.round(v))} nm</b>`; tip.style.display = 'block'; return moveTip(ev); }
+    const [c, a] = near[0];
+    el('path', {d: 'M' + c.w.map((u, j) => `${X(u).toFixed(1)} ${panel.Y(c.r[j]).toFixed(1)}`).join('L'), fill: 'none', stroke: RS_BANDS[c.group], 'stroke-width': 2.2, 'clip-path': panel.clip}, mark);
+    const same = near.length - 1, rows = [['Constellation', esc(panel.p.name)], ['Data owner', esc(panel.p.owner)], [`At ${fmt(Math.round(v))} nm`, a.toFixed(2)],
+      ['Center', `${fmt(c.center)} nm`], ['FWHM', `${fmt(c.fwhm)} nm`]];
+    tip.innerHTML = `<b>${esc(c.sensor)} · ${esc(c.band)}</b><table>${rows.map(x => `<tr><td>${x[0]}</td><td>${x[1]}</td></tr>`).join('')}</table>` +
+      (same ? `<div class="flags">${same} more curve${same > 1 ? 's' : ''} close by</div>` : '');
+    tip.style.display = 'block'; moveTip(ev); });
+  hit.addEventListener('mouseleave', () => { cross.setAttribute('visibility', 'hidden'); mark.innerHTML = ''; hideTip(); });
+  const n = D.rsr.curves.filter(on).length;
+  $('#rs-left').textContent = panels.length ? `${panels.length} of ${D.rsr.panels.length} constellations with curves, ${n} curves, from ${D.rsr.source}. Thermal bands are left out.` :
+    'No spectral response curves match the filters.';
+  const rows = new Map();
+  for (const c of D.rsr.curves.filter(on)) { const key = c.p + '|' + c.band; if (!rows.has(key)) rows.set(key, []); rows.get(key).push(c); }
+  const mid = a => { const s = [...a].sort((p, q) => p - q), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+  const line = [...rows.values()].map(cs => { const a = cs.map(c => c.center), lo = Math.min(...a), hi = Math.max(...a); return {p: D.rsr.panels[cs[0].p], order: cs[0].p, c: cs[0], n: cs.length,
+    ctr: lo === hi ? fmt(lo) : `${fmt(Math.round(lo))}–${fmt(Math.round(hi))}`, at: lo, fwhm: mid(cs.map(c => c.fwhm))}; }).sort((a, b) => a.order - b.order || a.at - b.at);
+  $('#rs-tbl').innerHTML = '<thead><tr><th>Constellation</th><th>Data owner</th><th>Band</th><th class="n">Sensors</th><th class="n">Center (nm)</th><th class="n">FWHM (nm)</th></tr></thead><tbody>' +
+    line.map(x => `<tr><td>${esc(x.p.name)}</td><td>${esc(x.p.owner)}</td><td><span class="sw" style="background:${RS_BANDS[x.c.group]}"></span> ${esc(x.c.band)}</td><td class="n">${x.n}</td><td class="n">${x.ctr}</td><td class="n">${fmt(x.fwhm)}</td></tr>`).join('') + '</tbody>';
+}
+function rsKey() {
+  const groups = Object.keys(RS_BANDS).filter(g => D.rsr.curves.some(c => c.group === g)), key = $('#rs-key'); key.innerHTML = '';
+  for (const g of groups) { const b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-pressed', !RS.off.has(g));
+    b.innerHTML = `<span class="sw" style="background:${RS_BANDS[g]}"></span>${esc(g)}`;
+    b.onclick = () => { RS.off.has(g) ? RS.off.delete(g) : RS.off.add(g); rsKey(); drawRsr(); }; key.appendChild(b); }
+}
+
 // ---------- revisit ----------
 const LATS = [['0', '0° (equator)', 'circle'], ['40', '40°N (our sites)', 'diamond'], ['60', '60°N (boreal)', 'triangle']];
 const RV = { view: 'cap', season: 'year', sort: 1, group: '' };
@@ -715,9 +840,12 @@ function drawQuality() {
     `<span class="right">${q.cells}</span></div>`).join('') + `<div class="note" style="margin-top:8px">Full list: <code>vendor_specs_qa.csv</code> from the notebook.</div>`;
 }
 function drawEdits() {
-  const q = (S.eq || '').toLowerCase(), E = D.edits.filter(e => !q || [e.cell, e.label, e.field, e.note, e.status].join(' ').toLowerCase().includes(q));
+  // an edit follows its sensor's constellation; Find also searches the edit's own text
+  const rows = G => new Set(G.flatMap(g => g.sheet_rows.split(', '))), all = rows(D.groups), scope = rows(D.groups.filter(inScope)), hits = rows(shown());
+  const E = D.edits.filter(e => { const r = String(e.sheet_row);
+    return (!all.has(r) || scope.has(r)) && (hits.has(r) || found([e.cell, e.label, e.field, e.note, e.status].join(' '))); });
   const st = Object.entries(D.edit_status).map(([k, n]) => `${n} ${esc(k)}`).join(', ');
-  $('#edits-note').innerHTML = `Every change made to the database, one row per cell (${D.edits.length}: ${st}). All views use the edited values. ` +
+  $('#edits-note').innerHTML = `Showing ${E.length} of ${D.edits.length}, following the filters. Every change made to the database, one row per cell (${st}). All views use the edited values. ` +
     `<i>Applied (not yet in sheet)</i> = the Google Sheet still has the old value; <i>in sheet</i> = copied into the sheet; ` +
     `<i>skipped</i> = the sheet changed since the edit was recorded, so the sheet value is used. Rule: <i>Total Bands (MS)</i> counts the pan band. ` +
     `Sources: CSDA vendor pages on science.nasa.gov first, then vendor / agency pages; "computed" = derived from other fields. ` +
@@ -758,7 +886,7 @@ function drawKey(G) {
 function render() {
   const G = shown();
   drawKey(G);
-  drawScatter(G); drawLaunches(); drawStrips(G); drawFoot(G); drawFootMap(G); drawTable(G); drawRevisit(G);
+  drawScatter(G); drawLaunches(); drawStrips(G); drawFoot(G); drawFootMap(G); drawTable(G); drawRevisit(G); drawRsr(); drawEdits();
   const comm = G.filter(g => g.sector === 'Commercial').length;
   const tiles = a => a.map(([v, k]) => `<div class="tile"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join('');
   $('#tiles').innerHTML = tiles([[G.length, `constellations shown (${comm} commercial)`], [D.n_sensors, 'sensors in database']]);
@@ -784,14 +912,20 @@ function init() {
     matchMedia('(prefers-color-scheme: dark)').matches; r.dataset.theme = dark ? 'light' : 'dark'; };
   $('#footer').innerHTML = esc(D.footer);
   const tiles = a => a.map(([v, k]) => `<div class="tile"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join('');
-  $('#qtiles').innerHTML = tiles([[Math.round(D.pct_filled) + '%', 'of core fields (A–AS) filled'], [D.n_issues, 'cells flagged by the checks'],
+  $('#qtiles').innerHTML = tiles([[Math.round(D.pct_filled) + '%', 'of core fields filled'], [D.n_issues, 'cells flagged by the checks'],
     [D.edits.length, 'cell edits recorded']]);
   $('#tab-q-count').textContent = `${D.n_issues} flags · ${D.edits.length} edits`;
-  $('#e-q').oninput = e => { S.eq = e.target.value; drawEdits(); };
-  const TABS = ['specs', 'coverage', 'launches', 'table', 'quality'];
+  const TABS = ['specs', 'spectral', 'coverage', 'revisit', 'launches', 'table', 'quality'].filter(t => t !== 'spectral' || D.rsr);
+  if (D.rsr) {
+    rsKey();
+    chips('#rs-range', Object.entries(RS_RANGES).map(([k, v]) => [k, v[0]]), k => RS.range === k, k => RS.range = k);
+    chips('#rs-floor', [[.25, '0.25–1'], [0, '0–1']], k => RS.floor === k, k => RS.floor = k);
+  } else $('#tab-spectral').hidden = true;
   const show = name => { for (const t of TABS) {
       $('#tab-' + t).setAttribute('aria-selected', t === name); $('#panel-' + t).hidden = t !== name; }
-    $('#shared').hidden = name === 'quality';
+    const noColor = ['quality', 'spectral'].includes(name);   // these do not use data-owner colors
+    $('#shared').classList.toggle('no-color', noColor); $('#f-color-box').inert = noColor;
+    const top = $('#bar-top').getBoundingClientRect().top + scrollY; if (scrollY > top) scrollTo(0, top);
     if (name === 'coverage') drawFootMap(shown());
     history.replaceState(null, '', name === TABS[0] ? location.pathname + location.search : '#' + name); };
   for (const t of TABS) $('#tab-' + t).onclick = () => show(t);
@@ -816,8 +950,8 @@ function init() {
       `<li><b>Season</b>: at 60°N the sun is too low in winter, so the whole-year value is longer than June–August.</li></ul>`;
     revisitLegend();
   }
-  scatterLegend(); launchLegend(); drawQuality(); drawEdits(); render();
-  const hash = location.hash.slice(1) === 'revisit' ? 'coverage' : location.hash.slice(1);   // #revisit: the tab's old name
+  scatterLegend(); launchLegend(); drawQuality(); render();
+  const hash = location.hash.slice(1);
   if (TABS.includes(hash)) show(hash);
 }
 init();
