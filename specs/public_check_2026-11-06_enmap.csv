@@ -1,0 +1,28 @@
+sheet_rows,sensors,column,field,current,proposed,source,source_url,note,change
+89,EnMAP HSI,A,Sensor Name,(empty),HSI,agency page,https://www.enmap.org/mission/,Hyperspectral Imager,True
+89,EnMAP HSI,B,Constellation/Platform,(empty),EnMAP,agency page,https://www.enmap.org/mission/,,True
+89,EnMAP HSI,C,Launch Date,(empty),2022-04-01,secondary,https://www.eoportal.org/satellite-missions/enmap,Transporter-4 (official spec sheet: April 2022),True
+89,EnMAP HSI,D,Start Date,(empty),2022-11-02,secondary,https://www.eoportal.org/satellite-missions/enmap,data available to users since this date,True
+89,EnMAP HSI,F,Branded Name,(empty),EnMAP,agency page,https://www.enmap.org/mission/,,True
+89,EnMAP HSI,G,Reference,(empty),https://www.enmap.org/mission/,agency page,https://www.enmap.org/mission/,,True
+89,EnMAP HSI,H,Affiliation,(empty),DLR,secondary,https://www.eoportal.org/satellite-missions/enmap,DLR manages the mission; GFZ leads the science,True
+89,EnMAP HSI,I,Sector,(empty),Government,secondary,https://www.eoportal.org/satellite-missions/enmap,,True
+89,EnMAP HSI,J,Mission Status,(empty),Operational,agency page,https://www.enmap.org/mission/,operational phase,True
+89,EnMAP HSI,K,Satellite Size Class,(empty),Medium,computed,,980 kg: Medium (500-1000 kg),True
+89,EnMAP HSI,L,Weight Range (kg),(empty),980,agency page,https://www.enmap.org/data/doc/EnMAP_Specs.pdf,launch mass incl. 55 kg hydrazine,True
+89,EnMAP HSI,M,Orbit Type,(empty),Sun-synchronous,agency page,https://www.enmap.org/data/doc/EnMAP_Specs.pdf,"97.96°, 11:00 descending node",True
+89,EnMAP HSI,N,Orbit Altitude (km),(empty),653,agency page,https://www.enmap.org/data/doc/EnMAP_Specs.pdf,,True
+89,EnMAP HSI,O,Orbit Period (min),(empty),97.6,agency page,https://www.enmap.org/data/doc/EnMAP_Specs.pdf,5856 s,True
+89,EnMAP HSI,Q,Swath Width (km),(empty),30,agency page,https://www.enmap.org/data/doc/EnMAP_Specs.pdf,,True
+89,EnMAP HSI,T,Scanner Type,(empty),Pushbroom,agency page,https://www.enmap.org/mission/,,True
+89,EnMAP HSI,U,Acquisition Strategy,(empty),Tasking,agency page,https://www.enmap.org/data/doc/EnMAP_Specs.pdf,"pointed on request, ~5000 km of swath per day",True
+89,EnMAP HSI,V,n satellites,(empty),1,computed,,one row per satellite,True
+89,EnMAP HSI,AA,MS GSD Nadir (m),(empty),30,agency page,https://www.enmap.org/data/doc/EnMAP_Specs.pdf,,True
+89,EnMAP HSI,AJ,"Agility (off-nadir, ± degrees )",(empty),30,agency page,https://www.enmap.org/data/doc/EnMAP_Specs.pdf,,True
+89,EnMAP HSI,AM,Bit Depth,(empty),14-bit,agency page,https://www.enmap.org/data/doc/EnMAP_Specs.pdf,≥14 bits,True
+89,EnMAP HSI,CF,Hypersp Min (µm),(empty),420,agency page,https://www.enmap.org/data/doc/EnMAP_Specs.pdf,,True
+89,EnMAP HSI,CG,Hypersp Max (µm),(empty),2450,agency page,https://www.enmap.org/data/doc/EnMAP_Specs.pdf,,True
+89,EnMAP HSI,CH,Spectral Resolution (µm),(empty),0.0065-0.01,agency page,https://www.enmap.org/data/doc/EnMAP_Specs.pdf,"spectral sampling: 6.5 nm VNIR, 10 nm SWIR",True
+89,EnMAP HSI,CI,Total Bands (MS),(empty),224,agency page,https://github.com/dlr-eoc/ukis-data-tutorials/blob/main/enmap/enmap_datasets.ipynb,DLR: 224 bands in L2A products; eoPortal says 228; official spec sheet gives no count,True
+89,EnMAP HSI,CJ,Total Bands,(empty),224,agency page,https://github.com/dlr-eoc/ukis-data-tutorials/blob/main/enmap/enmap_datasets.ipynb,DLR: 224 bands in L2A products; eoPortal says 228; official spec sheet gives no count,True
+89,EnMAP HSI,CK,Notes,(empty),"Hyperspectral VNIR/SWIR imager: 224 bands. Official revisit: 4 days at ±30° tilt, 21 days at ±5°; 27-day orbit repeat. Revisit Time left empty: no figure published for <20°.",agency page,https://www.enmap.org/data/doc/EnMAP_Specs.pdf,,True

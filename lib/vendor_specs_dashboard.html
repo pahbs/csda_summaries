@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CSDA Vendor Specification Database: optical constellation comparison</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <style>
 .viz-root {
   color-scheme: light;
@@ -84,12 +86,25 @@ table.data td.n { text-align: right; font-variant-numeric: tabular-nums; }
 .barrow .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .right { text-align: right; font-variant-numeric: tabular-nums; }
 .pill { display: inline-block; border-radius: 4px; padding: 0 5px; background: var(--surface-2); color: var(--ink-2); font-size: 11.5px; }
-.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--grid); margin: 16px 0 0; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--grid); margin: 16px 0 0; }
 .tabs button { font: inherit; font-size: 14px; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--ink-2);
   padding: 7px 14px; cursor: pointer; margin-bottom: -1px; }
 .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); font-weight: 600; }
 .tabs .count { font-size: 11.5px; color: var(--ink-3); margin-left: 4px; }
 [role=tabpanel][hidden] { display: none; }
+.fm-grid { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 12px; margin: 6px 0 8px; }
+#foot-map { height: 560px; border: 1px solid var(--grid); border-radius: 8px; isolation: isolate; }
+#fm-list { height: 560px; overflow-y: auto; border: 1px solid var(--grid); border-radius: 8px; padding: 4px; }
+.fm-row { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 6px; align-items: center; width: 100%; padding: 3px 5px; border: 0;
+  border-radius: 5px; background: none; color: var(--ink); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.fm-row:hover, .fm-row:focus-visible { background: var(--surface-2); }
+.fm-row.dim { opacity: .35; }
+.fm-row .name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.fm-row .km { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+#fm-site { width: 280px; }
+#fm-msg { color: var(--ink-2); font-size: 12.5px; }
+#fm-msg:empty { display: none; }
+@media (max-width: 760px) { .fm-grid { grid-template-columns: minmax(0, 1fr); } #foot-map { height: 420px; } #fm-list { height: 240px; } }
 footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
 .theme { float: right; }
 .byline { font-size: 13px; margin: 0 0 6px; }
@@ -104,8 +119,10 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
     <a href="mailto:paul.m.montesano@nasa.gov">paul.m.montesano@nasa.gov</a></div>
   <div class="sub" id="subtitle"></div>
   <div class="tabs" role="tablist" aria-label="Views">
-    <button role="tab" id="tab-compare" aria-controls="panel-compare" aria-selected="true">Comparison</button>
-    <button role="tab" id="tab-revisit" aria-controls="panel-revisit" aria-selected="false">Revisit</button>
+    <button role="tab" id="tab-specs" aria-controls="panel-specs" aria-selected="true">Imaging Specs</button>
+    <button role="tab" id="tab-coverage" aria-controls="panel-coverage" aria-selected="false">Coverage</button>
+    <button role="tab" id="tab-launches" aria-controls="panel-launches" aria-selected="false">Launches &amp; Orbits</button>
+    <button role="tab" id="tab-table" aria-controls="panel-table" aria-selected="false">Data Table</button>
     <button role="tab" id="tab-quality" aria-controls="panel-quality" aria-selected="false">Database Quality <span class="count" id="tab-q-count"></span></button>
   </div>
 
@@ -122,8 +139,7 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
   </div>
   </div>
 
-  <div role="tabpanel" id="panel-compare" aria-labelledby="tab-compare">
-
+  <div role="tabpanel" id="panel-specs" aria-labelledby="tab-specs">
   <section class="card" aria-labelledby="h-scatter">
     <h2 id="h-scatter">Image footprint vs. detail</h2>
     <div class="note">Multispectral GSD at nadir (x) against swath width (y), both log scales. Dashed lines count the pixels across the
@@ -134,40 +150,39 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
     <div class="note" id="scatter-left"></div>
   </section>
 
-  <section class="card" aria-labelledby="h-launch">
-    <h2 id="h-launch">Launches, orbits and satellite size</h2>
-    <div class="note">One mark per sensor row in the sheet, at its launch date (x) and orbit altitude (y). Marker shape = orbit type,
-      size = satellite size class, color = data owner or sector (key above); open = planned. The line runs to the end date, or to today while in operation.
-      Hover a mark for details.</div>
-    <div class="legend" id="lg-launch"></div>
-    <svg id="launch" viewBox="0 0 1180 560" width="100%" role="img" aria-label="Launch date against orbit altitude by sensor"></svg>
-    <div class="note" id="launch-left"></div>
-  </section>
-
   <section class="card" aria-labelledby="h-strips">
     <h2 id="h-strips">Key specs side by side</h2>
     <div class="note">One row per constellation, sorted by multispectral GSD; each panel has its own log axis. Filled dot = multispectral GSD,
       open dot = panchromatic GSD. Hover a row.</div>
     <svg id="strips" width="100%" role="img" aria-label="GSD, swath and number of bands by constellation"></svg>
   </section>
-
-  <section class="card" aria-labelledby="h-foot">
-    <h2 id="h-foot">Cross-track swath width</h2>
-    <div class="note">One panel per constellation, all on the same km scale (square side = swath width; a nominal scene; pushbroom strips can be
-      much longer). Wider swaths than <span id="foot-max"></span> km are listed below.</div>
-    <div id="foot"></div>
-    <div class="note" id="foot-left"></div>
-  </section>
-
-  <section class="card" aria-labelledby="h-table">
-    <h2 id="h-table">Table view</h2>
-    <div class="note">The constellations shown above, with the plotted values. Click a column header to sort.</div>
-    <div class="scroll"><table class="data" id="tbl"></table></div>
-  </section>
-
   </div>
 
-  <div role="tabpanel" id="panel-revisit" aria-labelledby="tab-revisit" hidden>
+  <div role="tabpanel" id="panel-coverage" aria-labelledby="tab-coverage" hidden>
+  <section class="card" aria-labelledby="h-foot">
+    <h2 id="h-foot">Cross-track swaths with evaluation AOIs</h2>
+    <div class="filters" style="position:static;border:0;padding:6px 0"><label>View <span id="foot-view"></span></label></div>
+    <div id="foot-map-view">
+      <div class="note">Every constellation's swath as a square at true ground scale, centered on the chosen evaluation AOI, with the AOI shaded behind them (square side = swath width; a nominal
+        scene; pushbroom strips can be much longer). Hover a square or a name for its specs; click a name to zoom to it.</div>
+      <form class="filters" id="fm-form" style="position:static;border:0;padding:8px 0">
+        <label>Evaluation AOI <input type="text" id="fm-site" list="fm-sites" placeholder="Type a keyword" autocomplete="off" aria-describedby="fm-msg"></label>
+        <datalist id="fm-sites"></datalist>
+        <span id="fm-msg" role="status"></span>
+      </form>
+      <div class="fm-grid">
+        <div id="foot-map" role="application" aria-label="Map of swath footprints around the chosen evaluation AOI"></div>
+        <div id="fm-list" aria-label="Constellations by swath width"></div>
+      </div>
+    </div>
+    <div id="foot-panels-view" hidden>
+      <div class="note">One panel per constellation, all on the same km scale (square side = swath width; a nominal scene; pushbroom strips can be
+        much longer). Wider swaths than <span id="foot-max"></span> km are listed below.</div>
+      <div id="foot"></div>
+      <div class="note" id="foot-left"></div>
+    </div>
+  </section>
+
   <section class="card" aria-labelledby="h-revisit">
     <h2 id="h-revisit">Revisit time (estimated) at 0°, 40° and 60° latitude</h2>
     <div class="note" id="rv-note"></div>
@@ -181,15 +196,36 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
     <svg id="revisit" width="100%" role="img" aria-label="Mean revisit time by constellation at the equator, 40° and 60° latitude"></svg>
     <div class="note" id="rv-left"></div>
   </section>
+
   <section class="card" aria-labelledby="h-rv-method">
     <h2 id="h-rv-method">How revisit is estimated</h2>
     <div class="note" id="rv-method"></div>
   </section>
   </div>
 
+  <div role="tabpanel" id="panel-launches" aria-labelledby="tab-launches" hidden>
+  <section class="card" aria-labelledby="h-launch">
+    <h2 id="h-launch">Launches, orbits and satellite size</h2>
+    <div class="note">One mark per sensor row in the sheet, at its launch date (x) and orbit altitude (y). Marker shape = orbit type,
+      size = satellite size class, color = data owner or sector (key above); open = planned. The line runs to the end date, or to today while in operation.
+      Hover a mark for details.</div>
+    <div class="legend" id="lg-launch"></div>
+    <svg id="launch" viewBox="0 0 1180 560" width="100%" role="img" aria-label="Launch date against orbit altitude by sensor"></svg>
+    <div class="note" id="launch-left"></div>
+  </section>
+  </div>
+
+  <div role="tabpanel" id="panel-table" aria-labelledby="tab-table" hidden>
+  <section class="card" aria-labelledby="h-table">
+    <h2 id="h-table">Table view</h2>
+    <div class="note">The constellations matching the filters, with the plotted values. Click a column header to sort.</div>
+    <div class="scroll"><table class="data" id="tbl"></table></div>
+  </section>
+  </div>
+
   <div role="tabpanel" id="panel-quality" aria-labelledby="tab-quality" hidden>
   <div class="note" style="margin-top:12px">How complete and consistent the database is, and the record of every edit made to it. Kept apart from the
-    comparison so the results views stay readable.</div>
+    other tabs so they stay readable.</div>
   <div class="tiles" id="qtiles"></div>
   <div class="two">
     <section class="card" aria-labelledby="h-comp">
@@ -506,6 +542,86 @@ function drawFoot(G) {
   $('#foot-left').textContent = wide.length ? `Wider than ${MAX} km: ` + wide.map(g => `${g.group} (${fmt(g.swath_km)} km)`).join(', ') : '';
 }
 
+// ---------- footprints on a map ----------
+const FM_HOME = 'Railroad Valley';
+// label, service, last zoom with real tiles at the evaluation sites (past it Esri serves a "not available" image), credit, label service
+const FM_BASES = [
+  ['Esri imagery', 'World_Imagery', 17, 'Tiles &copy; Esri &mdash; Source: Esri, Vantor, Earthstar Geographics, and the GIS User Community'],
+  ['Esri terrain', 'World_Terrain_Base', 9, 'Tiles &copy; Esri &mdash; Sources: Esri, USGS, NOAA'],
+  ['Esri hillshade', 'Elevation/World_Hillshade', 13, 'Tiles &copy; Esri &mdash; Sources: Esri, Vantor, Airbus DS, USGS, NGA, NASA, CGIAR, N Robinson, NCEAS, NLS, OS, NMA, Geodatastyrelsen, Rijkswaterstaat, GSA, Geoland, FEMA, Intermap, and the GIS user community'],
+  ['Esri light gray', 'Canvas/World_Light_Gray_Base', 16, 'Tiles &copy; Esri, HERE, Garmin, &copy; OpenStreetMap contributors, and the GIS user community', 'Canvas/World_Light_Gray_Reference'],
+];
+const FM = { view: 'map', center: null, aoi: null, map: null, shapes: null, lines: new Map() };
+// Square of side km around the center; degrees per km taken at the center latitude
+function fmSquare([lat, lon], km) {
+  const dy = km / 2 / 110.574, dx = km / 2 / (111.32 * Math.cos(lat * Math.PI / 180));
+  return [[lat - dy, lon - dx], [lat - dy, lon + dx], [lat + dy, lon + dx], [lat + dy, lon - dx]];
+}
+const fmFit = km => FM.map.fitBounds(L.latLngBounds(fmSquare(FM.center, km)), {padding: [16, 16]});
+function fmInit() {
+  FM.map = L.map('foot-map', {minZoom: 2, maxZoom: 18, worldCopyJump: true});
+  L.control.scale({imperial: false}).addTo(FM.map);
+  const tiles = (name, maxNativeZoom, attribution) =>
+    L.tileLayer(`https://server.arcgisonline.com/ArcGIS/rest/services/${name}/MapServer/tile/{z}/{y}/{x}`, {maxNativeZoom, maxZoom: 18, attribution});
+  const bases = Object.fromEntries(FM_BASES.map(([label, name, zoom, credit, labels]) => [label,
+    labels ? L.layerGroup([tiles(name, zoom, credit), tiles(labels, zoom)]) : tiles(name, zoom, credit)]));
+  Object.values(bases)[0].addTo(FM.map);
+  L.control.layers(bases, null, {collapsed: false}).addTo(FM.map);
+  FM.shapes = L.layerGroup().addTo(FM.map);
+  fmFit(D.footprint_max_km * 1.1);
+}
+function fmEmphasize(g, on) {
+  const line = FM.lines.get(g.group); if (!line) return;
+  line.setStyle({weight: on ? 4 : 2}); if (on) line.bringToFront();
+}
+function drawFootMap(G) {
+  const isMap = FM.view === 'map';
+  $('#foot-map-view').hidden = !isMap; $('#foot-panels-view').hidden = isMap;
+  if (!isMap || !$('#foot-map').offsetWidth) return;
+  if (!window.L) { $('#fm-msg').textContent = 'The map library did not load. Use the Panels view.'; return; }
+  if (!FM.map) fmInit();
+  FM.map.invalidateSize();
+  FM.shapes.clearLayers(); FM.lines.clear();
+  L.geoJSON(FM.aoi, {interactive: false, style: {color: '#000', weight: 1.5, fillColor: '#555', fillOpacity: .5}}).addTo(FM.shapes);
+  const d = G.filter(g => g.swath_km != null).sort((a, b) => b.swath_km - a.swath_km || a.group.localeCompare(b.group));
+  for (const g of d) {   // largest first, so smaller squares sit on top
+    const ring = fmSquare(FM.center, g.swath_km), o = lit(g) ? 1 : .18;
+    L.polygon(ring, {color: '#fff', weight: 4, opacity: .55 * o, fill: false, interactive: false}).addTo(FM.shapes);   // halo, for imagery
+    FM.lines.set(g.group, L.polygon(ring, {color: color(g), weight: 2, opacity: o, fill: false, interactive: false}).addTo(FM.shapes));
+    L.polygon(ring, {color: '#000', weight: 14, opacity: .001, fill: false})   // wider target for hover
+      .on('mouseover', e => { showTip(e.originalEvent, g); fmEmphasize(g, true); })
+      .on('mousemove', e => moveTip(e.originalEvent))
+      .on('mouseout', () => { hideTip(); fmEmphasize(g, false); }).addTo(FM.shapes);
+  }
+  L.circleMarker(FM.center, {radius: 4, color: '#000', weight: 1, fillColor: '#fff', fillOpacity: 1, interactive: false}).addTo(FM.shapes);
+  const box = $('#fm-list'); box.innerHTML = d.length ? '' : '<div class="note">No constellation with a swath width matches the filters.</div>';
+  for (const g of [...d].reverse()) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'fm-row' + (lit(g) ? '' : ' dim');
+    b.innerHTML = `<span class="sw" style="background:${color(g)}"></span><span class="name">${esc(g.group)}</span><span class="km">${fmt(g.swath_km)} km</span>`;
+    hover(b, g);
+    b.addEventListener('mouseenter', () => fmEmphasize(g, true)); b.addEventListener('mouseleave', () => fmEmphasize(g, false));
+    b.addEventListener('focus', () => fmEmphasize(g, true)); b.addEventListener('blur', () => fmEmphasize(g, false));
+    b.onclick = () => fmFit(g.swath_km * 1.25);
+    box.appendChild(b);
+  }
+}
+// Exact name, then start of a name, then the keyword anywhere in the name, place or program
+function fmFind(text) {
+  const q = text.trim().toLowerCase(), name = x => x.name.toLowerCase();
+  if (!q) return null;
+  return D.sites.find(x => name(x) === q) || D.sites.find(x => name(x).startsWith(q)) ||
+    D.sites.find(x => `${name(x)} ${x.place.toLowerCase()}`.includes(q));
+}
+const fmSet = x => { FM.center = [x.lat, x.lon]; FM.aoi = x.aoi; };
+function fmGo() {
+  const x = fmFind($('#fm-site').value);
+  $('#fm-msg').textContent = x ? '' : 'No evaluation AOI matches that keyword.';
+  if (!x) return;
+  $('#fm-site').value = x.name; fmSet(x);
+  if (FM.map) FM.map.setView(FM.center, FM.map.getZoom());
+  drawFootMap(shown());
+}
+
 // ---------- revisit ----------
 const LATS = [['0', '0° (equator)', 'circle'], ['40', '40°N (our sites)', 'diamond'], ['60', '60°N (boreal)', 'triangle']];
 const RV = { view: 'cap', season: 'year', sort: 1, group: '' };
@@ -642,19 +758,24 @@ function drawKey(G) {
 function render() {
   const G = shown();
   drawKey(G);
-  drawScatter(G); drawLaunches(); drawStrips(G); drawFoot(G); drawTable(G); drawRevisit(G);
+  drawScatter(G); drawLaunches(); drawStrips(G); drawFoot(G); drawFootMap(G); drawTable(G); drawRevisit(G);
   const comm = G.filter(g => g.sector === 'Commercial').length;
   const tiles = a => a.map(([v, k]) => `<div class="tile"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join('');
-  $('#tiles').innerHTML = tiles([[G.length, `constellations shown (${comm} commercial)`], [D.n_sensors, 'sensors in the sheet']]);
+  $('#tiles').innerHTML = tiles([[G.length, `constellations shown (${comm} commercial)`], [D.n_sensors, 'sensors in database']]);
 }
 function init() {
-  $('#subtitle').innerHTML = `Read from the <a href="${esc(D.sheet_url)}" target="_blank" rel="noopener">CSDA Vendor Specs sheet</a> on ${esc(D.asof)}. ` +
-    `Preliminary: values are being checked against vendor documents; ${D.edits.length} cell edits from that check are applied ` +
-    `(see the Database Quality tab).`;
-  chips('#f-sector', [['Commercial', 'Commercial', 'var(--com)'], ['Government', 'Government', 'var(--gov)']], k => S.sectors.has(k),
+  $('#subtitle').innerHTML = `Read from the <a href="${esc(D.sheet_url)}" target="_blank" rel="noopener">CSDA Vendor Specs sheet</a> on ${esc(D.asof)}.`;
+  const sectorChips = () => chips('#f-sector', ['Commercial', 'Government'].map(k => [k, k, S.colorBy === 'sector' && color({sector: k})]), k => S.sectors.has(k),
     k => { S.sectors.has(k) ? S.sectors.delete(k) : S.sectors.add(k); if (!S.sectors.size) S.sectors.add(k); });
+  sectorChips();
   chips('#f-scope', [['current', 'Current'], ['all', 'All (incl. retired, planned)']], k => S.scope === k, k => S.scope = k);
-  chips('#f-color', [['affiliation', 'Data owner'], ['sector', 'Sector']], k => S.colorBy === k, k => S.colorBy = k);
+  chips('#f-color', [['affiliation', 'Data owner'], ['sector', 'Sector']], k => S.colorBy === k, k => { S.colorBy = k; sectorChips(); });
+  chips('#foot-view', [['map', 'Map'], ['panels', 'Panels']], k => FM.view === k, k => FM.view = k);
+  for (const x of D.sites) { const o = document.createElement('option'); o.value = x.name; o.label = x.place; $('#fm-sites').appendChild(o); }
+  $('#fm-site').value = FM_HOME; fmSet(fmFind(FM_HOME));
+  $('#fm-site').onfocus = e => e.target.select();
+  $('#fm-site').oninput = e => { if (D.sites.some(x => x.name === e.target.value)) fmGo(); };   // picked from the list
+  $('#fm-form').onsubmit = e => { e.preventDefault(); fmGo(); };
   const affs = [...new Set(D.groups.map(g => g.affiliation))].sort();
   $('#f-aff').innerHTML += affs.map(a => `<option>${esc(a)}</option>`).join('');
   $('#f-aff').onchange = e => { S.aff = e.target.value; render(); };
@@ -667,11 +788,13 @@ function init() {
     [D.edits.length, 'cell edits recorded']]);
   $('#tab-q-count').textContent = `${D.n_issues} flags · ${D.edits.length} edits`;
   $('#e-q').oninput = e => { S.eq = e.target.value; drawEdits(); };
-  const show = name => { for (const t of ['compare', 'revisit', 'quality']) {
+  const TABS = ['specs', 'coverage', 'launches', 'table', 'quality'];
+  const show = name => { for (const t of TABS) {
       $('#tab-' + t).setAttribute('aria-selected', t === name); $('#panel-' + t).hidden = t !== name; }
     $('#shared').hidden = name === 'quality';
-    history.replaceState(null, '', name === 'compare' ? location.pathname + location.search : '#' + name); };
-  for (const t of ['compare', 'revisit', 'quality']) $('#tab-' + t).onclick = () => show(t);
+    if (name === 'coverage') drawFootMap(shown());
+    history.replaceState(null, '', name === TABS[0] ? location.pathname + location.search : '#' + name); };
+  for (const t of TABS) $('#tab-' + t).onclick = () => show(t);
   if (D.revisit) {
     chips('#rv-view', [['cap', `≤ ${D.revisit.cap_deg}° (radiometric quality)`], ['max', 'Full agility (vendor-style)']], k => RV.view === k, k => RV.view = k);
     chips('#rv-season', [['year', 'Whole year'], ['jja', 'June–August']], k => RV.season === k, k => RV.season = k);
@@ -682,7 +805,8 @@ function init() {
       `Values below 1 day mean more than one chance per day. Hover a row for the inputs.`;
     $('#rv-method').innerHTML = `Each orbit is simulated for a year (circular orbit at the sheet's altitude, with the Earth's oblateness turning the orbit plane) over ` +
       `sites on 36 longitudes at each latitude; the result is the average over longitudes. A pass counts when the site is within the satellite's reach ` +
-      `(half the swath, plus the agility for satellites that point), within the view-angle limit (≤ ${D.revisit.cap_deg}° off nadir, or the full agility), ` +
+      `(half the swath, plus the agility for satellites that point), within the view-angle limit (≤ ${D.revisit.cap_deg}° off nadir, or the full agility; ` +
+      `a systematic imager collects its whole swath on every pass, so MODIS, VIIRS and other wide mappers count it all in both views), ` +
       `and the sun is at least ${D.revisit.sun_min_deg}° above the horizon. Satellites of a constellation are assumed spread evenly, so their passes add.<ul>` +
       `<li><b>Inclination</b>: sun-synchronous from the altitude (crossing the equator southbound at 10:30); <i>Near polar</i> rows are treated the same. ` +
       `Legion 3–6 (45°) and EROS-C3 (139.3°, retrograde) are given in <code>lib/vendor_specs.py</code>; the sheet has no inclination column.</li>` +
@@ -693,7 +817,8 @@ function init() {
     revisitLegend();
   }
   scatterLegend(); launchLegend(); drawQuality(); drawEdits(); render();
-  if (['#quality', '#revisit'].includes(location.hash)) show(location.hash.slice(1));
+  const hash = location.hash.slice(1) === 'revisit' ? 'coverage' : location.hash.slice(1);   // #revisit: the tab's old name
+  if (TABS.includes(hash)) show(hash);
 }
 init();
 </script>
