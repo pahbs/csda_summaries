@@ -1,0 +1,198 @@
+"""The archive first-look dashboard: one tab per vendor constellation, the same layout in every tab.
+
+Each multistac_site_analysis_<vendor>.ipynb ends with
+
+    archive_dashboard.publish('kuva', dash.gdf, sites, SITES, SITE_NAME_FIELD, START, END, dash.log)
+
+which writes html/archive_first_look_data/<tab>.json and rebuilds html/archive_first_look.html from every tab's file.
+`dash` is a search with no cloud limit, since the SMEs set the limits on the page.
+
+The unit is one acquisition at one site, whatever the catalog calls an item, so vendors can be compared:
+
+- the items of an acquisition at a site (levels, products or Satellogic's 2 km tiles) become one row;
+- `cov` is the share of the site's AOI inside the union of those items' footprints;
+- `cloud` and the angles are averaged over the items, weighted by their area inside the AOI, so a tiled vendor's cloud
+  cover describes the tiles at the site and a whole-scene vendor's describes the scene.
+"""
+
+from __future__ import annotations
+
+import json
+import math
+from pathlib import Path
+from typing import Dict, Iterable, List, Optional, Union
+
+import geopandas as gpd
+import pandas as pd
+from shapely import affinity
+from shapely.ops import unary_union
+
+REPO = Path(__file__).resolve().parents[1]
+DATA_DIR = REPO / "html" / "archive_first_look_data"
+PAGE = REPO / "html" / "archive_first_look.html"
+TEMPLATE = Path(__file__).with_name("archive_dashboard_template.html")
+LAND = Path(__file__).with_name("archive_dashboard_land.txt")
+
+# What differs between vendors, for the SMEs. Levels are in processing order.
+VENDORS = {
+    "hydrosat": dict(
+        vendor="Hydrosat", bands="VNIR and thermal",
+        acquisition="One scene (<code>hydrosat:scene_id</code>). Its L1B and L2 products count once.",
+        footprint="One footprint per scene, the same at every level.",
+        cloud="For the whole scene, so a cloudy scene can still be clear over a small site.", cloud_scope="scene",
+        levels={"L1B": "Combined thermal and VNIR data", "L2": "Surface temperature and surface reflectance"},
+        scope="L1B and L2 by day, and nighttime L1B (thermal only). Night scenes have no cloud cover, so the cloud test does not "
+              "apply to them. L1A has no cloud cover and is left out: a scene's L1A shares its <code>hydrosat:scene_id</code>, so "
+              "what is shown here holds for its L1A."),
+    "kuva": dict(
+        vendor="Kuva Space", bands="Hyperspectral",
+        acquisition="One capture (<code>raw_product_landing_id</code>). Its L1B, L1C and L2A products count once.",
+        footprint="One footprint per capture.",
+        cloud="For the whole capture, so a cloudy capture can still be clear over a small site.", cloud_scope="scene",
+        levels={"L1B": "Level 1B", "L1C": "Level 1C", "L2A": "Level 2A"},
+        scope="Kuva Sense reports cloud cover but no view or sun angles, so those tests are off for this tab."),
+    "satellogic": dict(
+        vendor="Satellogic", bands="Visual quickview, about 0.78 m",
+        acquisition="One capture (<code>satl:outcome_id</code>). The catalog cuts a capture into 2 km tiles, and all its "
+                    "tiles at a site count as one acquisition.",
+        footprint="Search returns only the tiles touching the site, not the whole capture, so the footprint is the union of "
+                  "those tiles. Square tiles overshoot the strip edges, which can slightly overstate site coverage.",
+        cloud="For the tiles at the site, weighted by their area there, so it is closer to the site than a whole-scene value.",
+        cloud_scope="site",
+        levels={"QUICKVIEW_VISUAL": "Archive quickview tiles, for browsing", "L1D_SR": "Surface reflectance, held by CSDA"},
+        scope="Archive discovery shows quickview tiles. Which levels (L1C, L1D, L1D_SR) can be ordered for a capture is not "
+              "shown by search."),
+    "legion": dict(
+        vendor="Vantor", bands="Pan about 0.35 m, 8-band MS about 1.4 m", match_seconds=120,
+        acquisition="One satellite pass. Vantor's catalog and CSDA give a pass different IDs, so records of the same sensor within "
+                    "120 seconds are matched and count once.",
+        footprint="One strip per pass in Vantor's catalog. CSDA delivers products cut to the order.",
+        cloud="For the whole strip, so a cloudy strip can still be clear over a small site.", cloud_scope="scene",
+        levels={"LV2A": "Standard: map-projected, coarse DEM (CSDA)", "LV3D": "Ortho: fine DEM (CSDA)"},
+        scope="Vantor's catalog shows everything collected; set Source to In CSDA to see what has been delivered. Vantor's catalog "
+              "does not list levels, so levels are shown for CSDA products only."),
+}
+
+
+def _flat(geometry, lat: float):
+    """Longitudes scaled to their length at this latitude, so areas compare without a projection."""
+    return affinity.scale(geometry, xfact=math.cos(math.radians(lat)), yfact=1, origin=(0, 0))
+
+
+def _number(value, digits: int = 1) -> Optional[float]:
+    return None if value is None or pd.isna(value) else round(float(value), digits)
+
+
+def _weighted(rows: pd.DataFrame, column: str, weights: pd.Series) -> Optional[float]:
+    if column not in rows:
+        return None
+    values = pd.to_numeric(rows[column], errors="coerce")
+    known = values.notna() & (weights > 0)
+    if known.any():
+        return float((values[known] * weights[known]).sum() / weights[known].sum())
+    return float(values.mean()) if values.notna().any() else None
+
+
+def merge_passes(gdf: gpd.GeoDataFrame, seconds: float) -> gpd.GeoDataFrame:
+    """One acquisition_id per pass when catalogs name it differently: records of a sensor this close in time, CSDA's id first."""
+    times = pd.to_datetime(gdf["datetime"].map(pd.Timestamp), utc=True)
+    order = gdf.assign(_t=times).sort_values(["sensor", "_t"])
+    gap = order.groupby("sensor")._t.diff().dt.total_seconds()
+    order["_pass"] = (gap.isna() | (gap > seconds)).cumsum()
+    first = order.sort_values(["_pass", "provider"]).groupby("_pass").acquisition_id.first()   # 'csda' sorts first
+    return gdf.assign(acquisition_id=order._pass.map(first).reindex(gdf.index))
+
+
+def _time_of_day(rows: pd.DataFrame) -> Optional[str]:
+    """As the catalog says, or from the sun where it does not."""
+    if "hydrosat:day_night" in rows and rows["hydrosat:day_night"].notna().any():
+        return str(rows["hydrosat:day_night"].dropna().iloc[0]).lower()
+    sun = pd.to_numeric(rows.get("sun_elevation"), errors="coerce") if "sun_elevation" in rows else None
+    return None if sun is None or sun.isna().all() else ("day" if sun.mean() > 0 else "night")
+
+
+def acquisitions(gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, levels: List[str], sensors: List[str],
+                 site_names: List[str]) -> List[dict]:
+    """One record per acquisition and site."""
+    aoi = {}
+    for name, geometry in zip(sites.site_name, sites.geometry):
+        lat = geometry.centroid.y
+        aoi[name] = (_flat(geometry.buffer(0), lat), lat)
+    times = pd.to_datetime(gdf["datetime"].map(pd.Timestamp), utc=True)
+    records = []
+    for (site, acquisition), rows in gdf.assign(_t=times).groupby(["site_name", "acquisition_id"]):
+        if site not in aoi:
+            continue
+        shape, lat = aoi[site]
+        parts = [_flat(g.buffer(0), lat).intersection(shape) if g is not None else None for g in rows.geometry]
+        weights = pd.Series([p.area if p is not None else 0.0 for p in parts], index=rows.index)
+        union = unary_union([p for p in parts if p is not None and not p.is_empty])
+        held = rows.provider.eq("csda").any() or ("in_csda" in rows and rows.in_csda.fillna(False).astype(bool).any())
+        records.append({
+            "s": site_names.index(site), "n": sensors.index(rows.sensor.iloc[0]), "a": str(acquisition),
+            "d": f"{rows._t.min():%Y-%m-%d}", "cloud": _number(_weighted(rows, "cloud_cover", weights)),
+            "off": _number(_weighted(rows, "off_nadir", weights)),
+            "cov": _number(100 * min(union.area / shape.area, 1.0), 0) if shape.area else None,
+            "sun": _number(_weighted(rows, "sun_elevation", weights)), "sunaz": _number(_weighted(rows, "sun_azimuth", weights)),
+            "az": _number(_weighted(rows, "sat_azimuth", weights)), "el": _number(_weighted(rows, "sat_elevation", weights)),
+            "items": int(rows.id.nunique()), "lv": sorted({levels.index(v) for v in rows.processing_level if v in levels}),
+            "csda": bool(held), "dn": _time_of_day(rows)})
+    return records
+
+
+def _site_table(sites: gpd.GeoDataFrame, sites_file: Union[str, Path], name_field: str) -> List[dict]:
+    """Each site's place and its own requirements from the sites file, where it has them."""
+    limits = gpd.read_file(sites_file).drop_duplicates(name_field).set_index(name_field)
+    out = []
+    for name, geometry in zip(sites.site_name, sites.geometry):
+        row = limits.loc[name] if name in limits.index else {}
+        point = geometry.representative_point()
+        out.append({"name": name, "lon": round(point.x, 3), "lat": round(point.y, 3),
+                    "cloud": _number(row.get("max_cloud_pct_aoi")), "scene": _number(row.get("max_cloud_pct_scene")),
+                    "off": _number(row.get("max_view_angle")),
+                    "need": _number(row.get("min_num_acqs"), 0), "ideal": _number(row.get("ideal_num_acqs"), 0)})
+    return sorted(out, key=lambda s: s["name"].lower())
+
+
+def tab_data(vendor: str, gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, sites_file: Union[str, Path], name_field: str,
+             start: str, end: str, log: pd.DataFrame, constellation: str) -> dict:
+    info = VENDORS[vendor]
+    gdf = gdf[gdf.constellation.eq(constellation)]
+    if info.get("match_seconds"):
+        gdf = merge_passes(gdf, info["match_seconds"])
+    known = [k for k in info["levels"] if k in set(gdf.processing_level)]
+    levels = known + sorted(set(gdf.processing_level.dropna()) - set(known))
+    sensors = sorted(gdf.sensor.dropna().unique())
+    site_rows = _site_table(sites, sites_file, name_field)
+    records = acquisitions(gdf, sites, levels, sensors, [s["name"] for s in site_rows])
+    failed = sorted(log.loc[log["status"] == "failed", "site_name"].dropna().unique())
+    return {"key": f"{vendor}-{constellation}".lower().replace(" ", "-"), "vendor": info["vendor"], "constellation": constellation,
+            "bands": info["bands"], "acquisition": info["acquisition"], "footprint": info["footprint"], "cloud": info["cloud"],
+            "cloud_scope": info["cloud_scope"],
+            "scope": info["scope"], "searched": f"{pd.Timestamp.today():%-d %b %Y}", "start": start, "end": end,
+            "failed": failed, "items": int(gdf.id.nunique()),
+            "levels": [{"code": k, "plain": info["levels"].get(k, "")} for k in levels],
+            "sensors": sensors, "sites": site_rows, "acqs": records}
+
+
+def build(page: Path = PAGE) -> Path:
+    """The page, from the template and every tab's data file."""
+    tabs = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(DATA_DIR.glob("*.json"))]
+    data = json.dumps({"tabs": tabs, "land": LAND.read_text(encoding="utf-8").strip()}, separators=(",", ":"))
+    html = TEMPLATE.read_text(encoding="utf-8").replace("/*DATA*/null", data.replace("</", "<\\/"))
+    page.write_text(html, encoding="utf-8")
+    return page
+
+
+def publish(vendor: str, gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, sites_file: Union[str, Path], name_field: str,
+            start: str, end: str, log: pd.DataFrame, data_dir: Path = DATA_DIR, page: Path = PAGE) -> Path:
+    """Writes this vendor's tabs, one per constellation, and rebuilds the page."""
+    Path(data_dir).mkdir(parents=True, exist_ok=True)
+    for constellation in sorted(gdf.constellation.dropna().unique()):
+        tab = tab_data(vendor, gdf, sites, sites_file, name_field, start, end, log, constellation)
+        (Path(data_dir) / f"{tab['key']}.json").write_text(json.dumps(tab, separators=(",", ":")), encoding="utf-8")
+        print(f"{tab['vendor']} {constellation}: {len(tab['acqs'])} acquisition-site rows, {tab['items']} catalog items, "
+              f"{len(tab['sites'])} sites")
+    built = build(page)
+    print(built)
+    return built
