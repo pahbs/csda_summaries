@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vendor archive density</title>
+<meta name="description" content="Vendor archive density">
+<meta property="og:title" content="Vendor archive density">
+<meta property="og:description" content="Vendor archive density">
+<style>
+.viz-root {
+  color-scheme: light;
+  --surface: #fcfcfb; --surface-2: #f3f2ee; --ink: #0b0b0b; --ink-2: #52514e; --ink-3: #6f6e69; --grid: #e1e0d9; --axis: #c3c2b7;
+  --series: #2a78d6; --series-2: #eb6834; --check: #6da7ec; --muted-mark: #d4d3cb; --land: #e9e8e2; --link: #1c5cab; --ok: #006300; --short: #a13a12;
+  --ring: #0b0b0b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root {
+    color-scheme: dark;
+    --surface: #1a1a19; --surface-2: #232322; --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #a3a297; --grid: #2c2c2a; --axis: #383835;
+    --series: #3987e5; --series-2: #d95926; --check: #256abf; --muted-mark: #44433f; --land: #2b2b29; --link: #86b6ef; --ok: #0ca30c; --short: #ec835a;
+    --ring: #f0efec;
+  }
+}
+:root[data-theme="dark"] .viz-root {
+  color-scheme: dark;
+  --surface: #1a1a19; --surface-2: #232322; --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #a3a297; --grid: #2c2c2a; --axis: #383835;
+  --series: #3987e5; --series-2: #d95926; --check: #256abf; --muted-mark: #44433f; --land: #2b2b29; --link: #86b6ef; --ok: #0ca30c; --short: #ec835a;
+  --ring: #f0efec;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+.viz-root { background: var(--surface); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh; padding: 24px 20px 48px; }
+.wrap { max-width: 1240px; margin: 0 auto; }
+h1 { font-size: 24px; margin: 0 0 4px; font-weight: 650; }
+h2 { font-size: 17px; margin: 0 0 2px; font-weight: 620; }
+h3 { font-size: 13px; margin: 0 0 4px; font-weight: 620; }
+.sub { color: var(--ink-2); margin: 0; }
+.note { color: var(--ink-2); font-size: 12.5px; margin: 0 0 10px; }
+a { color: var(--link); }
+code { font-size: .92em; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 18px 0 0; border-bottom: 1px solid var(--grid); }
+.tabs button { background: none; border: 0; border-bottom: 3px solid transparent; color: var(--ink-2); font: inherit; padding: 8px 14px;
+  cursor: pointer; text-align: left; }
+.tabs button b { display: block; font-weight: 620; color: inherit; }
+.tabs button span { font-size: 12px; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--series); }
+.filters { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--grid);
+  margin-bottom: 18px; position: sticky; top: 0; background: var(--surface); z-index: 5; }
+.filters .lead { font-weight: 620; }
+.filters label { font-size: 13px; color: var(--ink-2); display: inline-flex; gap: 6px; align-items: center; }
+.filters label.off { opacity: .55; }
+.filters output { color: var(--ink); font-variant-numeric: tabular-nums; min-width: 34px; font-weight: 600; }
+input[type=range] { width: 92px; accent-color: var(--series); }
+select { font: inherit; font-size: 13px; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--axis); background: var(--surface); color: var(--ink); }
+.answer { display: grid; grid-template-columns: minmax(250px, 1.3fr) repeat(3, minmax(140px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.tile { background: var(--surface-2); border-radius: 10px; padding: 12px 16px; }
+.tile .v { font-size: 24px; font-weight: 650; }
+.tile .k { font-size: 12.5px; color: var(--ink-2); }
+.tile.hero .v { font-size: 48px; line-height: 1.05; }
+.card { background: var(--surface); border: 1px solid var(--grid); border-radius: 12px; padding: 16px; margin-bottom: 18px; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.cols .card { margin-bottom: 0; min-width: 0; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th { font-size: 12px; font-weight: 600; color: var(--ink-2); text-align: left; }
+.score { width: 100%; margin-top: 8px; }
+.score th, .score td { padding: 3px 6px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+.score th.n, .score td.n { text-align: right; }
+.score td.site { max-width: 230px; overflow: hidden; text-overflow: ellipsis; }
+.score tbody tr { cursor: pointer; }
+.score tbody tr:hover td.site, .score tbody tr:focus td.site { text-decoration: underline; }
+.score tbody tr.sel td { background: var(--surface-2); }
+.score .heat { text-align: center; min-width: 40px; border-left: 2px solid var(--surface); }
+.score .good { font-weight: 650; font-size: 15px; }
+.score .months { padding: 0 0 0 10px; }
+.strip { display: flex; gap: 1px; }
+.strip i { display: block; width: 12px; height: 18px; border-radius: 2px; background: var(--surface-2); }
+.strip.head i { height: auto; background: none; font-style: normal; font-size: 11px; color: var(--ink-3); overflow: visible; white-space: nowrap; }
+.status { font-size: 12.5px; }
+.status.ok { color: var(--ok); }
+.status.short { color: var(--short); }
+.status.none { color: var(--ink-3); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--ink-2); margin: 10px 0 0; align-items: center; }
+.ramp { display: inline-flex; gap: 1px; vertical-align: middle; margin: 0 6px; }
+.ramp i { width: 18px; height: 10px; display: block; }
+.sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; vertical-align: -1px; margin-right: 4px; }
+.dot { border-radius: 50%; }
+.reason { display: grid; grid-template-columns: 170px 1fr 54px; gap: 8px; align-items: center; margin: 6px 0; font-size: 13px; }
+.reason .track { background: var(--surface-2); height: 12px; border-radius: 0 4px 4px 0; }
+.reason .bar { background: var(--muted-mark); height: 12px; border-radius: 0 4px 4px 0; }
+.reason.good .bar { background: var(--series); }
+.reason.check .bar { background: var(--check); }
+.status.check { color: var(--link); }
+.reason .num { text-align: right; font-variant-numeric: tabular-nums; }
+.hist { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.hist > div { min-width: 0; }
+svg { display: block; max-width: 100%; }
+svg text { fill: var(--ink-2); font-size: 11px; }
+.empty { color: var(--ink-3); font-size: 13px; padding: 34px 0; text-align: center; background: var(--surface-2); border-radius: 8px; }
+.pick { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 22px 0 10px; }
+.pick h2 { margin: 0; }
+button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius: 6px; border: 1px solid var(--axis); background: var(--surface); color: var(--ink); cursor: pointer; }
+#list { max-height: 420px; overflow-y: auto; border-bottom: 1px solid var(--grid); }
+.list { width: 100%; font-size: 13px; }
+.list thead th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
+.list th, .list td { padding: 4px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; text-align: right; }
+.list th:first-child, .list td:first-child, .list th.t, .list td.t { text-align: left; }
+.list td.id { font-size: 12px; color: var(--ink-2); max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+.guide { display: grid; grid-template-columns: 170px 1fr; gap: 6px 14px; font-size: 13.5px; margin: 8px 0 0; }
+.guide dt { color: var(--ink-2); }
+.guide dd { margin: 0; }
+.levels { font-size: 13px; margin-top: 12px; width: 100%; }
+.levels th, .levels td { padding: 4px 8px; border-bottom: 1px solid var(--grid); text-align: left; }
+.levels .n { text-align: right; }
+.warn { background: var(--surface-2); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 14px; }
+#tip { position: fixed; z-index: 20; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--axis); border-radius: 8px;
+  padding: 7px 10px; font-size: 12.5px; max-width: 280px; display: none; box-shadow: 0 2px 8px rgba(0,0,0,.14); }
+#tip b { display: block; font-size: 15px; font-weight: 650; }
+@media (max-width: 860px) { .answer, .cols { grid-template-columns: 1fr; } .hist { grid-template-columns: 1fr 1fr; } }
+
+.controls { gap: 10px 18px; }
+.controls input[type=range] { width: min(420px, 40vw); }
+.month { font-size: 20px; font-weight: 650; min-width: 118px; font-variant-numeric: tabular-nums; color: var(--ink); }
+button.play { min-width: 84px; }
+.mapwrap { position: relative; }
+canvas { display: block; width: 100%; height: auto; border-radius: 8px; background: var(--surface); border: 1px solid var(--grid); }
+.viz-root { --land: #dcdbd3; }
+:root[data-theme="dark"] .viz-root { --land: #34342f; }
+@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .viz-root { --land: #34342f; } }
+.scale { display: inline-flex; align-items: center; gap: 1px; margin: 0 6px; vertical-align: middle; }
+.scale i { display: block; width: 26px; height: 10px; }
+.ticks { display: inline-flex; margin-left: 6px; }
+.bars rect.hit { cursor: pointer; }
+.monthtable { width: 100%; font-size: 13px; }
+.monthtable th, .monthtable td { padding: 3px 8px; border-bottom: 1px solid var(--grid); text-align: right; white-space: nowrap; }
+.monthtable th:first-child, .monthtable td:first-child { text-align: left; }
+.monthtable tbody tr { cursor: pointer; }
+.monthtable tr.sel td { background: var(--surface-2); font-weight: 600; }
+.monthbox { max-height: 300px; overflow-y: auto; }
+.monthtable thead th { position: sticky; top: 0; background: var(--surface); }
+</style>
+</head>
+<body>
+<div class="viz-root"><div class="wrap">
+<h1>Vendor archive density: where each constellation collects, month by month</h1>
+<p class="sub">How many acquisitions each vendor's archive holds worldwide in each month. Move the slider or press Play to watch collection change.</p>
+<p class="note" style="margin:4px 0 0">Paul Montesano, PhD · NASA Goddard Space Flight Center; ESSIC · CSDA Multispectral Optical SME Group ·
+  <a href="mailto:paul.m.montesano@nasa.gov">paul.m.montesano@nasa.gov</a> · <span id="updated"></span></p>
+<div class="warn" style="margin:12px 0 0;font-size:13.5px"><b>Suggested use:</b> use this page to see where and when a constellation has been collecting. For what is available at an evaluation site, use the <a href="archive_first_look.html">Vendor archive first look</a>.</div>
+<div class="tabs" id="tabs" role="tablist"></div>
+<div class="filters controls">
+  <button class="action play" id="play">▶ Play</button>
+  <span class="month" id="month"></span>
+  <input type="range" id="slider" min="0" value="0" aria-label="Month">
+  <label>Show <select id="view" aria-label="Show"><option value="month">This month</option><option value="total">Running total</option></select></label>
+  <label>Speed <select id="speed" aria-label="Speed"><option value="1200">Slow</option><option value="600" selected>Medium</option><option value="250">Fast</option></select></label>
+</div>
+<div class="answer" id="answer"></div>
+<div class="card">
+  <h2 id="mapTitle"></h2>
+  <p class="note" id="mapNote"></p>
+  <div class="mapwrap"><canvas id="map" width="1208" height="520" role="img" aria-label="World map of acquisition density"></canvas></div>
+  <div class="legend" id="legend"></div>
+</div>
+<div class="card"><h2>Acquisitions each month</h2><p class="note">Select a month to jump to it. The dark bar is the month on the map.</p><div id="bars"></div></div>
+<div class="cols">
+  <div class="card"><h2>By month and sensor</h2><p class="note" id="tableNote"></p><div class="scroll monthbox" id="table"></div></div>
+  <div class="card"><h2>How to read this map</h2><dl class="guide" id="guide"></dl></div>
+</div>
+<p class="note" id="foot" style="margin-top:18px"></p>
+</div><div id="tip"></div></div>
+<script type="application/json" id="data">/*DATA*/null</script>
+<script>
+const DATA = JSON.parse(document.getElementById('data').textContent);
+const $ = id => document.getElementById(id);
+const LIGHT = ['#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b'];
+const DARK = ['#184f95', '#256abf', '#3987e5', '#6da7ec', '#9ec5f4', '#cde2fb'];
+const TOP = 84, BOTTOM = -62;   // latitudes shown
+const dark = () => getComputedStyle(document.querySelector('.viz-root')).colorScheme === 'dark';
+const css = name => getComputedStyle(document.querySelector('.viz-root')).getPropertyValue(name).trim();
+const state = {tab: 0, view: 'month', timer: null, per: {}};
+function el(tag, props = {}, ...kids) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === 'class') node.className = v; else if (k === 'text') node.textContent = v;
+    else if (k.startsWith('on')) node.addEventListener(k.slice(2), v); else node.setAttribute(k, v);
+  }
+  kids.flat().filter(c => c != null).forEach(c => node.append(c));
+  return node;
+}
+function svg(tag, props = {}) {
+  const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [k, v] of Object.entries(props)) { if (k === 'text') node.textContent = v; else if (k.startsWith('on')) node.addEventListener(k.slice(2), v); else node.setAttribute(k, v); }
+  return node;
+}
+function showTip(e, value, label) {
+  const t = $('tip'); t.replaceChildren(el('b', {text: value}), el('span', {text: label})); t.style.display = 'block';
+  t.style.left = Math.min(e.clientX + 14, innerWidth - t.offsetWidth - 8) + 'px';
+  t.style.top = Math.max(e.clientY - t.offsetHeight - 10, 6) + 'px';
+}
+const hideTip = () => { $('tip').style.display = 'none'; };
+const T = () => DATA.tabs[state.tab];
+const name = m => new Date(`${m}-15`).toLocaleDateString('en-US', {month: 'short', year: 'numeric'});
+const units = t => t.unit === 'pass' ? 'passes' : `${t.unit}s`;
+const label = (t, i) => name(t.totals[i].month) + (t.totals[i].month === t.partial ? ' (so far)' : '');
+
+function prepare(t) {
+  if (t.cum) return;
+  const size = t.columns * Math.round(180 / t.cell), running = new Int32Array(size);
+  t.cum = t.frames.map(f => { for (let i = 0; i < f.length; i += 2) running[f[i]] += f[i + 1]; return running.slice(); });
+  const quantile = (values, q) => { const s = [...values].sort((a, b) => a - b); return s.length ? s[Math.min(s.length - 1, Math.floor(q * s.length))] : 1; };
+  t.maxMonth = Math.max(2, quantile(t.frames.flatMap(f => f.filter((_, i) => i % 2)), .995));
+  t.maxTotal = Math.max(2, quantile(t.cum[t.cum.length - 1].filter(v => v), .995));
+  const full = t.totals.filter(m => m.month !== t.partial);
+  state.per[t.key] = state.per[t.key] ?? Math.max(0, full.length - 1);
+}
+function step(v, max) { return Math.min(5, Math.floor(Math.log(v) / Math.log(max + 1) * 6)); }
+let land = null, landTheme = null;
+function drawLand(w, h) {
+  const theme = dark();
+  if (land && landTheme === theme) return land;
+  land = document.createElement('canvas'); land.width = w; land.height = h; landTheme = theme;
+  const c = land.getContext('2d'), sx = w / 360, sy = h / (TOP - BOTTOM);
+  c.fillStyle = css('--land'); c.setTransform(sx, 0, 0, sy, 0, -(90 - TOP) * sy); c.fill(new Path2D(DATA.land));
+  return land;
+}
+function drawMap() {
+  const t = T(), i = state.per[t.key], canvas = $('map'), c = canvas.getContext('2d'), w = canvas.width, h = canvas.height;
+  const sx = w / 360, sy = h / (TOP - BOTTOM), ramp = dark() ? DARK : LIGHT;
+  const max = state.view === 'month' ? t.maxMonth : t.maxTotal, size = t.cell;
+  c.clearRect(0, 0, w, h); c.drawImage(drawLand(w, h), 0, 0);
+  const paint = (cell, v) => {
+    const row = Math.floor(cell / t.columns), col = cell % t.columns, lat = 90 - row * size;
+    c.fillStyle = ramp[step(v, max)];
+    c.fillRect(col * size * sx, (TOP - lat) * sy, size * sx + .5, size * sy + .5);
+  };
+  if (state.view === 'month') { const f = t.frames[i]; for (let k = 0; k < f.length; k += 2) paint(f[k], f[k + 1]); }
+  else t.cum[i].forEach((v, cell) => { if (v) paint(cell, v); });
+}
+function cellAt(e) {
+  const t = T(), r = $('map').getBoundingClientRect(), lon = (e.clientX - r.left) / r.width * 360 - 180, lat = TOP - (e.clientY - r.top) / r.height * (TOP - BOTTOM);
+  const col = Math.floor((lon + 180) / t.cell), row = Math.floor((90 - lat) / t.cell), cell = row * t.columns + col, i = state.per[t.key];
+  let v = 0;
+  if (state.view === 'total') v = t.cum[i][cell];
+  else { const f = t.frames[i]; for (let k = 0; k < f.length; k += 2) if (f[k] === cell) { v = f[k + 1]; break; } }
+  return {v, lon, lat};
+}
+function renderLegend(t) {
+  const max = state.view === 'month' ? t.maxMonth : t.maxTotal, ramp = dark() ? DARK : LIGHT;
+  const edge = k => Math.max(1, Math.round(Math.exp(k / 6 * Math.log(max + 1))));
+  $('legend').replaceChildren(el('span', {text: `${units(t)[0].toUpperCase() + units(t).slice(1)} in a ${t.cell}° cell:`}), el('span', {text: String(edge(0))}),
+    el('span', {class: 'scale'}, ramp.map(c => { const i = el('i'); i.style.background = c; return i; })), el('span', {text: `${edge(6).toLocaleString()}+`}),
+    el('span', {text: 'The scale stays fixed for this constellation, so months compare directly.'}));
+}
+function renderBars(t) {
+  const w = 1200, h = 120, pad = 18, n = t.totals.length, bw = w / n, i0 = state.per[t.key], max = Math.max(1, ...t.totals.map(m => m.n));
+  const root = svg('svg', {viewBox: `0 0 ${w} ${h}`, width: '100%', role: 'img', 'aria-label': 'Acquisitions each month'});
+  root.append(svg('line', {x1: 0, x2: w, y1: h - pad, y2: h - pad, stroke: 'var(--axis)'}));
+  t.totals.forEach((m, i) => {
+    const bh = (h - pad - 6) * m.n / max, x = i * bw;
+    root.append(svg('rect', {x: x + 1.5, y: h - pad - bh, width: Math.max(1, bw - 3), height: bh, fill: i === i0 ? 'var(--series)' : 'var(--check)'}));
+    const hit = svg('rect', {class: 'hit', x, y: 0, width: bw, height: h, fill: 'transparent', tabindex: 0, onclick: () => go(i)});
+    hit.addEventListener('pointermove', e => showTip(e, m.n.toLocaleString(), label(t, i))); hit.addEventListener('pointerleave', hideTip);
+    root.append(hit);
+    if (m.month.endsWith('-01') || i === 0) root.append(svg('text', {x: x + 2, y: h - 4, text: m.month.slice(0, 4)}));
+  });
+  $('bars').replaceChildren(root);
+}
+function renderTable(t) {
+  const sensors = [...new Set(t.totals.flatMap(m => Object.keys(m.sensors)))].sort(), i0 = state.per[t.key];
+  const fold = sensors.length > 8, shown = fold ? [] : sensors;
+  const rows = [...t.totals.keys()].reverse().map(i => { const m = t.totals[i];
+    return el('tr', {class: i === i0 ? 'sel' : '', onclick: () => go(i)}, el('td', {text: label(t, i)}), el('td', {text: m.n.toLocaleString()}), el('td', {text: m.clear.toLocaleString()}),
+      fold ? el('td', {text: Object.keys(m.sensors).length}) : shown.map(s => el('td', {text: (m.sensors[s] || '').toLocaleString()}))); });
+  $('table').replaceChildren(el('table', {class: 'monthtable'}, el('thead', {}, el('tr', {}, el('th', {text: 'Month'}), el('th', {text: 'All'}), el('th', {text: 'Cloud ≤ 20%'}),
+    fold ? el('th', {text: 'Sensors'}) : shown.map(s => el('th', {text: s})))), el('tbody', {}, rows)));
+  $('tableNote').textContent = 'Newest first. Select a month to show it on the map.';
+}
+function render() {
+  const t = T(), i = state.per[t.key], m = t.totals[i], total = t.totals.slice(0, i + 1).reduce((s, x) => s + x.n, 0), busiest = t.totals.reduce((a, b) => b.n > a.n ? b : a);
+  $('month').textContent = label(t, i); $('slider').max = t.totals.length - 1; $('slider').value = i;
+  const tile = (v, k, cls = '') => el('div', {class: 'tile ' + cls}, el('div', {class: 'v', text: v}), el('div', {class: 'k', text: k}));
+  $('answer').replaceChildren(tile(m.n.toLocaleString(), `${units(t)} in ${label(t, i)}`, 'hero'), tile(total.toLocaleString(), `${units(t)} from ${name(t.totals[0].month)} to here`),
+    tile(`${m.clear.toLocaleString()}`, 'of this month with cloud up to 20%'), tile(name(busiest.month), `busiest month, ${busiest.n.toLocaleString()} ${units(t)}`));
+  $('mapTitle').textContent = state.view === 'month' ? `${t.vendor} ${t.constellation}, ${label(t, i)}` : `${t.vendor} ${t.constellation}, all ${units(t)} up to ${label(t, i)}`;
+  $('mapNote').textContent = 'Every acquisition in the catalog, whatever its cloud cover. Point at a cell for its count.';
+  drawMap(); renderLegend(t); renderBars(t); renderTable(t);
+}
+function go(i) { state.per[T().key] = i; render(); }
+function stop() { clearInterval(state.timer); state.timer = null; $('play').textContent = '▶ Play'; }
+function start() {
+  const t = T();
+  if (state.per[t.key] >= t.totals.length - 2) go(0);   // from the latest month, play from the start
+  $('play').textContent = '❚❚ Pause';
+  state.timer = setInterval(() => { const n = state.per[T().key] + 1; if (n > T().totals.length - 1) stop(); else go(n); }, +$('speed').value);
+}
+function renderTabs() {
+  $('tabs').replaceChildren(...DATA.tabs.map((t, i) => el('button', {role: 'tab', 'aria-selected': i === state.tab, onclick: () => { stop(); state.tab = i; show(); }},
+    el('b', {text: `${t.vendor} ${t.constellation}`}), el('span', {text: `${name(t.totals[0].month)} onward`}))));
+}
+function show() {
+  const t = T(); prepare(t); renderTabs(); render();
+  const entries = [['One count is', t.guide], ['Map cells', `${t.cell}° squares, placed by the center of each footprint. A wide scene counts only in the cell at its center.`],
+    ['Recent months', 'These can still grow: vendors add acquisitions to their catalogs late. The current month is marked "so far".'],
+    ['Comparing tabs', 'Each constellation has its own color scale, so compare patterns between tabs, not shades.']];
+  $('guide').replaceChildren(...entries.flatMap(([k, v]) => [el('dt', {text: k}), el('dd', {text: v})]));
+  $('foot').textContent = `${t.vendor} ${t.constellation}: catalog collections ${t.collections.join(', ')}.`;
+}
+$('updated').textContent = `Last updated: ${DATA.updated}`;
+$('slider').addEventListener('input', e => { stop(); go(+e.target.value); });
+$('play').addEventListener('click', () => state.timer ? stop() : start());
+$('view').addEventListener('change', e => { state.view = e.target.value; render(); });
+$('speed').addEventListener('change', () => { if (state.timer) { stop(); start(); } });
+$('map').addEventListener('pointermove', e => { const c = cellAt(e); if (c.v) showTip(e, c.v.toLocaleString(), `${units(T())} near ${Math.abs(c.lat).toFixed(0)}°${c.lat >= 0 ? 'N' : 'S'}, ${Math.abs(c.lon).toFixed(0)}°${c.lon >= 0 ? 'E' : 'W'}`); else hideTip(); });
+$('map').addEventListener('pointerleave', hideTip);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { land = null; render(); });
+show();
+</script>
+</body>
+</html>
