@@ -178,7 +178,8 @@ def tab_data(vendor: str, gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, sites_
 def build(page: Path = PAGE) -> Path:
     """The page, from the template and every tab's data file."""
     tabs = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(DATA_DIR.glob("*.json"))]
-    data = json.dumps({"tabs": tabs, "land": LAND.read_text(encoding="utf-8").strip()}, separators=(",", ":"))
+    data = json.dumps({"tabs": tabs, "land": LAND.read_text(encoding="utf-8").strip(), "updated": f"{pd.Timestamp.today():%-d %b %Y}"},
+                      separators=(",", ":"))
     html = TEMPLATE.read_text(encoding="utf-8").replace("/*DATA*/null", data.replace("</", "<\\/"))
     page.write_text(html, encoding="utf-8")
     return page
