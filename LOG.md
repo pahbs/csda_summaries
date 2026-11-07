@@ -31,6 +31,11 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-07 · [3] Airbus and Legion tracking notebooks rebuilt on one layout and a shared `lib/tracking_report.py`: each ends with what is new since the last run, the HTML summary (now written by the notebook, with products and processing levels in plain terms) and the download of anything not on ADAPT. Run 7 Nov: 46 products (84 GB) downloaded, footprints rerun, timeline updated.
+- 2026-11-07 · [2] `multistac_site_analysis_hydrosat.ipynb` runs: reads the local workbook (`API search` tab; 29 sites, 2 mapped by coordinates, non-breaking space fixed in `lib/site_request.py`). 93 acquisitions at 24 sites at the Hydrosat API, none at CSDA, with `CLOUD_COVER_MAX = 0`. Searches L1B and L2 only: L1A and nighttime items have no cloud cover, and a scene's L1A shares its `hydrosat:scene_id`, so L1B results carry over if L1A is ever ordered.
+- 2026-11-06 · Hydrosat site search reads its sites from the requests workbook (`lib/site_request.py`): SharePoint through Microsoft Graph sign-in, or a local copy. The live sign-in is untested and needs a registered app ID.
+- 2026-11-06 · Hydrosat site search: `multistac_site_analysis_hydrosat.ipynb` rewritten for all Optical and Thermal sites at CSDA STAC and the Hydrosat API, with a download set up but not run. CSDA holds 4 Hydrosat products, none at these sites.
+- 2026-11-06 · [6] RSR database: curves added for MODIS, VIIRS, Sentinel-3, Landsat 5 and 7 (measured) and Tanager and Pixxel Firefly (modeled); dashboard updated. 29 constellations still have none.
 - 2026-11-06 · [6] Vendor Specs dashboard: one set of filters pinned above the tabs, driving every tab.
 - 2026-11-06 · [6] Vendor Specs dashboard: new *Spectral Response* tab (interactive RSR curves in the style of `build_rsr_db.ipynb`).
 - 2026-11-06 · [6] Timeline: Vendor Specs dashboard linked in the page links beside the footprints map.
@@ -281,6 +286,26 @@ only if needed), never a separate search API.
 
 ## 3 · Data requests and downloads
 
+### 2026-11-07 · Tracking notebooks made consistent (`lib/tracking_report.py`)
+- `airbus_order_tracking.ipynb` and `vantor_legion_supp_tracking.ipynb` share sections 2, 3 and 5–8 and the parameter names; only
+  1 (what was requested) and 4 (compare with the request) are vendor-specific. Section 8 prints the same three results.
+- **New** = not in the last run's list (`OUT_DIR/runs/products_YYYYMMDD.csv`), since CSDA STAC has no date added. This finds late
+  deliveries that an "acquired since" date misses. The last run is the latest before today, so same-day re-runs agree. The
+  first lists were rebuilt from the 7 Nov search: Airbus 3 Nov (492 rows, as that run reported), Legion 4 Nov (189 rows).
+- **On ADAPT** is per product in both (folder with all assets, or footprints). Legion was per pass, which hid 20 products of passes
+  on ADAPT; item ids come from the footprint file names (`-M2AS-200014660685_01_P001` = `200014660685_01_P001_M2AS`).
+- **Download** = every CSDA product at the sites not on ADAPT, in both. Airbus followed the sheet only, so `PNEO3_202610260345575`
+  (no free slot) was never fetched. Airbus now searches without the cache, which replaces its two extra searches.
+- **HTML pages** were made by hand; the notebooks now write them at the same addresses. They reproduce the old totals (Legion 48
+  acquisitions, 134 products, 19 / 10 / 19; Airbus 101, 222, 91 TOA only, 10 both), and now cover all that is available.
+- Run on 7 Nov: Airbus 198 acquisitions, 4 new, 18 products (8 acquisitions, 40.7 GB) downloaded, including 3 archive acquisitions
+  outside the sheet; Legion 68 acquisitions, 3 new, 28 products (16 acquisitions, 43.2 GB) downloaded. All complete: 502 of 502 and
+  201 of 201 products on ADAPT. Footprints rerun: `Airbus/augmentation` 109 acquisitions, 240 products; all 201 Legion products found.
+- The footprint run's site coverage maps (cell 43) timed out on a network connection, and
+  `Airbus/HD15/000501695_1_1_HD_A/.../IMG_PNEO4_HD_202510051040574_PMS_...R1C1.TIF` could not be read (bad TIFF directory).
+- SME pages: "TOA" differs by vendor: Airbus `RFL` pixels are reflectance, Vantor enhancement `Off` pixels are calibrated DN needing
+  `absCalFactor`. Terms confirmed from delivered `DIM_*.XML` and `.IMD` files (`LV2A` = coarse DEM, `LV3D` = fine DEM, `SEN` = sensor).
+
 ### 2026-11-04 · Legion download to `Data/Maxar/Legion/augmentation` (`vantor_legion_supp_tracking.ipynb` §10)
 - Same method as the Airbus download (`CsdaClient` + `csdalib_download.download_all_assets`): CSDA Legion acquisitions at the
   request sites that section 5 does not find on ADAPT. `MEETS_ONLY = False` (all of them; `True` = meeting the requirements).
@@ -456,6 +481,15 @@ only if needed), never a separate search API.
 ---
 
 ## 6 · Evaluation results, RadCalNet and spectral response
+
+### 2026-11-06 · RSR database: added sensors
+- New curves in `CSDA_eval/results/evaluation_results_db/rsr/added/` (README and `build_added_rsr.py` there), appended to both `csda_rsr_curve_data.csv` copies (backups `*_pre_added_2026-11-06.csv`). The database files stay off GitHub.
+- Measured: MODIS, VIIRS, Sentinel-3 OLCI and SLSTR (Pyspectral v1.6.1, CC-BY-4.0, credited on the page); Landsat 5 TM and 7 ETM+ (GFZ pyrsr, Apache-2.0).
+- Modeled, not measured: Tanager (426 bands) and Pixxel Firefly (135 per satellite), as Gaussians from centers and FWHM in delivered products. Files are named `gaussian_*`; the panels say *modeled* and leave the band table.
+- Band center now ignores response below 5% of the peak (VIIRS M1 read 422 nm from an out-of-band tail; now 410.5). Sentinel-2 values did not move.
+- `build_rsr_db.ipynb` reads `rsr/added/` and keeps band names outside `band_order`. Snippet tested in R; the notebook itself not rerun. Its plots show those bands as NA.
+- **Not found (29 constellations):** no public curves for Hydrosat VanZyl, EarthDaily, Satlantis GEISAT-P and HORACIO, OroraTech, OSK GHOSt and GHOSt-6, ImageSat EROS-A, B, C2, C3 and Runner-1, HotSat, FireSat, Pelican Gen 1 and 2, Kuva. Also none reachable for EnMAP, DESIS, MERIS, PROBA-V, GCOM-C (NWP SAF has only its two thermal channels), ADEOS, ADEOS-II, ALOS, ALOS-3, IKONOS, WorldView-1, WorldView-4. None were invented from band edges.
+- Leads: EarthDaily says its Science product metadata holds spectral response functions; OSK's SPIE 2024 calibration paper; Apollo Mapping's "Maxar Constellation Spectral Response Values" (blocks automated access) for WorldView-1, WorldView-4 and maybe IKONOS; any EnMAP L2A scene for band centers and FWHM.
 
 ### 2026-11-06 · Vendor Specs: one pinned set of filters
 - Sector, Status, Highlight, Find, Color by and the owner key now sit above the tabs and stay on screen with them (static on phones and very short windows). Tiles moved above the bar.
