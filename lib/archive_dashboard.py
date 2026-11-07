@@ -178,6 +178,8 @@ def tab_data(vendor: str, gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, sites_
 def build(page: Path = PAGE) -> Path:
     """The page, from the template and every tab's data file."""
     tabs = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(DATA_DIR.glob("*.json"))]
+    for t in tabs:
+        t["palette"] = vendor_palette(t["vendor"])
     data = json.dumps({"tabs": tabs, "land": LAND.read_text(encoding="utf-8").strip(), "updated": f"{pd.Timestamp.today():%-d %b %Y}"},
                       separators=(",", ":"))
     html = TEMPLATE.read_text(encoding="utf-8").replace("/*DATA*/null", data.replace("</", "<\\/"))
@@ -197,3 +199,52 @@ def publish(vendor: str, gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, sites_f
     built = build(page)
     print(built)
     return built
+
+
+# Vendor colors, shared with the Vendor Specs page (vendor_specs.AFFILIATION_COLORS). The exact color marks the vendor;
+# data marks use a light-to-dark ramp of its hue, so light colors such as Vantor's cyan still contrast with the page.
+AFFILIATION = {"Hydrosat": "HydroSat", "Kuva Space": "Kuva", "Satellogic": "Satellogic", "Vantor": "Vantor"}
+RAMP_L = {"light": [0.90, 0.82, 0.73, 0.64, 0.55, 0.46, 0.37], "dark": [0.40, 0.48, 0.56, 0.65, 0.74, 0.83, 0.91],
+          # maps: the lightest step is one acquisition, so it starts darker and must stand out from the page
+          "map_light": [0.73, 0.65, 0.57, 0.49, 0.41, 0.33], "map_dark": [0.52, 0.60, 0.68, 0.76, 0.84, 0.92]}
+
+
+def _to_oklch(hex_color: str):
+    r, g, b = [int(hex_color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    lin = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in (r, g, b)]
+    l_ = (0.4122214708 * lin[0] + 0.5363325363 * lin[1] + 0.0514459929 * lin[2]) ** (1 / 3)
+    m_ = (0.2119034982 * lin[0] + 0.6806995451 * lin[1] + 0.1073969566 * lin[2]) ** (1 / 3)
+    s_ = (0.0883024619 * lin[0] + 0.2817188376 * lin[1] + 0.6299787005 * lin[2]) ** (1 / 3)
+    L = 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_
+    a = 1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_
+    bb = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_
+    return L, math.hypot(a, bb), math.atan2(bb, a)
+
+
+def _from_oklch(L: float, C: float, h: float):
+    a, b = C * math.cos(h), C * math.sin(h)
+    l_, m_, s_ = L + 0.3963377774 * a + 0.2158037573 * b, L - 0.1055613458 * a - 0.0638541728 * b, L - 0.0894841775 * a - 1.2914855480 * b
+    l, m, s = l_ ** 3, m_ ** 3, s_ ** 3
+    lin = (4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+           -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s)
+    if min(lin) < -1e-4 or max(lin) > 1 + 1e-4:
+        return None
+    rgb = [12.92 * c if c <= 0.0031308 else 1.055 * max(c, 0) ** (1 / 2.4) - 0.055 for c in lin]
+    return "#" + "".join(f"{round(min(max(c, 0), 1) * 255):02x}" for c in rgb)
+
+
+def vendor_palette(vendor: str) -> dict:
+    """The vendor's color and its ramps for light and dark pages: its hue, with the chroma lowered where it leaves sRGB."""
+    from vendor_specs import AFFILIATION_COLORS
+    color = AFFILIATION_COLORS.get(AFFILIATION.get(vendor, vendor), "#2a78d6")
+    _, chroma, hue = _to_oklch(color)
+    ramp = {}
+    for mode, steps in RAMP_L.items():
+        out = []
+        for L in steps:
+            C = max(chroma, 0.09)
+            while _from_oklch(L, C, hue) is None and C > 0:
+                C -= 0.005
+            out.append(_from_oklch(L, C, hue))
+        ramp[mode] = out
+    return {"color": color, **ramp}

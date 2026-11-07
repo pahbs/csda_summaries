@@ -122,7 +122,14 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
 
 .controls { gap: 10px 18px; }
 .controls input[type=range] { width: min(420px, 40vw); }
-.month { font-size: 20px; font-weight: 650; min-width: 118px; font-variant-numeric: tabular-nums; color: var(--ink); }
+.month { font-size: 20px; font-weight: 650; width: 12em; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--ink); }
+.month small { font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.timeline { flex-basis: 100%; cursor: pointer; touch-action: none; outline-offset: 3px; border-radius: 6px; }
+.timeline:focus { outline: none; }
+.timeline:focus-visible { outline: 2px solid var(--series); }
+.timeline svg text { font-size: 11px; }
+.tabs .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+.tabs button[aria-selected="true"] { color: var(--ink); }
 button.play { min-width: 84px; }
 .mapwrap { position: relative; }
 canvas { display: block; width: 100%; height: auto; border-radius: 8px; background: var(--surface); border: 1px solid var(--grid); }
@@ -145,7 +152,7 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
 <body>
 <div class="viz-root"><div class="wrap">
 <h1>Vendor archive density: where each constellation collects, month by month</h1>
-<p class="sub">How many acquisitions each vendor's archive holds worldwide in each month. Move the slider or press Play to watch collection change.</p>
+<p class="sub">How many acquisitions each vendor's archive holds worldwide in each month. Drag along the timeline or press Play to watch collection change.</p>
 <p class="note" style="margin:4px 0 0">Paul Montesano, PhD · NASA Goddard Space Flight Center; ESSIC · CSDA Multispectral Optical SME Group ·
   <a href="mailto:paul.m.montesano@nasa.gov">paul.m.montesano@nasa.gov</a> · <span id="updated"></span></p>
 <div class="warn" style="margin:12px 0 0;font-size:13.5px"><b>Suggested use:</b> use this page to see where and when a constellation has been collecting. For what is available at an evaluation site, use the <a href="archive_first_look.html">Vendor archive first look</a>.</div>
@@ -153,9 +160,9 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
 <div class="filters controls">
   <button class="action play" id="play">▶ Play</button>
   <span class="month" id="month"></span>
-  <input type="range" id="slider" min="0" value="0" aria-label="Month">
   <label>Show <select id="view" aria-label="Show"><option value="month">This month</option><option value="total">Running total</option></select></label>
   <label>Speed <select id="speed" aria-label="Speed"><option value="1200">Slow</option><option value="600" selected>Medium</option><option value="250">Fast</option></select></label>
+  <div class="timeline" id="timeline" role="slider" tabindex="0" aria-label="Month"></div>
 </div>
 <div class="answer" id="answer"></div>
 <div class="card">
@@ -164,7 +171,6 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
   <div class="mapwrap"><canvas id="map" width="1208" height="520" role="img" aria-label="World map of acquisition density"></canvas></div>
   <div class="legend" id="legend"></div>
 </div>
-<div class="card"><h2>Acquisitions each month</h2><p class="note">Select a month to jump to it. The dark bar is the month on the map.</p><div id="bars"></div></div>
 <div class="cols">
   <div class="card"><h2>By month and sensor</h2><p class="note" id="tableNote"></p><div class="scroll monthbox" id="table"></div></div>
   <div class="card"><h2>How to read this map</h2><dl class="guide" id="guide"></dl></div>
@@ -175,8 +181,11 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
 <script>
 const DATA = JSON.parse(document.getElementById('data').textContent);
 const $ = id => document.getElementById(id);
-const LIGHT = ['#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b'];
-const DARK = ['#184f95', '#256abf', '#3987e5', '#6da7ec', '#9ec5f4', '#cde2fb'];
+const mapRamp = () => T().palette[dark() ? 'map_dark' : 'map_light'];
+function applyPalette() {
+  const root = document.querySelector('.viz-root'), r = T().palette[dark() ? 'dark' : 'light'];
+  root.style.setProperty('--series', r[4]); root.style.setProperty('--check', r[2]);
+}
 const TOP = 84, BOTTOM = -62;   // latitudes shown
 const dark = () => getComputedStyle(document.querySelector('.viz-root')).colorScheme === 'dark';
 const css = name => getComputedStyle(document.querySelector('.viz-root')).getPropertyValue(name).trim();
@@ -228,7 +237,7 @@ function drawLand(w, h) {
 }
 function drawMap() {
   const t = T(), i = state.per[t.key], canvas = $('map'), c = canvas.getContext('2d'), w = canvas.width, h = canvas.height;
-  const sx = w / 360, sy = h / (TOP - BOTTOM), ramp = dark() ? DARK : LIGHT;
+  const sx = w / 360, sy = h / (TOP - BOTTOM), ramp = mapRamp();
   const max = state.view === 'month' ? t.maxMonth : t.maxTotal, size = t.cell;
   c.clearRect(0, 0, w, h); c.drawImage(drawLand(w, h), 0, 0);
   const paint = (cell, v) => {
@@ -248,25 +257,41 @@ function cellAt(e) {
   return {v, lon, lat};
 }
 function renderLegend(t) {
-  const max = state.view === 'month' ? t.maxMonth : t.maxTotal, ramp = dark() ? DARK : LIGHT;
+  const max = state.view === 'month' ? t.maxMonth : t.maxTotal, ramp = mapRamp();
   const edge = k => Math.max(1, Math.round(Math.exp(k / 6 * Math.log(max + 1))));
   $('legend').replaceChildren(el('span', {text: `${units(t)[0].toUpperCase() + units(t).slice(1)} in a ${t.cell}° cell:`}), el('span', {text: String(edge(0))}),
     el('span', {class: 'scale'}, ramp.map(c => { const i = el('i'); i.style.background = c; return i; })), el('span', {text: `${edge(6).toLocaleString()}+`}),
     el('span', {text: 'The scale stays fixed for this constellation, so months compare directly.'}));
 }
-function renderBars(t) {
-  const w = 1200, h = 120, pad = 18, n = t.totals.length, bw = w / n, i0 = state.per[t.key], max = Math.max(1, ...t.totals.map(m => m.n));
-  const root = svg('svg', {viewBox: `0 0 ${w} ${h}`, width: '100%', role: 'img', 'aria-label': 'Acquisitions each month'});
-  root.append(svg('line', {x1: 0, x2: w, y1: h - pad, y2: h - pad, stroke: 'var(--axis)'}));
+function renderTimeline(t) {
+  const w = 1200, h = 86, top = 18, base = h - 20, n = t.totals.length, bw = w / n, i0 = state.per[t.key], view = state.view;
+  const values = view === 'month' ? t.totals.map(m => m.n) : t.totals.reduce((a, m) => (a.push((a[a.length - 1] || 0) + m.n), a), []);
+  const max = Math.max(1, ...values), y = v => base - (base - top) * v / max, cx = i => i * bw + bw / 2;
+  const root = svg('svg', {viewBox: `0 0 ${w} ${h}`, width: '100%', 'aria-hidden': 'true'});
+  if (view === 'month') {
+    values.forEach((v, i) => root.append(svg('rect', {x: i * bw + 1, y: y(v), width: Math.max(1, bw - 2), height: base - y(v),
+      fill: i === i0 ? 'var(--series)' : i < i0 ? 'var(--check)' : 'var(--muted-mark)'})));
+  } else {
+    const line = k => values.slice(0, k + 1).map((v, i) => `${i ? 'L' : 'M'}${cx(i)},${y(v)}`).join('');
+    root.append(svg('path', {d: `${line(n - 1)}L${cx(n - 1)},${base}L${cx(0)},${base}Z`, fill: 'var(--muted-mark)', opacity: .45}));
+    root.append(svg('path', {d: `${line(i0)}L${cx(i0)},${base}L${cx(0)},${base}Z`, fill: 'var(--check)'}));
+    root.append(svg('path', {d: line(i0), fill: 'none', stroke: 'var(--series)', 'stroke-width': 2}));
+  }
+  root.append(svg('line', {x1: 0, x2: w, y1: base, y2: base, stroke: 'var(--axis)'}));
   t.totals.forEach((m, i) => {
-    const bh = (h - pad - 6) * m.n / max, x = i * bw;
-    root.append(svg('rect', {x: x + 1.5, y: h - pad - bh, width: Math.max(1, bw - 3), height: bh, fill: i === i0 ? 'var(--series)' : 'var(--check)'}));
-    const hit = svg('rect', {class: 'hit', x, y: 0, width: bw, height: h, fill: 'transparent', tabindex: 0, onclick: () => go(i)});
-    hit.addEventListener('pointermove', e => showTip(e, m.n.toLocaleString(), label(t, i))); hit.addEventListener('pointerleave', hideTip);
-    root.append(hit);
-    if (m.month.endsWith('-01') || i === 0) root.append(svg('text', {x: x + 2, y: h - 4, text: m.month.slice(0, 4)}));
+    const jan = m.month.endsWith('-01'), quarter = /-(04|07|10)$/.test(m.month);
+    if (jan || quarter || i === 0) root.append(svg('line', {x1: i * bw, x2: i * bw, y1: base, y2: base + (jan || i === 0 ? 7 : 4), stroke: 'var(--axis)'}));
+    if (jan || i === 0) root.append(svg('text', {x: i * bw + 3, y: h - 4, text: m.month.slice(0, 4)}));
   });
-  $('bars').replaceChildren(root);
+  const x0 = cx(i0), v0 = values[i0];
+  root.append(svg('line', {x1: x0, x2: x0, y1: top - 4, y2: base, stroke: 'var(--ink)', 'stroke-width': 1.5}));
+  root.append(svg('circle', {cx: x0, cy: y(v0), r: 5, fill: 'var(--surface)', stroke: 'var(--ink)', 'stroke-width': 2}));
+  const right = x0 > w - 160;
+  root.append(svg('text', {x: right ? x0 - 8 : x0 + 8, y: top - 6, 'text-anchor': right ? 'end' : 'start', style: 'fill:var(--ink);font-weight:600',
+    text: `${v0.toLocaleString()} ${view === 'month' ? 'this month' : 'so far'}`}));
+  const box = $('timeline'); box.replaceChildren(root);
+  box.setAttribute('aria-valuemin', 0); box.setAttribute('aria-valuemax', n - 1); box.setAttribute('aria-valuenow', i0);
+  box.setAttribute('aria-valuetext', `${label(t, i0)}: ${v0.toLocaleString()} ${units(t)} ${view === 'month' ? 'this month' : 'in all'}`);
 }
 function renderTable(t) {
   const sensors = [...new Set(t.totals.flatMap(m => Object.keys(m.sensors)))].sort(), i0 = state.per[t.key];
@@ -280,13 +305,14 @@ function renderTable(t) {
 }
 function render() {
   const t = T(), i = state.per[t.key], m = t.totals[i], total = t.totals.slice(0, i + 1).reduce((s, x) => s + x.n, 0), busiest = t.totals.reduce((a, b) => b.n > a.n ? b : a);
-  $('month').textContent = label(t, i); $('slider').max = t.totals.length - 1; $('slider').value = i;
+  const now = t.totals[i].month === t.partial;
+  $('month').replaceChildren(name(t.totals[i].month), now ? el('small', {text: ' so far'}) : '');
   const tile = (v, k, cls = '') => el('div', {class: 'tile ' + cls}, el('div', {class: 'v', text: v}), el('div', {class: 'k', text: k}));
   $('answer').replaceChildren(tile(m.n.toLocaleString(), `${units(t)} in ${label(t, i)}`, 'hero'), tile(total.toLocaleString(), `${units(t)} from ${name(t.totals[0].month)} to here`),
     tile(`${m.clear.toLocaleString()}`, 'of this month with cloud up to 20%'), tile(name(busiest.month), `busiest month, ${busiest.n.toLocaleString()} ${units(t)}`));
   $('mapTitle').textContent = state.view === 'month' ? `${t.vendor} ${t.constellation}, ${label(t, i)}` : `${t.vendor} ${t.constellation}, all ${units(t)} up to ${label(t, i)}`;
   $('mapNote').textContent = 'Every acquisition in the catalog, whatever its cloud cover. Point at a cell for its count.';
-  drawMap(); renderLegend(t); renderBars(t); renderTable(t);
+  drawMap(); renderLegend(t); renderTimeline(t); renderTable(t);
 }
 function go(i) { state.per[T().key] = i; render(); }
 function stop() { clearInterval(state.timer); state.timer = null; $('play').textContent = '▶ Play'; }
@@ -297,11 +323,16 @@ function start() {
   state.timer = setInterval(() => { const n = state.per[T().key] + 1; if (n > T().totals.length - 1) stop(); else go(n); }, +$('speed').value);
 }
 function renderTabs() {
-  $('tabs').replaceChildren(...DATA.tabs.map((t, i) => el('button', {role: 'tab', 'aria-selected': i === state.tab, onclick: () => { stop(); state.tab = i; show(); }},
-    el('b', {text: `${t.vendor} ${t.constellation}`}), el('span', {text: `${name(t.totals[0].month)} onward`}))));
+  $('tabs').replaceChildren(...DATA.tabs.map((t, i) => {
+    const sw = el('i', {class: 'swatch'}); sw.style.background = t.palette.color;
+    const b = el('button', {role: 'tab', 'aria-selected': i === state.tab, onclick: () => { stop(); state.tab = i; show(); }},
+      el('b', {}, sw, `${t.vendor} ${t.constellation}`), el('span', {text: `${name(t.totals[0].month)} onward`}));
+    if (i === state.tab) b.style.borderBottomColor = t.palette.color;
+    return b;
+  }));
 }
 function show() {
-  const t = T(); prepare(t); renderTabs(); render();
+  const t = T(); prepare(t); applyPalette(); renderTabs(); render();
   const entries = [['One count is', t.guide], ['Map cells', `${t.cell}° squares, placed by the center of each footprint. A wide scene counts only in the cell at its center.`],
     ['Recent months', 'These can still grow: vendors add acquisitions to their catalogs late. The current month is marked "so far".'],
     ['Comparing tabs', 'Each constellation has its own color scale, so compare patterns between tabs, not shades.']];
@@ -309,13 +340,28 @@ function show() {
   $('foot').textContent = `${t.vendor} ${t.constellation}: catalog collections ${t.collections.join(', ')}.`;
 }
 $('updated').textContent = `Last updated: ${DATA.updated}`;
-$('slider').addEventListener('input', e => { stop(); go(+e.target.value); });
+const tl = $('timeline'); let dragging = false;
+const monthAt = e => { const r = tl.getBoundingClientRect(); return Math.max(0, Math.min(T().totals.length - 1, Math.floor((e.clientX - r.left) / r.width * T().totals.length))); };
+tl.addEventListener('pointerdown', e => { dragging = true; tl.setPointerCapture(e.pointerId); stop(); go(monthAt(e)); });
+tl.addEventListener('pointermove', e => {
+  const i = monthAt(e), t = T();
+  if (dragging) { if (i !== state.per[t.key]) go(i); hideTip(); }
+  else showTip(e, t.totals[i].n.toLocaleString(), `${units(t)} in ${label(t, i)}`);
+});
+tl.addEventListener('pointerup', () => { dragging = false; });
+tl.addEventListener('pointerleave', hideTip);
+tl.addEventListener('keydown', e => {
+  const t = T(), i = state.per[t.key], last = t.totals.length - 1;
+  const to = {ArrowLeft: i - 1, ArrowRight: i + 1, ArrowDown: i - 1, ArrowUp: i + 1, PageDown: i - 12, PageUp: i + 12, Home: 0, End: last}[e.key];
+  if (to === undefined) return;
+  e.preventDefault(); stop(); go(Math.max(0, Math.min(last, to)));
+});
 $('play').addEventListener('click', () => state.timer ? stop() : start());
 $('view').addEventListener('change', e => { state.view = e.target.value; render(); });
 $('speed').addEventListener('change', () => { if (state.timer) { stop(); start(); } });
 $('map').addEventListener('pointermove', e => { const c = cellAt(e); if (c.v) showTip(e, c.v.toLocaleString(), `${units(T())} near ${Math.abs(c.lat).toFixed(0)}°${c.lat >= 0 ? 'N' : 'S'}, ${Math.abs(c.lon).toFixed(0)}°${c.lon >= 0 ? 'E' : 'W'}`); else hideTip(); });
 $('map').addEventListener('pointerleave', hideTip);
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { land = null; render(); });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { land = null; applyPalette(); render(); });
 show();
 </script>
 </body>

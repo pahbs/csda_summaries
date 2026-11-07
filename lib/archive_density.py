@@ -19,7 +19,7 @@ from typing import Dict, List, Optional
 import pandas as pd
 
 import multistac
-from archive_dashboard import LAND, merge_passes
+from archive_dashboard import LAND, merge_passes, vendor_palette
 
 REPO = Path(__file__).resolve().parents[1]
 STORE = Path("/explore/nobackup/people/pmontesa/multistac/global_analysis/monthly")
@@ -145,6 +145,8 @@ def tab(vendor: str, cell: float = CELL_DEG) -> Optional[dict]:
 
 def build(page: Path = PAGE) -> Path:
     tabs = [t for t in (tab(v) for v in VENDORS) if t]
+    for t in tabs:
+        t["palette"] = vendor_palette(t["vendor"])
     data = json.dumps({"tabs": tabs, "land": LAND.read_text(encoding="utf-8").strip(), "updated": f"{pd.Timestamp.today():%-d %b %Y}"},
                       separators=(",", ":"))
     page.write_text(TEMPLATE.read_text(encoding="utf-8").replace("/*DATA*/null", data.replace("</", "<\\/")), encoding="utf-8")

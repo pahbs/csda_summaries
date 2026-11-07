@@ -45,7 +45,8 @@ code { font-size: .92em; }
   cursor: pointer; text-align: left; }
 .tabs button b { display: block; font-weight: 620; color: inherit; }
 .tabs button span { font-size: 12px; }
-.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--series); }
+.tabs button[aria-selected="true"] { color: var(--ink); }
+.tabs .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
 .filters { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--grid);
   margin-bottom: 18px; position: sticky; top: 0; background: var(--surface); z-index: 5; }
 .filters .lead { font-weight: 620; }
@@ -160,8 +161,12 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
 <script>
 const DATA = JSON.parse(document.getElementById('data').textContent);
 const $ = id => document.getElementById(id);
-const LIGHT = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b'];
-const DARK = ['#104281', '#184f95', '#256abf', '#3987e5', '#6da7ec', '#9ec5f4', '#cde2fb'];
+const pal = () => DATA.tabs[state.tab].palette;
+const ramp = () => pal()[dark() ? 'dark' : 'light'];
+function applyPalette() {   // the vendor's ramp for data marks: Good is a strong step, Check AOI a lighter one
+  const root = document.querySelector('.viz-root'), r = ramp();
+  root.style.setProperty('--series', r[4]); root.style.setProperty('--check', r[2]);
+}
 const dark = () => getComputedStyle(document.querySelector('.viz-root')).colorScheme === 'dark';
 const state = {tab: 0, per: {}};
 const S = () => state.per[state.tab];
@@ -232,14 +237,19 @@ function slice(tab) {
 const uniq = rows => new Set(rows.map(a => a.a)).size;
 
 function color(v, max) {
-  const ramp = dark() ? DARK : LIGHT;
-  const i = Math.min(ramp.length - 1, Math.floor(Math.sqrt(v / Math.max(max, 1)) * ramp.length));
-  return {bg: ramp[i], fg: (dark() ? i >= 4 : i >= 3) ? (dark() ? '#0b0b0b' : '#ffffff') : (dark() ? '#ffffff' : '#0b0b0b')};
+  const steps = ramp();
+  const i = Math.min(steps.length - 1, Math.floor(Math.sqrt(v / Math.max(max, 1)) * steps.length));
+  return {bg: steps[i], fg: (dark() ? i >= 4 : i >= 3) ? (dark() ? '#0b0b0b' : '#ffffff') : (dark() ? '#ffffff' : '#0b0b0b')};
 }
 
 function renderTabs() {
-  $('tabs').replaceChildren(...DATA.tabs.map((t, i) => el('button', {role: 'tab', 'aria-selected': i === state.tab,
-    onclick: () => { state.tab = i; renderAll(); }}, el('b', {text: `${t.vendor} ${t.constellation}`}), el('span', {text: t.bands}))));
+  $('tabs').replaceChildren(...DATA.tabs.map((t, i) => {
+    const sw = el('i', {class: 'swatch'}); sw.style.background = t.palette.color;
+    const b = el('button', {role: 'tab', 'aria-selected': i === state.tab, onclick: () => { state.tab = i; renderAll(); }},
+      el('b', {}, sw, `${t.vendor} ${t.constellation}`), el('span', {text: t.bands}));
+    if (i === state.tab) b.style.borderBottomColor = t.palette.color;
+    return b;
+  }));
 }
 function renderFilters(tab) {
   const s = S(), f = $('filters');
@@ -332,7 +342,7 @@ function renderScore(tab, rows) {
     return row;
   });
   $('score').replaceChildren(el('table', {class: 'score'}, el('thead', {}, head), el('tbody', {}, body)));
-  const lights = dark() ? DARK : LIGHT;
+  const lights = ramp();
   $('scoreNote').textContent = `Sorted by good acquisitions. Columns are ${tab.sensors.length === 1 ? 'the sensor' : 'sensors, most productive first'}, then months. Select a row to look closer.`
     + (scene ? ' Check AOI: the scene is over the site\'s cloud limit but within the scene limit, so the site itself may be clear. Look at the image.' : '');
   $('nothing').textContent = nothing.length ? `Nothing found at ${plural(nothing.length, 'site')}: ${nothing.join(', ')}.` : '';
@@ -416,11 +426,13 @@ function renderSky(tab, rows) {
     const g = svg('g', {tabindex: 0}); g.append(svg('circle', {cx: x, cy: y, r: 7, fill: 'transparent'}), svg('circle', {cx: x, cy: y, r: 2.6, fill}));
     tip(g, value, el('span', {text: label})); return g;
   };
-  suns.slice(0, 1500).forEach(a => { const [x, y] = xy(a.sunaz, a.sun); root.append(dot(a, x, y, 'var(--series-2)', `${a.sun}° sun`, `${a.d}, ${tab.sites[a.s].name}`)); });
+  suns.slice(0, 1500).forEach(a => { const [x, y] = xy(a.sunaz, a.sun), g = svg('g', {tabindex: 0});
+    g.append(svg('circle', {cx: x, cy: y, r: 7, fill: 'transparent'}), svg('circle', {cx: x, cy: y, r: 3, fill: 'none', stroke: 'var(--ink-2)', 'stroke-width': 1.2}));
+    tip(g, `${a.sun}° sun`, el('span', {text: `${a.d}, ${tab.sites[a.s].name}`})); root.append(g); });
   placed.slice(0, 1500).forEach(a => { const [x, y] = xy(a.az, a.el); root.append(dot(a, x, y, a.t.good ? 'var(--series)' : 'var(--muted-mark)', `${a.el}° elevation`, `${a.d}, ${tab.sensors[a.n]}, ${tab.sites[a.s].name}`)); });
   $('sky').replaceChildren(root, el('div', {class: 'legend'}, el('span', {}, el('i', {class: 'sw dot', style: 'background:var(--series)'}), 'Satellite, good'),
     el('span', {}, el('i', {class: 'sw dot', style: 'background:var(--muted-mark)'}), 'Satellite, not good'),
-    el('span', {}, el('i', {class: 'sw dot', style: 'background:var(--series-2)'}), 'Sun')));
+    el('span', {}, el('i', {class: 'sw dot', style: 'background:none;border:1.5px solid var(--ink-2);width:9px;height:9px'}), 'Sun')));
 }
 function renderGuide(tab, all) {
   const merged = `${tab.items.toLocaleString()} catalog items became ${tab.acqs.length.toLocaleString()} acquisitions at sites.`;
@@ -468,6 +480,7 @@ function renderAll() {
   const tab = DATA.tabs[state.tab];
   tab.has = tab.has || {cloud: reported(tab, 'cloud'), off: reported(tab, 'off')};
   state.per[state.tab] = state.per[state.tab] || defaults(tab);
+  applyPalette();
   renderTabs(); renderFilters(tab); renderData(tab);
   const warn = [];
   if (tab.failed.length) warn.push(`The search failed at ${tab.failed.join(', ')}, so those counts may be low. Re-run the notebook to fill them in.`);
