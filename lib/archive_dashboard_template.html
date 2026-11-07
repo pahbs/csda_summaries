@@ -3,7 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CSDA archive first look: what is available at the evaluation sites</title>
+<title>Vendor archive first look</title>
+<meta name="description" content="Vendor archive first look">
+<meta property="og:title" content="Vendor archive first look">
+<meta property="og:description" content="Vendor archive first look">
 <style>
 .viz-root {
   color-scheme: light;
@@ -120,8 +123,9 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
 </head>
 <body>
 <div class="viz-root"><div class="wrap">
-<h1>Archive first look: what is available at the evaluation sites</h1>
+<h1>Vendor archive first look: what is available at the evaluation sites</h1>
 <p class="sub">How many good acquisitions each vendor's archive holds at each site, from each sensor. Set what good means, then pick a site to look closer.</p>
+<p class="note" id="updated" style="margin:4px 0 0"></p>
 <div class="tabs" id="tabs" role="tablist"></div>
 <div class="filters" id="filters"></div>
 <div id="warn"></div>
@@ -468,6 +472,7 @@ function renderAll() {
   $('warn').replaceChildren(...warn.map(t => el('div', {class: 'warn', text: `▲ ${t}`})));
   $('foot').textContent = `${tab.vendor} ${tab.constellation}: searched ${tab.searched}, ${tab.start} to ${tab.end}, ${tab.items.toLocaleString()} catalog items, ${tab.sites.length} sites. Sites with a requirement use it in place of the sliders.`;
 }
+$('updated').textContent = `Last updated: ${DATA.updated}`;
 renderAll();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderAll);
 </script>
