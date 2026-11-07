@@ -140,6 +140,7 @@ csda:
     # items), so one acquisition = one satellite pass: same sensor, products within 120 s
     maxar-legion: {pass_seconds: 120}
     airbus-optical: {from: id, pattern: '^([A-Z0-9]+_\d{15})_'}      # PNEO4_202201170911126
+    hydrosat: {from: 'hydrosat:scene_id'}                            # as in the hydrosat provider
     blacksky: {from: id, pattern: '^(BSG-.*?\d{8}-\d{6}-\d+)-'}    # BSG-104-20200116-135937-791866
     satellogic: {from: 'satl:outcome_id'}
   collection_fields:
@@ -290,8 +291,10 @@ hydrosat:
     platform: [platform]
     off_nadir: [view:off_nadir]
     sun_elevation: [view:sun_elevation]
+    sun_azimuth: [view:sun_azimuth]
     sat_azimuth: [view:azimuth]
-    vendor_item_id: [hydrosat:scene_id, id]
+    # Item id, as in CSDA's hydrosat collection (VZ01_L2_20250929_171000): matches each processing level on its own
+    vendor_item_id: [id]
 
 vantor:
   label: Vantor Hub (Discovery API)

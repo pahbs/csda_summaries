@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CSDA archive first look: what is available at the evaluation sites</title>
+<style>
+.viz-root {
+  color-scheme: light;
+  --surface: #fcfcfb; --surface-2: #f3f2ee; --ink: #0b0b0b; --ink-2: #52514e; --ink-3: #6f6e69; --grid: #e1e0d9; --axis: #c3c2b7;
+  --series: #2a78d6; --series-2: #eb6834; --check: #6da7ec; --muted-mark: #d4d3cb; --land: #e9e8e2; --link: #1c5cab; --ok: #006300; --short: #a13a12;
+  --ring: #0b0b0b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root {
+    color-scheme: dark;
+    --surface: #1a1a19; --surface-2: #232322; --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #a3a297; --grid: #2c2c2a; --axis: #383835;
+    --series: #3987e5; --series-2: #d95926; --check: #256abf; --muted-mark: #44433f; --land: #2b2b29; --link: #86b6ef; --ok: #0ca30c; --short: #ec835a;
+    --ring: #f0efec;
+  }
+}
+:root[data-theme="dark"] .viz-root {
+  color-scheme: dark;
+  --surface: #1a1a19; --surface-2: #232322; --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #a3a297; --grid: #2c2c2a; --axis: #383835;
+  --series: #3987e5; --series-2: #d95926; --check: #256abf; --muted-mark: #44433f; --land: #2b2b29; --link: #86b6ef; --ok: #0ca30c; --short: #ec835a;
+  --ring: #f0efec;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+.viz-root { background: var(--surface); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh; padding: 24px 20px 48px; }
+.wrap { max-width: 1240px; margin: 0 auto; }
+h1 { font-size: 24px; margin: 0 0 4px; font-weight: 650; }
+h2 { font-size: 17px; margin: 0 0 2px; font-weight: 620; }
+h3 { font-size: 13px; margin: 0 0 4px; font-weight: 620; }
+.sub { color: var(--ink-2); margin: 0; }
+.note { color: var(--ink-2); font-size: 12.5px; margin: 0 0 10px; }
+a { color: var(--link); }
+code { font-size: .92em; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 18px 0 0; border-bottom: 1px solid var(--grid); }
+.tabs button { background: none; border: 0; border-bottom: 3px solid transparent; color: var(--ink-2); font: inherit; padding: 8px 14px;
+  cursor: pointer; text-align: left; }
+.tabs button b { display: block; font-weight: 620; color: inherit; }
+.tabs button span { font-size: 12px; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--series); }
+.filters { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--grid);
+  margin-bottom: 18px; position: sticky; top: 0; background: var(--surface); z-index: 5; }
+.filters .lead { font-weight: 620; }
+.filters label { font-size: 13px; color: var(--ink-2); display: inline-flex; gap: 6px; align-items: center; }
+.filters label.off { opacity: .55; }
+.filters output { color: var(--ink); font-variant-numeric: tabular-nums; min-width: 34px; font-weight: 600; }
+input[type=range] { width: 92px; accent-color: var(--series); }
+select { font: inherit; font-size: 13px; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--axis); background: var(--surface); color: var(--ink); }
+.answer { display: grid; grid-template-columns: minmax(250px, 1.3fr) repeat(3, minmax(140px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.tile { background: var(--surface-2); border-radius: 10px; padding: 12px 16px; }
+.tile .v { font-size: 24px; font-weight: 650; }
+.tile .k { font-size: 12.5px; color: var(--ink-2); }
+.tile.hero .v { font-size: 48px; line-height: 1.05; }
+.card { background: var(--surface); border: 1px solid var(--grid); border-radius: 12px; padding: 16px; margin-bottom: 18px; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.cols .card { margin-bottom: 0; min-width: 0; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th { font-size: 12px; font-weight: 600; color: var(--ink-2); text-align: left; }
+.score { width: 100%; margin-top: 8px; }
+.score th, .score td { padding: 3px 6px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+.score th.n, .score td.n { text-align: right; }
+.score td.site { max-width: 230px; overflow: hidden; text-overflow: ellipsis; }
+.score tbody tr { cursor: pointer; }
+.score tbody tr:hover td.site, .score tbody tr:focus td.site { text-decoration: underline; }
+.score tbody tr.sel td { background: var(--surface-2); }
+.score .heat { text-align: center; min-width: 40px; border-left: 2px solid var(--surface); }
+.score .good { font-weight: 650; font-size: 15px; }
+.score .months { padding: 0 0 0 10px; }
+.strip { display: flex; gap: 1px; }
+.strip i { display: block; width: 12px; height: 18px; border-radius: 2px; background: var(--surface-2); }
+.strip.head i { height: auto; background: none; font-style: normal; font-size: 11px; color: var(--ink-3); overflow: visible; white-space: nowrap; }
+.status { font-size: 12.5px; }
+.status.ok { color: var(--ok); }
+.status.short { color: var(--short); }
+.status.none { color: var(--ink-3); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--ink-2); margin: 10px 0 0; align-items: center; }
+.ramp { display: inline-flex; gap: 1px; vertical-align: middle; margin: 0 6px; }
+.ramp i { width: 18px; height: 10px; display: block; }
+.sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; vertical-align: -1px; margin-right: 4px; }
+.dot { border-radius: 50%; }
+.reason { display: grid; grid-template-columns: 170px 1fr 54px; gap: 8px; align-items: center; margin: 6px 0; font-size: 13px; }
+.reason .track { background: var(--surface-2); height: 12px; border-radius: 0 4px 4px 0; }
+.reason .bar { background: var(--muted-mark); height: 12px; border-radius: 0 4px 4px 0; }
+.reason.good .bar { background: var(--series); }
+.reason.check .bar { background: var(--check); }
+.status.check { color: var(--link); }
+.reason .num { text-align: right; font-variant-numeric: tabular-nums; }
+.hist { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.hist > div { min-width: 0; }
+svg { display: block; max-width: 100%; }
+svg text { fill: var(--ink-2); font-size: 11px; }
+.empty { color: var(--ink-3); font-size: 13px; padding: 34px 0; text-align: center; background: var(--surface-2); border-radius: 8px; }
+.pick { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 22px 0 10px; }
+.pick h2 { margin: 0; }
+button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius: 6px; border: 1px solid var(--axis); background: var(--surface); color: var(--ink); cursor: pointer; }
+#list { max-height: 420px; overflow-y: auto; border-bottom: 1px solid var(--grid); }
+.list { width: 100%; font-size: 13px; }
+.list thead th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
+.list th, .list td { padding: 4px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; text-align: right; }
+.list th:first-child, .list td:first-child, .list th.t, .list td.t { text-align: left; }
+.list td.id { font-size: 12px; color: var(--ink-2); max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+.guide { display: grid; grid-template-columns: 170px 1fr; gap: 6px 14px; font-size: 13.5px; margin: 8px 0 0; }
+.guide dt { color: var(--ink-2); }
+.guide dd { margin: 0; }
+.levels { font-size: 13px; margin-top: 12px; width: 100%; }
+.levels th, .levels td { padding: 4px 8px; border-bottom: 1px solid var(--grid); text-align: left; }
+.levels .n { text-align: right; }
+.warn { background: var(--surface-2); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 14px; }
+#tip { position: fixed; z-index: 20; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--axis); border-radius: 8px;
+  padding: 7px 10px; font-size: 12.5px; max-width: 280px; display: none; box-shadow: 0 2px 8px rgba(0,0,0,.14); }
+#tip b { display: block; font-size: 15px; font-weight: 650; }
+@media (max-width: 860px) { .answer, .cols { grid-template-columns: 1fr; } .hist { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<div class="viz-root"><div class="wrap">
+<h1>Archive first look: what is available at the evaluation sites</h1>
+<p class="sub">How many good acquisitions each vendor's archive holds at each site, from each sensor. Set what good means, then pick a site to look closer.</p>
+<div class="tabs" id="tabs" role="tablist"></div>
+<div class="filters" id="filters"></div>
+<div id="warn"></div>
+<div class="answer" id="answer"></div>
+<div class="card">
+  <h2>Good acquisitions by site and sensor</h2>
+  <div class="pick" style="margin:0"><p class="note" id="scoreNote" style="margin:0"></p><button class="action" id="moreSensors" hidden></button></div>
+  <div class="scroll" id="score"></div>
+  <div class="legend" id="scoreLegend"></div>
+  <p class="note" id="nothing" style="margin:8px 0 0"></p>
+</div>
+<div class="pick"><h2 id="pickTitle"></h2><label class="sub">Site <select id="sitePick"></select></label></div>
+<div class="cols">
+  <div class="card"><h2>Why acquisitions do not count</h2><p class="note">An acquisition can miss on more than one test.</p><div id="reasons"></div></div>
+  <div class="card"><h2>How to read this vendor</h2><dl class="guide" id="guide"></dl><div id="levels"></div></div>
+</div>
+<div class="card" style="margin-top:18px"><h2>How the acquisitions vary</h2><p class="note">Each panel counts acquisitions. The line marks the limit in use, where one limit applies to all the sites shown.</p><div class="hist" id="hist"></div>
+  <div class="legend"><span><i class="sw" style="background:var(--series)"></i>Good</span><span><i class="sw" style="background:var(--check)"></i>Check AOI</span><span><i class="sw" style="background:var(--muted-mark)"></i>Not good</span></div></div>
+<div class="cols">
+  <div class="card"><h2>Where on the map</h2><p class="note">Circle area shows good acquisitions. Empty rings have none. Select one to look closer.</p><div id="map"></div></div>
+  <div class="card"><h2>Satellite and sun positions</h2><p class="note">As seen from the site: center is overhead, the edge is the horizon, north is up.</p><div id="sky"></div></div>
+</div>
+<div class="card" style="margin-top:18px">
+  <div class="pick" style="margin-top:0"><h2 id="listTitle"></h2><button class="action" id="csv">Download good and Check AOI acquisitions (CSV)</button></div>
+  <div class="scroll" id="list"></div><p class="note" id="listNote" style="margin-top:8px"></p>
+</div>
+<p class="note" id="foot"></p>
+</div><div id="tip"></div></div>
+<script type="application/json" id="data">/*DATA*/null</script>
+<script>
+const DATA = JSON.parse(document.getElementById('data').textContent);
+const $ = id => document.getElementById(id);
+const LIGHT = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b'];
+const DARK = ['#104281', '#184f95', '#256abf', '#3987e5', '#6da7ec', '#9ec5f4', '#cde2fb'];
+const dark = () => getComputedStyle(document.querySelector('.viz-root')).colorScheme === 'dark';
+const state = {tab: 0, per: {}};
+const S = () => state.per[state.tab];
+
+function el(tag, props = {}, ...kids) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === 'class') node.className = v; else if (k === 'text') node.textContent = v;
+    else if (k.startsWith('on')) node.addEventListener(k.slice(2), v); else node.setAttribute(k, v);
+  }
+  kids.flat().forEach(c => c != null && node.append(c));
+  return node;
+}
+function svg(tag, props = {}, ...kids) {
+  const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === 'text') node.textContent = v; else if (k.startsWith('on')) node.addEventListener(k.slice(2), v); else node.setAttribute(k, v);
+  }
+  kids.flat().forEach(c => c != null && node.append(c));
+  return node;
+}
+function tip(node, value, label) {
+  const show = e => {
+    const t = $('tip'); t.replaceChildren(el('b', {text: value}), label); t.style.display = 'block';
+    const r = e.clientX !== undefined ? {x: e.clientX, y: e.clientY} : (b => ({x: b.right, y: b.top}))(node.getBoundingClientRect());
+    t.style.left = Math.min(r.x + 14, innerWidth - t.offsetWidth - 8) + 'px';
+    t.style.top = Math.max(r.y - t.offsetHeight - 10, 6) + 'px';
+  };
+  const hide = () => { $('tip').style.display = 'none'; };
+  node.addEventListener('pointermove', show); node.addEventListener('focus', show);
+  node.addEventListener('pointerleave', hide); node.addEventListener('blur', hide);
+}
+const reported = (tab, field) => tab.acqs.some(a => a[field] != null);
+const plural = (n, word) => `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
+const months = tab => {
+  const days = tab.acqs.map(a => a.d).sort();
+  if (!days.length) return [];
+  const out = []; let [y, m] = days[0].split('-').map(Number); const [ey, em] = days[days.length - 1].split('-').map(Number);
+  while (y < ey || (y === ey && m <= em)) { out.push(`${y}-${String(m).padStart(2, '0')}`); m++; if (m > 12) { m = 1; y++; } }
+  return out;
+};
+function defaults(tab) {
+  const ms = months(tab);
+  return {cloud: 20, off: 30, cov: 50, level: 'any', own: true, from: ms[0], to: ms[ms.length - 1], site: null,
+          source: 'any', dn: tab.acqs.some(a => a.dn === 'night') ? 'day' : 'any'};
+}
+function limits(tab, site) {
+  const s = S();
+  return {cloud: s.own && site.cloud != null ? site.cloud : s.cloud, off: s.own && site.off != null ? site.off : s.off};
+}
+function test(tab, a) {
+  const lim = limits(tab, tab.sites[a.s]), s = S(), fields = tab.has;
+  const site = tab.sites[a.s], tested = fields.cloud && a.dn !== 'night';
+  const clear = !tested || (a.cloud != null && a.cloud <= lim.cloud);
+  // A whole-scene value above the site's limit does not show the site is cloudy: up to the scene limit, check the AOI
+  const unsure = tested && !clear && a.cloud != null && s.own && site.cloud != null && tab.cloud_scope === 'scene'
+    && a.cloud <= (site.scene != null ? site.scene : s.cloud);
+  const off = !fields.off || (a.off != null && a.off <= lim.off);
+  const cov = a.cov != null && a.cov >= s.cov;
+  return {cloud: clear || unsure, off, cov, good: clear && off && cov, check: unsure && off && cov};
+}
+function slice(tab) {
+  const s = S();
+  return tab.acqs.filter(a => a.d.slice(0, 7) >= s.from && a.d.slice(0, 7) <= s.to && (s.level === 'any' || a.lv.includes(+s.level))
+      && (s.source === 'any' || a.csda) && (s.dn === 'any' || a.dn === s.dn))
+    .map(a => ({...a, t: test(tab, a)}));
+}
+const uniq = rows => new Set(rows.map(a => a.a)).size;
+
+function color(v, max) {
+  const ramp = dark() ? DARK : LIGHT;
+  const i = Math.min(ramp.length - 1, Math.floor(Math.sqrt(v / Math.max(max, 1)) * ramp.length));
+  return {bg: ramp[i], fg: (dark() ? i >= 4 : i >= 3) ? (dark() ? '#0b0b0b' : '#ffffff') : (dark() ? '#ffffff' : '#0b0b0b')};
+}
+
+function renderTabs() {
+  $('tabs').replaceChildren(...DATA.tabs.map((t, i) => el('button', {role: 'tab', 'aria-selected': i === state.tab,
+    onclick: () => { state.tab = i; renderAll(); }}, el('b', {text: `${t.vendor} ${t.constellation}`}), el('span', {text: t.bands}))));
+}
+function renderFilters(tab) {
+  const s = S(), f = $('filters');
+  const slider = (key, label, max, unit, on) => {
+    const out = el('output', {text: on ? `${s[key]}${unit}` : 'not reported'});
+    const input = el('input', {type: 'range', min: 0, max, step: 5, value: s[key], 'aria-label': label});
+    if (!on) input.disabled = true;
+    input.addEventListener('input', () => { s[key] = +input.value; out.textContent = `${s[key]}${unit}`; renderData(tab); });
+    return el('label', {class: on ? '' : 'off'}, label, input, out);
+  };
+  const own = el('input', {type: 'checkbox'}); own.checked = s.own;
+  own.addEventListener('change', () => { s.own = own.checked; renderData(tab); });
+  const level = el('select', {'aria-label': 'Processing level', onchange: e => { s.level = e.target.value; renderData(tab); }},
+    el('option', {value: 'any', text: 'Any'}), tab.levels.map((l, i) => el('option', {value: i, text: l.code})));
+  level.value = s.level;
+  const ms = months(tab);
+  const when = key => {
+    const sel = el('select', {'aria-label': key === 'from' ? 'From month' : 'To month',
+      onchange: e => { s[key] = e.target.value; renderData(tab); }}, ms.map(m => el('option', {value: m, text: m})));
+    sel.value = s[key]; return sel;
+  };
+  const choice = (key, label, options) => {
+    const sel = el('select', {'aria-label': label, onchange: e => { s[key] = e.target.value; renderData(tab); }},
+      options.map(([value, text]) => el('option', {value, text})));
+    sel.value = s[key]; return el('label', {}, label, sel);
+  };
+  const hasNight = tab.acqs.some(a => a.dn === 'night');
+  f.replaceChildren(...[el('span', {class: 'lead', text: 'Good means'}),
+    slider('cloud', 'Cloud up to', 100, '%', tab.has.cloud), slider('off', 'Off-nadir up to', 60, '°', tab.has.off),
+    slider('cov', 'Site covered at least', 100, '%', true),
+    el('label', {}, own, 'Use site requirements where they exist'),
+    el('label', {}, 'Level', level), hasNight ? choice('dn', 'Time', [['day', 'Day'], ['night', 'Night'], ['any', 'Day and night']]) : null,
+    choice('source', 'Source', [['any', 'All found'], ['csda', 'In CSDA']]), el('label', {}, 'From', when('from'), 'to', when('to'))].filter(Boolean));
+}
+function renderAnswer(tab, rows) {
+  const good = rows.filter(a => a.t.good), bySite = new Map();
+  good.forEach(a => bySite.set(a.s, (bySite.get(a.s) || 0) + 1));
+  const needing = tab.sites.map((x, i) => ({...x, i})).filter(x => x.need != null);
+  const met = needing.filter(x => (bySite.get(x.i) || 0) >= x.need).length;
+  const last = good.map(a => a.d).sort().pop();
+  const tile = (v, k, cls = '') => el('div', {class: 'tile ' + cls}, el('div', {class: 'v', text: v}), el('div', {class: 'k', text: k}));
+  $('answer').replaceChildren(
+    tile(good.length.toLocaleString(), `good acquisitions at these sites, of ${rows.length.toLocaleString()} found.` + (uniq(good) < good.length ? ` ${uniq(good).toLocaleString()} are unique: one can cover two sites.` : '') + ` ${good.filter(a => a.csda).length.toLocaleString()} are in CSDA.` + (rows.some(a => a.t.check) ? ` ${rows.filter(a => a.t.check).length.toLocaleString()} more to check over the site.` : ''), 'hero'),
+    tile(`${bySite.size} of ${tab.sites.length}`, 'sites with a good acquisition'),
+    tile(needing.length ? `${met} of ${needing.length}` : 'none set', 'sites reaching their minimum number'),
+    tile(last || 'none', 'newest good acquisition'));
+}
+function renderScore(tab, rows) {
+  const s = S(), ms = months(tab).filter(m => m >= s.from && m <= s.to);
+  const counts = tab.sites.map((site, i) => {
+    const mine = rows.filter(a => a.s === i), good = mine.filter(a => a.t.good), check = mine.filter(a => a.t.check).length;
+    const sensors = tab.sensors.map((_, n) => good.filter(a => a.n === n).length);
+    const byMonth = ms.map(m => good.filter(a => a.d.startsWith(m)).length);
+    return {site, i, all: mine.length, good: good.length, check, sensors, byMonth};
+  }).sort((a, b) => b.good - a.good || b.all - a.all || a.site.name.localeCompare(b.site.name));
+  const totals = tab.sensors.map((_, n) => counts.reduce((t, c) => t + c.sensors[n], 0));
+  const order = tab.sensors.map((name, n) => ({name, n, total: totals[n]})).sort((a, b) => b.total - a.total);
+  const fold = order.length > 8 && !s.allSensors, shown = fold ? order.slice(0, 7) : order, rest = fold ? order.slice(7) : [];
+  const cellMax = Math.max(1, ...counts.flatMap(c => [...shown.map(o => c.sensors[o.n]), rest.reduce((t, o) => t + c.sensors[o.n], 0)]));
+  const monthMax = Math.max(1, ...counts.flatMap(c => c.byMonth));
+  const scene = tab.cloud_scope === 'scene';
+  const head = el('tr', {}, el('th', {text: 'Site'}), el('th', {text: 'Enough?'}), el('th', {class: 'n', text: 'Good'}), scene ? el('th', {class: 'n', text: 'Check AOI'}) : null, el('th', {class: 'n', text: 'Found'}),
+    shown.map(o => el('th', {class: 'heat', text: o.name})), rest.length ? el('th', {class: 'heat', text: `${rest.length} others`}) : null,
+    el('th', {class: 'months'}, el('div', {class: 'strip head'}, ms.map((m, i) => el('i', {text: i === 0 || m.endsWith('-01') ? m.slice(0, 4) : ''})))));
+  const nothing = counts.filter(c => !c.all && !tab.failed.includes(c.site.name)).map(c => c.site.name);
+  const body = counts.filter(c => c.all).map(c => {
+    const need = c.site.need;
+    const status = need == null ? el('span', {class: 'status none', text: 'No minimum set'})
+      : c.good >= need ? el('span', {class: 'status ok', text: `✓ Has ${need}+`}) : el('span', {class: 'status short', text: `▲ ${need - c.good} short of ${need}` + (c.check ? `, ${c.check} to check` : '')});
+    const heat = (v, name) => {
+      const td = el('td', {class: 'heat', tabindex: 0, text: v ? v : ''});
+      if (v) { const k = color(v, cellMax); td.style.background = k.bg; td.style.color = k.fg; }
+      const label = el('span', {text: `good at ${c.site.name} from ${name}`});
+      tip(td, String(v), label);
+      return td;
+    };
+    const strip = el('div', {class: 'strip'}, c.byMonth.map((v, i) => {
+      const cell = el('i', {tabindex: 0});
+      if (v) cell.style.background = color(v, monthMax).bg;
+      tip(cell, String(v), el('span', {text: `good in ${ms[i]} at ${c.site.name}`}));
+      return cell;
+    }));
+    const row = el('tr', {class: s.site === c.i ? 'sel' : '', tabindex: 0, onclick: () => pick(tab, c.i),
+      onkeydown: e => { if (e.key === 'Enter') pick(tab, c.i); }},
+      el('td', {class: 'site', title: c.site.name, text: c.site.name}), el('td', {}, status),
+      el('td', {class: 'n good', text: c.good}), scene ? el('td', {class: 'n', text: c.check || ''}) : null, el('td', {class: 'n', text: c.all}),
+      shown.map(o => heat(c.sensors[o.n], o.name)),
+      rest.length ? heat(rest.reduce((t, o) => t + c.sensors[o.n], 0), rest.map(o => o.name).join(', ')) : null,
+      el('td', {class: 'months'}, strip));
+    return row;
+  });
+  $('score').replaceChildren(el('table', {class: 'score'}, el('thead', {}, head), el('tbody', {}, body)));
+  const lights = dark() ? DARK : LIGHT;
+  $('scoreNote').textContent = `Sorted by good acquisitions. Columns are ${tab.sensors.length === 1 ? 'the sensor' : 'sensors, most productive first'}, then months. Select a row to look closer.`
+    + (scene ? ' Check AOI: the scene is over the site\'s cloud limit but within the scene limit, so the site itself may be clear. Look at the image.' : '');
+  $('nothing').textContent = nothing.length ? `Nothing found at ${plural(nothing.length, 'site')}: ${nothing.join(', ')}.` : '';
+  const more = $('moreSensors');
+  more.hidden = order.length <= 8;
+  more.textContent = s.allSensors ? 'Show top sensors only' : `Show all ${order.length} sensors`;
+  more.onclick = () => { s.allSensors = !s.allSensors; renderData(tab); };
+  $('scoreLegend').replaceChildren(el('span', {}, 'Fewer', el('span', {class: 'ramp'}, lights.map(c => { const i = el('i'); i.style.background = c; return i; })), `More good acquisitions in a sensor or month cell (up to ${cellMax} and ${monthMax})`));
+}
+function pick(tab, i) { const s = S(); s.site = s.site === i ? null : i; renderData(tab); }
+
+function renderReasons(tab, rows) {
+  const n = rows.length, good = rows.filter(a => a.t.good).length;
+  const line = (label, v, cls = '') => {
+    const bar = el('div', {class: 'bar'}); bar.style.width = n ? `${100 * v / n}%` : '0';
+    return el('div', {class: 'reason ' + cls}, el('span', {text: label}), el('div', {class: 'track'}, bar), el('span', {class: 'num', text: v.toLocaleString()}));
+  };
+  const na = field => el('div', {class: 'reason'}, el('span', {text: field}), el('span', {class: 'note', style: 'margin:0', text: 'Not reported by this vendor'}), el('span'));
+  $('reasons').replaceChildren(...[line('Good', good, 'good'),
+    tab.cloud_scope === 'scene' ? line('Check AOI: site may be clear', rows.filter(a => a.t.check).length, 'check') : null,
+    tab.has.cloud ? line('Too cloudy', rows.filter(a => !a.t.cloud).length) : na('Too cloudy'),
+    tab.has.off ? line('Too far off-nadir', rows.filter(a => !a.t.off).length) : na('Too far off-nadir'),
+    line('Site not covered enough', rows.filter(a => !a.t.cov).length)].filter(Boolean));
+}
+function renderMap(tab, all) {
+  const s = S(), w = 560, h = 280, X = lon => (lon + 180) / 360 * w, Y = lat => (90 - lat) / 180 * h * 1;
+  const good = new Map(); all.filter(a => a.t.good).forEach(a => good.set(a.s, (good.get(a.s) || 0) + 1));
+  const max = Math.max(1, ...good.values());
+  const land = svg('path', {d: DATA.land, fill: 'var(--land)', transform: `scale(${w / 360} ${h / 180})`});
+  const dots = tab.sites.map((site, i) => ({site, i, v: good.get(i) || 0})).sort((a, b) => b.v - a.v).map(({site, i, v}) => {
+    const r = v ? 3 + 11 * Math.sqrt(v / max) : 3;
+    const c = svg('circle', {cx: X(site.lon), cy: Y(site.lat), r, tabindex: 0, fill: v ? 'var(--series)' : 'none', 'fill-opacity': v ? .75 : 1,
+      stroke: s.site === i ? 'var(--ring)' : (v ? 'var(--surface)' : 'var(--ink-3)'), 'stroke-width': s.site === i ? 2 : 1, style: 'cursor:pointer',
+      onclick: () => pick(tab, i)});
+    tip(c, String(v), el('span', {text: `good at ${site.name}`}));
+    return c;
+  });
+  $('map').replaceChildren(svg('svg', {viewBox: `0 0 ${w} ${h}`, width: '100%', role: 'img', 'aria-label': 'Map of sites by good acquisitions'}, land, dots));
+}
+function histogram(title, rows, field, lo, hi, step, unit, limit) {
+  const box = el('div', {}, el('h3', {text: title}));
+  const known = rows.filter(a => a[field] != null);
+  if (!known.length) { box.append(el('div', {class: 'empty', text: 'Not reported by this vendor'})); return box; }
+  const n = Math.round((hi - lo) / step), bins = Array.from({length: n}, () => ({good: 0, check: 0, not: 0}));
+  known.forEach(a => { const i = Math.max(0, Math.min(n - 1, Math.floor((a[field] - lo) / step))); bins[i][a.t.good ? 'good' : a.t.check ? 'check' : 'not']++; });
+  const w = 260, h = 130, pad = 18, max = Math.max(1, ...bins.map(b => b.good + b.check + b.not)), bw = (w - 8) / n;
+  const y = v => (h - pad) * v / max, root = svg('svg', {viewBox: `0 0 ${w} ${h}`, width: '100%', role: 'img', 'aria-label': title});
+  root.append(svg('line', {x1: 0, x2: w, y1: h - pad, y2: h - pad, stroke: 'var(--axis)'}));
+  bins.forEach((b, i) => {
+    const x = 4 + i * bw, g = svg('g', {tabindex: 0});
+    g.append(svg('rect', {x, y: 0, width: bw, height: h - pad, fill: 'transparent'}));
+    let top = h - pad;
+    [['good', 'var(--series)'], ['check', 'var(--check)'], ['not', 'var(--muted-mark)']].forEach(([key, fill]) => {
+      if (!b[key]) return;
+      top -= y(b[key]);
+      g.append(svg('rect', {x: x + 1, y: top, width: bw - 2, height: y(b[key]), fill}));
+      top -= 1;
+    });
+    tip(g, `${b.good + b.check + b.not}`, el('span', {text: `${lo + i * step} to ${lo + (i + 1) * step}${unit}: ${b.good} good` + (b.check ? `, ${b.check} to check` : '')}));
+    root.append(g);
+  });
+  [lo, (lo + hi) / 2, hi].forEach((v, i) => root.append(svg('text', {x: 4 + (w - 8) * (v - lo) / (hi - lo), y: h - 4, 'text-anchor': ['start', 'middle', 'end'][i], text: `${v}${unit}`})));
+  if (limit != null) { const x = 4 + (w - 8) * (Math.min(hi, Math.max(lo, limit)) - lo) / (hi - lo); root.append(svg('line', {x1: x, x2: x, y1: 0, y2: h - pad, stroke: 'var(--ink)', 'stroke-width': 1})); }
+  box.append(root); return box;
+}
+function renderHist(tab, rows) {
+  const s = S(), sites = s.site == null ? tab.sites : [tab.sites[s.site]];
+  const one = key => { const v = new Set(sites.map(x => limits(tab, x)[key])); return v.size === 1 ? [...v][0] : null; };
+  $('hist').replaceChildren(histogram('Cloud cover', rows, 'cloud', 0, 100, 10, '%', one('cloud')),
+    histogram('Off-nadir angle', rows, 'off', 0, 60, 5, '°', one('off')),
+    histogram('Site covered', rows, 'cov', 0, 100, 10, '%', s.cov), histogram('Sun elevation', rows, 'sun', 0, 90, 10, '°', null));
+}
+function renderSky(tab, rows) {
+  const placed = rows.filter(a => a.az != null && a.el != null), suns = rows.filter(a => a.sunaz != null && a.sun != null);
+  if (!placed.length && !suns.length) { $('sky').replaceChildren(el('div', {class: 'empty', text: 'Angles not reported by this vendor'})); return; }
+  const c = 150, R = 130, xy = (az, elv) => { const r = R * (90 - elv) / 90, t = az * Math.PI / 180; return [c + r * Math.sin(t), c - r * Math.cos(t)]; };
+  const root = svg('svg', {viewBox: '0 0 300 300', width: '100%', style: 'max-width:340px;margin:0 auto', role: 'img', 'aria-label': 'Satellite and sun positions'});
+  [90, 60, 30, 0].forEach(e => root.append(svg('circle', {cx: c, cy: c, r: R * (90 - e) / 90, fill: 'none', stroke: 'var(--grid)'})));
+  [['N', 0], ['E', 90], ['S', 180], ['W', 270]].forEach(([t, a]) => { const [x, y] = xy(a, -9); root.append(svg('text', {x, y: y + 4, 'text-anchor': 'middle', text: t})); });
+  const dot = (a, x, y, fill, value, label) => {
+    const g = svg('g', {tabindex: 0}); g.append(svg('circle', {cx: x, cy: y, r: 7, fill: 'transparent'}), svg('circle', {cx: x, cy: y, r: 2.6, fill}));
+    tip(g, value, el('span', {text: label})); return g;
+  };
+  suns.slice(0, 1500).forEach(a => { const [x, y] = xy(a.sunaz, a.sun); root.append(dot(a, x, y, 'var(--series-2)', `${a.sun}° sun`, `${a.d}, ${tab.sites[a.s].name}`)); });
+  placed.slice(0, 1500).forEach(a => { const [x, y] = xy(a.az, a.el); root.append(dot(a, x, y, a.t.good ? 'var(--series)' : 'var(--muted-mark)', `${a.el}° elevation`, `${a.d}, ${tab.sensors[a.n]}, ${tab.sites[a.s].name}`)); });
+  $('sky').replaceChildren(root, el('div', {class: 'legend'}, el('span', {}, el('i', {class: 'sw dot', style: 'background:var(--series)'}), 'Satellite, good'),
+    el('span', {}, el('i', {class: 'sw dot', style: 'background:var(--muted-mark)'}), 'Satellite, not good'),
+    el('span', {}, el('i', {class: 'sw dot', style: 'background:var(--series-2)'}), 'Sun')));
+}
+function renderGuide(tab, all) {
+  const merged = `${tab.items.toLocaleString()} catalog items became ${tab.acqs.length.toLocaleString()} acquisitions at sites.`;
+  const entries = [['One acquisition is', tab.acquisition], ['Counted here', merged], ['Footprint', tab.footprint], ['Cloud cover', tab.cloud], ['In this tab', tab.scope]];
+  $('guide').replaceChildren(...entries.flatMap(([k, v]) => { const d = el('dd'); d.innerHTML = v; return [el('dt', {text: k}), d]; }));
+  const rows = tab.levels.map((l, i) => {
+    const mine = all.filter(a => a.lv.includes(i));
+    return el('tr', {}, el('td', {}, el('code', {text: l.code})), el('td', {text: l.plain}), el('td', {class: 'n', text: mine.length.toLocaleString()}), el('td', {class: 'n', text: mine.filter(a => a.t.good).length.toLocaleString()}));
+  });
+  $('levels').replaceChildren(el('table', {class: 'levels'}, el('thead', {}, el('tr', {}, el('th', {text: 'Level'}), el('th', {text: 'What it is'}), el('th', {class: 'n', text: 'Acqs'}), el('th', {class: 'n', text: 'Good'}))), el('tbody', {}, rows)));
+}
+const fmt = (v, unit) => v == null ? '–' : `${v}${unit}`;
+function renderList(tab, rows) {
+  const s = S(), rank = a => a.t.good ? 2 : a.t.check ? 1 : 0, sorted = [...rows].sort((a, b) => (rank(b) - rank(a)) || b.d.localeCompare(a.d)), shown = sorted.slice(0, 200);
+  const night = tab.acqs.some(a => a.dn === 'night');
+  const head = ['Date', 'Site', 'Sensor', ...(night ? ['Time'] : []), 'Status', 'Cloud', 'Off-nadir', 'Site covered', 'Items', 'Levels', 'In CSDA', 'Acquisition ID'];
+  const left = new Set(['Site', 'Sensor', 'Time', 'Status', 'Levels', 'In CSDA', 'Acquisition ID']);
+  const body = shown.map(a => el('tr', {}, el('td', {text: a.d}), el('td', {class: 't', text: tab.sites[a.s].name}), el('td', {class: 't', text: tab.sensors[a.n]}),
+    night ? el('td', {class: 't', text: a.dn === 'night' ? 'Night' : 'Day'}) : null,
+    el('td', {class: 't'}, a.t.good ? el('span', {class: 'status ok', text: '✓ Good'}) : a.t.check ? el('span', {class: 'status check', text: '? Check AOI'}) : el('span', {class: 'status none', text: 'Not good'})),
+    el('td', {text: fmt(a.cloud, '%')}), el('td', {text: fmt(a.off, '°')}), el('td', {text: fmt(a.cov, '%')}), el('td', {text: a.items}),
+    el('td', {class: 't', text: a.lv.map(i => tab.levels[i].code).join(', ')}), el('td', {class: 't', text: a.csda ? 'Yes' : 'No'}),
+    el('td', {class: 't id', title: a.a, text: a.a})));
+  $('list').replaceChildren(el('table', {class: 'list'}, el('thead', {}, el('tr', {}, head.map(h => el('th', {class: left.has(h) ? 't' : '', text: h})))), el('tbody', {}, body)));
+  $('listTitle').textContent = `Acquisitions at ${s.site == null ? 'all sites' : tab.sites[s.site].name}`;
+  $('listNote').textContent = sorted.length > 200 ? `Showing the first 200 of ${sorted.length.toLocaleString()}, good ones first. The download has every good and Check AOI acquisition.` : 'Good ones first, then newest.';
+  $('csv').onclick = () => {
+    const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+    const lines = [['date', 'site', 'sensor', 'status', 'cloud_pct', 'off_nadir_deg', 'site_covered_pct', 'catalog_items', 'levels', 'in_csda', 'time_of_day', 'acquisition_id'].join(',')];
+    sorted.filter(a => a.t.good || a.t.check).forEach(a => lines.push([a.d, tab.sites[a.s].name, tab.sensors[a.n], a.t.good ? 'good' : 'check AOI', a.cloud, a.off, a.cov, a.items, a.lv.map(i => tab.levels[i].code).join(' '), a.csda, a.dn, a.a].map(q).join(',')));
+    const link = el('a', {href: URL.createObjectURL(new Blob([lines.join('\n')], {type: 'text/csv'})), download: `${tab.key}_good_acquisitions.csv`});
+    link.click(); URL.revokeObjectURL(link.href);
+  };
+}
+function renderData(tab) {
+  const s = S(), all = slice(tab), rows = s.site == null ? all : all.filter(a => a.s === s.site);
+  renderAnswer(tab, all); renderScore(tab, all); renderReasons(tab, rows); renderMap(tab, all); renderHist(tab, rows); renderSky(tab, rows); renderGuide(tab, rows); renderList(tab, rows);
+  $('pickTitle').textContent = s.site == null ? 'Look closer: all sites' : `Look closer: ${tab.sites[s.site].name}`;
+  const pickSel = $('sitePick');
+  pickSel.replaceChildren(el('option', {value: '', text: 'All sites'}), ...tab.sites.map((x, i) => el('option', {value: i, text: x.name})));
+  pickSel.value = s.site == null ? '' : s.site;
+  pickSel.onchange = e => { s.site = e.target.value === '' ? null : +e.target.value; renderData(tab); };
+}
+function renderAll() {
+  const tab = DATA.tabs[state.tab];
+  tab.has = tab.has || {cloud: reported(tab, 'cloud'), off: reported(tab, 'off')};
+  state.per[state.tab] = state.per[state.tab] || defaults(tab);
+  renderTabs(); renderFilters(tab); renderData(tab);
+  const warn = [];
+  if (tab.failed.length) warn.push(`The search failed at ${tab.failed.join(', ')}, so those counts may be low. Re-run the notebook to fill them in.`);
+  $('warn').replaceChildren(...warn.map(t => el('div', {class: 'warn', text: `▲ ${t}`})));
+  $('foot').textContent = `${tab.vendor} ${tab.constellation}: searched ${tab.searched}, ${tab.start} to ${tab.end}, ${tab.items.toLocaleString()} catalog items, ${tab.sites.length} sites. Sites with a requirement use it in place of the sliders.`;
+}
+renderAll();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderAll);
+</script>
+</body>
+</html>
