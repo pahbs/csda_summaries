@@ -161,7 +161,8 @@ def tab(key: str, groups, cell: float = CELL_DEG) -> Optional[dict]:
     fetched = [m for _, _, t in loaded for m in t]
     if not any(len(x) for _, _, t in loaded for x in t.values()):
         return None
-    every = months(min(fetched), max(fetched))
+    # the axis starts where the stores are meant to start, so months not fetched yet show as such, not as missing
+    every = months(min([min(fetched)] + [VENDORS[store].get("start", START) for _, store, _ in groups]), max(fetched))
     out = []
     for name, store, tables in loaded:
         if not any(len(x) for x in tables.values()):

@@ -296,6 +296,11 @@ function renderTimeline(t) {
     root.append(svg('path', {d: `${line(i0)}L${cx(i0)},${base}L${cx(0)},${base}Z`, fill: 'var(--check)'}));
     root.append(svg('path', {d: line(i0), fill: 'none', stroke: 'var(--series)', 'stroke-width': 2}));
   }
+  const gap = t.totals.findIndex(m => m.month >= t.fetched_from);   // months before this are not fetched yet
+  if (gap > 0) {
+    root.append(svg('rect', {x: 0, y: top, width: gap * bw, height: base - top, fill: 'var(--surface-2)', stroke: 'var(--grid)', 'stroke-dasharray': '4 3'}));
+    if (gap * bw > 120) root.append(svg('text', {x: gap * bw / 2, y: (top + base) / 2 + 4, 'text-anchor': 'middle', text: 'Not fetched yet'}));
+  }
   root.append(svg('line', {x1: 0, x2: w, y1: base, y2: base, stroke: 'var(--axis)'}));
   t.totals.forEach((m, i) => {
     const jan = m.month.endsWith('-01'), quarter = /-(04|07|10)$/.test(m.month);
@@ -325,12 +330,14 @@ function renderTable(t) {
 function render() {
   const t = T(), i = state.per[t.key], m = t.totals[i], total = t.totals.slice(0, i + 1).reduce((s, x) => s + x.n, 0), busiest = t.totals.reduce((a, b) => b.n > a.n ? b : a);
   const now = t.totals[i].month === t.partial;
-  $('month').replaceChildren(name(t.totals[i].month), now ? el('small', {text: ' so far'}) : '');
+  const missing = t.totals[i].month < t.fetched_from;
+  $('month').replaceChildren(name(t.totals[i].month), now ? el('small', {text: ' so far'}) : missing ? el('small', {text: ' not fetched yet'}) : '');
   const tile = (v, k, cls = '') => el('div', {class: 'tile ' + cls}, el('div', {class: 'v', text: v}), el('div', {class: 'k', text: k}));
-  $('answer').replaceChildren(tile(m.n.toLocaleString(), `${units(t)} in ${label(t, i)}`, 'hero'), tile(total.toLocaleString(), `${units(t)} from ${name(t.first)} to here`),
+  $('answer').replaceChildren(tile(missing ? '–' : m.n.toLocaleString(), `${units(t)} in ${label(t, i)}`, 'hero'), tile(total.toLocaleString(), `${units(t)} from ${name(t.first)} to here`),
     tile(`${m.clear.toLocaleString()}`, 'of this month with cloud up to 20%'), tile(name(busiest.month), `busiest month, ${busiest.n.toLocaleString()} ${units(t)}`));
   $('mapTitle').textContent = state.view === 'month' ? `${t.vendor} ${t.constellation}, ${label(t, i)}` : `${t.vendor} ${t.constellation}, all ${units(t)} up to ${label(t, i)}`;
-  $('mapNote').textContent = 'Every acquisition in the catalog, whatever its cloud cover. Point at a cell for its count.';
+  $('mapNote').textContent = missing ? `This month has not been fetched yet: the catalog is being read newest first, back to ${name(t.fetched_from)} so far.`
+    : 'Every acquisition in the catalog, whatever its cloud cover. Point at a cell for its count.';
   drawMap(); renderLegend(t); renderTimeline(t); renderTable(t);
 }
 function go(i) { state.per[T().key] = i; render(); }
