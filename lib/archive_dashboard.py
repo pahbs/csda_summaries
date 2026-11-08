@@ -71,6 +71,14 @@ VENDORS = {
         levels={"LV2A": "Standard: map-projected, coarse DEM (CSDA)", "LV3D": "Ortho: fine DEM (CSDA)"},
         scope="Vantor's catalog shows everything collected; set Source to In CSDA to see what has been delivered. Vantor's catalog "
               "does not list levels, so levels are shown for CSDA products only."),
+    "worldview": dict(
+        vendor="Vantor", bands="WorldView-2 and WorldView-3, since 2020",
+        acquisition="One catalog strip (Vantor catalog ID).",
+        footprint="One strip per acquisition in Vantor's catalog.",
+        cloud="For the whole strip, so a cloudy strip can still be clear over a small site.", cloud_scope="scene",
+        levels={}, csda_checked=False,
+        scope="Vantor's own catalog (<code>wv02</code>, <code>wv03-vnir</code>): what has been collected. CSDA holds WorldView data in "
+              "Earthdata CMR, which this tab does not check yet, so In CSDA is not shown. Added year by year, newest first."),
 }
 
 
@@ -168,7 +176,7 @@ def tab_data(vendor: str, gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, sites_
     failed = sorted(log.loc[log["status"] == "failed", "site_name"].dropna().unique())
     return {"key": f"{vendor}-{constellation}".lower().replace(" ", "-"), "vendor": info["vendor"], "constellation": constellation,
             "bands": info["bands"], "acquisition": info["acquisition"], "footprint": info["footprint"], "cloud": info["cloud"],
-            "cloud_scope": info["cloud_scope"],
+            "cloud_scope": info["cloud_scope"], "csda_checked": info.get("csda_checked", True),
             "scope": info["scope"], "searched": f"{pd.Timestamp.today():%-d %b %Y}", "start": start, "end": end,
             "failed": failed, "items": int(gdf.id.nunique()),
             "levels": [{"code": k, "plain": info["levels"].get(k, "")} for k in levels],
@@ -177,7 +185,8 @@ def tab_data(vendor: str, gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, sites_
 
 def build(page: Path = PAGE) -> Path:
     """The page, from the template and every tab's data file."""
-    tabs = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(DATA_DIR.glob("*.json"))]
+    tabs = sorted((json.loads(p.read_text(encoding="utf-8")) for p in DATA_DIR.glob("*.json")),
+                  key=lambda t: (t["vendor"], t["constellation"]))   # a vendor's constellations side by side
     for t in tabs:
         t["palette"] = vendor_palette(t["vendor"])
     data = json.dumps({"tabs": tabs, "land": LAND.read_text(encoding="utf-8").strip(), "updated": f"{pd.Timestamp.today():%-d %b %Y}"},

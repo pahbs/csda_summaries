@@ -281,8 +281,8 @@ function renderFilters(tab) {
     slider('cloud', 'Cloud up to', 100, '%', tab.has.cloud), slider('off', 'Off-nadir up to', 60, '°', tab.has.off),
     slider('cov', 'Site covered at least', 100, '%', true),
     el('label', {}, own, 'Use site requirements where they exist'),
-    el('label', {}, 'Level', level), hasNight ? choice('dn', 'Time', [['day', 'Day'], ['night', 'Night'], ['any', 'Day and night']]) : null,
-    choice('source', 'Source', [['any', 'All found'], ['csda', 'In CSDA']]), el('label', {}, 'From', when('from'), 'to', when('to'))].filter(Boolean));
+    tab.levels.length ? el('label', {}, 'Level', level) : null, hasNight ? choice('dn', 'Time', [['day', 'Day'], ['night', 'Night'], ['any', 'Day and night']]) : null,
+    tab.csda_checked === false ? null : choice('source', 'Source', [['any', 'All found'], ['csda', 'In CSDA']]), el('label', {}, 'From', when('from'), 'to', when('to'))].filter(Boolean));
 }
 function renderAnswer(tab, rows) {
   const good = rows.filter(a => a.t.good), bySite = new Map();
@@ -292,7 +292,7 @@ function renderAnswer(tab, rows) {
   const last = good.map(a => a.d).sort().pop();
   const tile = (v, k, cls = '') => el('div', {class: 'tile ' + cls}, el('div', {class: 'v', text: v}), el('div', {class: 'k', text: k}));
   $('answer').replaceChildren(
-    tile(good.length.toLocaleString(), `good acquisitions at these sites, of ${rows.length.toLocaleString()} found.` + (uniq(good) < good.length ? ` ${uniq(good).toLocaleString()} are unique: one can cover two sites.` : '') + ` ${good.filter(a => a.csda).length.toLocaleString()} are in CSDA.` + (rows.some(a => a.t.check) ? ` ${rows.filter(a => a.t.check).length.toLocaleString()} more to check over the site.` : ''), 'hero'),
+    tile(good.length.toLocaleString(), `good acquisitions at these sites, of ${rows.length.toLocaleString()} found.` + (uniq(good) < good.length ? ` ${uniq(good).toLocaleString()} are unique: one can cover two sites.` : '') + (tab.csda_checked === false ? '' : ` ${good.filter(a => a.csda).length.toLocaleString()} are in CSDA.`) + (rows.some(a => a.t.check) ? ` ${rows.filter(a => a.t.check).length.toLocaleString()} more to check over the site.` : ''), 'hero'),
     tile(`${bySite.size} of ${tab.sites.length}`, 'sites with a good acquisition'),
     tile(needing.length ? `${met} of ${needing.length}` : 'none set', 'sites reaching their minimum number'),
     tile(last || 'none', 'newest good acquisition'));
@@ -442,19 +442,21 @@ function renderGuide(tab, all) {
     const mine = all.filter(a => a.lv.includes(i));
     return el('tr', {}, el('td', {}, el('code', {text: l.code})), el('td', {text: l.plain}), el('td', {class: 'n', text: mine.length.toLocaleString()}), el('td', {class: 'n', text: mine.filter(a => a.t.good).length.toLocaleString()}));
   });
+  if (!tab.levels.length) { $('levels').replaceChildren(); return; }
   $('levels').replaceChildren(el('table', {class: 'levels'}, el('thead', {}, el('tr', {}, el('th', {text: 'Level'}), el('th', {text: 'What it is'}), el('th', {class: 'n', text: 'Acqs'}), el('th', {class: 'n', text: 'Good'}))), el('tbody', {}, rows)));
 }
 const fmt = (v, unit) => v == null ? '–' : `${v}${unit}`;
 function renderList(tab, rows) {
   const s = S(), rank = a => a.t.good ? 2 : a.t.check ? 1 : 0, sorted = [...rows].sort((a, b) => (rank(b) - rank(a)) || b.d.localeCompare(a.d)), shown = sorted.slice(0, 200);
   const night = tab.acqs.some(a => a.dn === 'night');
-  const head = ['Date', 'Site', 'Sensor', ...(night ? ['Time'] : []), 'Status', 'Cloud', 'Off-nadir', 'Site covered', 'Items', 'Levels', 'In CSDA', 'Acquisition ID'];
+  const checked = tab.csda_checked !== false;
+  const head = ['Date', 'Site', 'Sensor', ...(night ? ['Time'] : []), 'Status', 'Cloud', 'Off-nadir', 'Site covered', 'Items', 'Levels', ...(checked ? ['In CSDA'] : []), 'Acquisition ID'];
   const left = new Set(['Site', 'Sensor', 'Time', 'Status', 'Levels', 'In CSDA', 'Acquisition ID']);
   const body = shown.map(a => el('tr', {}, el('td', {text: a.d}), el('td', {class: 't', text: tab.sites[a.s].name}), el('td', {class: 't', text: tab.sensors[a.n]}),
     night ? el('td', {class: 't', text: a.dn === 'night' ? 'Night' : 'Day'}) : null,
     el('td', {class: 't'}, a.t.good ? el('span', {class: 'status ok', text: '✓ Good'}) : a.t.check ? el('span', {class: 'status check', text: '? Check AOI'}) : el('span', {class: 'status none', text: 'Not good'})),
     el('td', {text: fmt(a.cloud, '%')}), el('td', {text: fmt(a.off, '°')}), el('td', {text: fmt(a.cov, '%')}), el('td', {text: a.items}),
-    el('td', {class: 't', text: a.lv.map(i => tab.levels[i].code).join(', ')}), el('td', {class: 't', text: a.csda ? 'Yes' : 'No'}),
+    el('td', {class: 't', text: a.lv.map(i => tab.levels[i].code).join(', ')}), checked ? el('td', {class: 't', text: a.csda ? 'Yes' : 'No'}) : null,
     el('td', {class: 't id', title: a.a, text: a.a})));
   $('list').replaceChildren(el('table', {class: 'list'}, el('thead', {}, el('tr', {}, head.map(h => el('th', {class: left.has(h) ? 't' : '', text: h})))), el('tbody', {}, body)));
   $('listTitle').textContent = `Acquisitions at ${s.site == null ? 'all sites' : tab.sites[s.site].name}`;
