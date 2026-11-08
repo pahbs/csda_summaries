@@ -19,7 +19,7 @@ from typing import Dict, List, Optional
 import pandas as pd
 
 import multistac
-from archive_dashboard import LAND, merge_passes, vendor_palette
+from archive_dashboard import LAND, vendor_palette
 
 REPO = Path(__file__).resolve().parents[1]
 STORE = Path("/explore/nobackup/people/pmontesa/multistac/global_analysis/monthly")
@@ -38,6 +38,9 @@ VENDORS = {
                    guide="One catalog strip (Vantor catalog ID) counts once. Strips are not merged into passes: a satellite collects "
                          "strip after strip along an orbit, so merging by time would join a whole orbit into one. This is Vantor's "
                          "own catalog, so it shows what was collected, not what CSDA holds."),
+    "worldview": dict(provider="vantor", collections=["wv02", "wv03-vnir"], vendor="Vantor", constellation="WorldView", unit="strip", start="2020-01",
+                      guide="One catalog strip (Vantor catalog ID) counts once, from Vantor's own catalog. WorldView-3 is its VNIR "
+                            "collection (wv03-vnir)."),
     "satellogic": dict(collections=["quickview-visual-thumb"], vendor="Satellogic", constellation="Aleph-1", unit="capture",
                        window_days=3, full_records=True,
                        guide="One capture counts once, from its thumbnail item rather than its 2 km tiles. "
@@ -54,7 +57,7 @@ def _search(vendor: str, first: pd.Timestamp, last: pd.Timestamp, failed: List[s
     """One date window, halved until it works or is a single day."""
     info = VENDORS[vendor]
     options = dict(compact=False, include_assets=False) if info.get("full_records") else {}
-    r = multistac.search(None, f"{first:%Y-%m-%d}", f"{last:%Y-%m-%d}", {vendor: info["collections"]}, progress=False, **options)
+    r = multistac.search(None, f"{first:%Y-%m-%d}", f"{last:%Y-%m-%d}", {info.get("provider", vendor): info["collections"]}, progress=False, **options)
     if not (r.log["status"] == "failed").any():
         return [r.gdf] if len(r.gdf) else []
     if first >= last:
@@ -66,7 +69,7 @@ def _search(vendor: str, first: pd.Timestamp, last: pd.Timestamp, failed: List[s
 
 def _points(frames: List[pd.DataFrame], vendor: str) -> pd.DataFrame:
     """What the maps need: one row per item, with the footprint's center."""
-    columns = ["provider", "id", "acquisition_id", "sensor", "datetime", "cloud_cover", "lon", "lat"]
+    columns = ["provider", "collection", "id", "acquisition_id", "sensor", "datetime", "cloud_cover", "lon", "lat"]
     if not frames:
         return pd.DataFrame(columns=columns)
     g = pd.concat(frames, ignore_index=True).drop_duplicates("id")
@@ -96,11 +99,12 @@ def fetch_month(vendor: str, month: str) -> Optional[pd.DataFrame]:
     return _points(frames, vendor)
 
 
-def fetch(vendor: str, refresh: int = REFRESH_MONTHS) -> None:
+def fetch(vendor: str, refresh: int = REFRESH_MONTHS, only: Optional[List[str]] = None) -> None:
+    """Newest month first, so the recent archive is there soonest. `only`: these months (e.g. one year)."""
     folder = STORE / vendor
     folder.mkdir(parents=True, exist_ok=True)
-    every = months()
-    for month in every:
+    every = months(VENDORS[vendor].get("start", START))
+    for month in reversed(only or every):
         path = folder / f"{month}.pkl"
         if path.exists() and month not in every[-refresh:]:
             continue
@@ -112,45 +116,84 @@ def fetch(vendor: str, refresh: int = REFRESH_MONTHS) -> None:
     print(f"{vendor} done", flush=True)
 
 
-def tab(vendor: str, cell: float = CELL_DEG) -> Optional[dict]:
-    """One constellation: for each month, the cells with acquisitions and how many."""
-    info = VENDORS[vendor]
-    every = months()
-    tables = {m: pd.read_pickle(STORE / vendor / f"{m}.pkl") for m in every if (STORE / vendor / f"{m}.pkl").exists()}
-    tables = {m: t for m, t in tables.items() if len(t)}
-    if not tables:
-        return None
-    first, columns = min(tables), int(360 / cell)
-    frames, totals = [], []
-    for month in [m for m in every if m >= first]:
+# Page tabs: one per vendor; a vendor's constellations are groups within it, shown one at a time or together.
+# (label, store, catalog collections or None for all)
+TABS = [("hydrosat", [("VanZyl", "hydrosat", None)]),
+        ("kuva", [("Hyperfield", "kuva", None)]),
+        ("vantor", [("Legion", "vantor", None), ("WorldView-2", "worldview", {"wv02"}), ("WorldView-3", "worldview", {"wv03-vnir"})]),
+        ("satellogic", [("Aleph-1", "satellogic", None)])]
+COMBINED = {"vantor": [("WorldView-2 and 3", ["WorldView-2", "WorldView-3"]), ("All constellations", None)]}
+
+
+def _tables(store: str, collections) -> Dict[str, pd.DataFrame]:
+    """Each fetched month of a store, kept to the given catalog collections."""
+    out = {}
+    for path in sorted((STORE / store).glob("*.pkl")):
+        table = pd.read_pickle(path)
+        if collections is not None:
+            table = table[table["collection"].isin(collections)] if "collection" in table else table.iloc[0:0]
+        out[path.stem] = table
+    return out
+
+
+def _group(name: str, tables: Dict[str, pd.DataFrame], every: List[str], cell: float) -> dict:
+    """For each month, the cells with acquisitions and how many, plus the month's totals."""
+    columns, frames, totals = int(360 / cell), [], []
+    for month in every:
         table = tables.get(month)
-        if table is None:
+        if table is None or not len(table):
             frames.append([]); totals.append({"month": month, "n": 0, "cells": 0, "sensors": {}, "clear": 0})
             continue
-        if info.get("match_seconds"):
-            table = merge_passes(table, info["match_seconds"])
         col = ((table.lon + 180) / cell).astype(int).clip(0, columns - 1)
         row = ((90 - table.lat) / cell).astype(int).clip(0, int(180 / cell) - 1)
-        one = table.assign(cell=row * columns + col).drop_duplicates(["acquisition_id", "cell"])
-        counts = one.groupby("cell").size()
+        counts = table.assign(cell=row * columns + col).drop_duplicates(["acquisition_id", "cell"]).groupby("cell").size()
         acqs = table.drop_duplicates("acquisition_id")
         frames.append([int(v) for pair in counts.items() for v in pair])
-        totals.append({"month": month, "n": int(acqs.shape[0]), "cells": int(counts.size),
+        totals.append({"month": month, "n": int(len(acqs)), "cells": int(counts.size),
                        "sensors": {str(k): int(v) for k, v in acqs.sensor.value_counts().sort_index().items()},
                        "clear": int((pd.to_numeric(acqs.cloud_cover, errors="coerce") <= 20).sum())})
-    return {"key": vendor, "vendor": info["vendor"], "constellation": info["constellation"], "unit": info["unit"],
-            "guide": info["guide"], "collections": info["collections"], "cell": cell, "columns": columns,
-            "partial": f"{pd.Timestamp.today():%Y-%m}", "frames": frames, "totals": totals}
+    return {"constellation": name, "frames": frames, "totals": totals}
+
+
+def tab(key: str, groups, cell: float = CELL_DEG) -> Optional[dict]:
+    """One vendor: its groups share a month axis, from the earliest month fetched for any of them."""
+    loaded = [(name, store, _tables(store, collections)) for name, store, collections in groups]
+    fetched = [m for _, _, t in loaded for m in t]
+    if not any(len(x) for _, _, t in loaded for x in t.values()):
+        return None
+    every = months(min(fetched), max(fetched))
+    out = []
+    for name, store, tables in loaded:
+        if not any(len(x) for x in tables.values()):
+            continue
+        info, g = VENDORS[store], _group(name, tables, every, cell)
+        start = min(tables)
+        g.update(key=f"{key}-{name}".lower().replace(" ", "-"), unit=info["unit"], guide=info["guide"], collections=info["collections"],
+                 first=next(m["month"] for m in g["totals"] if m["n"]), fetched_from=start, complete=start <= info.get("start", START))
+        out.append(g)
+    base = list(out)   # combinations are summed in the page from the constellations, so the data are not stored twice
+    for name, members in COMBINED.get(key, []):
+        parts = [g for g in base if members is None or g["constellation"] in members]
+        if len(parts) < 2:
+            continue
+        out.append({"constellation": name, "parts": [p["constellation"] for p in parts], "key": f"{key}-{name}".lower().replace(" ", "-"),
+                    "unit": parts[0]["unit"], "guide": f"{', '.join(p['constellation'] for p in parts)} together, each strip counted once.",
+                    "collections": [c for p in parts for c in p["collections"]], "first": min(p["first"] for p in parts),
+                    "fetched_from": max(p["fetched_from"] for p in parts), "complete": all(p["complete"] for p in parts)})
+    vendor = VENDORS[groups[0][1]]["vendor"]
+    palette = vendor_palette(vendor)
+    for g in out:
+        g.update(vendor=vendor, cell=cell, columns=int(360 / cell), partial=f"{pd.Timestamp.today():%Y-%m}", palette=palette)
+    return {"key": key, "vendor": vendor, "palette": palette, "groups": out}
 
 
 def build(page: Path = PAGE) -> Path:
-    tabs = [t for t in (tab(v) for v in VENDORS) if t]
-    for t in tabs:
-        t["palette"] = vendor_palette(t["vendor"])
+    tabs = [t for t in (tab(k, g) for k, g in TABS) if t]
     data = json.dumps({"tabs": tabs, "land": LAND.read_text(encoding="utf-8").strip(), "updated": f"{pd.Timestamp.today():%-d %b %Y}"},
                       separators=(",", ":"))
     page.write_text(TEMPLATE.read_text(encoding="utf-8").replace("/*DATA*/null", data.replace("</", "<\\/")), encoding="utf-8")
-    print(page, f"{page.stat().st_size / 1e6:.1f} MB", [f"{t['constellation']}: {sum(m['n'] for m in t['totals'])}" for t in tabs])
+    print(page, f"{page.stat().st_size / 1e6:.1f} MB",
+          [f"{g['constellation']}: {sum(m['n'] for m in g['totals'])}" for t in tabs for g in t["groups"] if "totals" in g])
     return page
 
 

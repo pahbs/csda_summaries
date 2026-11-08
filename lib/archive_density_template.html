@@ -126,6 +126,7 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
 .month small { font-size: 13px; font-weight: 500; color: var(--ink-2); }
 .timeline { flex-basis: 100%; cursor: pointer; touch-action: none; outline-offset: 3px; border-radius: 6px; }
 .timeline:focus { outline: none; }
+[hidden] { display: none !important; }
 .timeline:focus-visible { outline: 2px solid var(--series); }
 .timeline svg text { font-size: 11px; }
 .tabs .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
@@ -160,6 +161,7 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
 <div class="filters controls">
   <button class="action play" id="play">▶ Play</button>
   <span class="month" id="month"></span>
+  <label id="groupWrap" hidden>Constellation <select id="group" aria-label="Constellation"></select></label>
   <label>Show <select id="view" aria-label="Show"><option value="month">This month</option><option value="total">Running total</option></select></label>
   <label>Speed <select id="speed" aria-label="Speed"><option value="1200">Slow</option><option value="600" selected>Medium</option><option value="250">Fast</option></select></label>
   <div class="timeline" id="timeline" role="slider" tabindex="0" aria-label="Month"></div>
@@ -181,15 +183,15 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
 <script>
 const DATA = JSON.parse(document.getElementById('data').textContent);
 const $ = id => document.getElementById(id);
-const mapRamp = () => T().palette[dark() ? 'map_dark' : 'map_light'];
+const mapRamp = () => TAB().palette[dark() ? 'map_dark' : 'map_light'];
 function applyPalette() {
-  const root = document.querySelector('.viz-root'), r = T().palette[dark() ? 'dark' : 'light'];
+  const root = document.querySelector('.viz-root'), r = TAB().palette[dark() ? 'dark' : 'light'];
   root.style.setProperty('--series', r[4]); root.style.setProperty('--check', r[2]);
 }
 const TOP = 84, BOTTOM = -62;   // latitudes shown
 const dark = () => getComputedStyle(document.querySelector('.viz-root')).colorScheme === 'dark';
 const css = name => getComputedStyle(document.querySelector('.viz-root')).getPropertyValue(name).trim();
-const state = {tab: 0, view: 'month', timer: null, per: {}};
+const state = {tab: 0, view: 'month', timer: null, per: {}, group: {}};
 function el(tag, props = {}, ...kids) {
   const node = document.createElement(tag);
   for (const [k, v] of Object.entries(props)) {
@@ -210,12 +212,29 @@ function showTip(e, value, label) {
   t.style.top = Math.max(e.clientY - t.offsetHeight - 10, 6) + 'px';
 }
 const hideTip = () => { $('tip').style.display = 'none'; };
-const T = () => DATA.tabs[state.tab];
+const TAB = () => DATA.tabs[state.tab];
+const T = () => TAB().groups[state.group[state.tab] || 0];   // the constellation shown
 const name = m => new Date(`${m}-15`).toLocaleDateString('en-US', {month: 'short', year: 'numeric'});
 const units = t => t.unit === 'pass' ? 'passes' : `${t.unit}s`;
 const label = (t, i) => name(t.totals[i].month) + (t.totals[i].month === t.partial ? ' (so far)' : '');
 
+function combine(t) {   // a combined view: the constellations' counts added cell by cell (strips are distinct)
+  const parts = TAB().groups.filter(g => t.parts.includes(g.constellation));
+  t.frames = parts[0].frames.map((_, i) => {
+    const sum = new Map();
+    parts.forEach(g => { const f = g.frames[i]; for (let k = 0; k < f.length; k += 2) sum.set(f[k], (sum.get(f[k]) || 0) + f[k + 1]); });
+    return [...sum].flat();
+  });
+  t.totals = parts[0].totals.map((m, i) => {
+    const sensors = {};
+    parts.forEach(g => Object.entries(g.totals[i].sensors).forEach(([k, v]) => { sensors[k] = (sensors[k] || 0) + v; }));
+    return {month: m.month, n: parts.reduce((s, g) => s + g.totals[i].n, 0), cells: t.frames[i].length / 2, sensors,
+            clear: parts.reduce((s, g) => s + g.totals[i].clear, 0)};
+  });
+  ['vendor', 'cell', 'columns', 'partial', 'palette'].forEach(k => { t[k] = parts[0][k]; });
+}
 function prepare(t) {
+  if (t.parts && !t.frames) combine(t);
   if (t.cum) return;
   const size = t.columns * Math.round(180 / t.cell), running = new Int32Array(size);
   t.cum = t.frames.map(f => { for (let i = 0; i < f.length; i += 2) running[f[i]] += f[i + 1]; return running.slice(); });
@@ -308,7 +327,7 @@ function render() {
   const now = t.totals[i].month === t.partial;
   $('month').replaceChildren(name(t.totals[i].month), now ? el('small', {text: ' so far'}) : '');
   const tile = (v, k, cls = '') => el('div', {class: 'tile ' + cls}, el('div', {class: 'v', text: v}), el('div', {class: 'k', text: k}));
-  $('answer').replaceChildren(tile(m.n.toLocaleString(), `${units(t)} in ${label(t, i)}`, 'hero'), tile(total.toLocaleString(), `${units(t)} from ${name(t.totals[0].month)} to here`),
+  $('answer').replaceChildren(tile(m.n.toLocaleString(), `${units(t)} in ${label(t, i)}`, 'hero'), tile(total.toLocaleString(), `${units(t)} from ${name(t.first)} to here`),
     tile(`${m.clear.toLocaleString()}`, 'of this month with cloud up to 20%'), tile(name(busiest.month), `busiest month, ${busiest.n.toLocaleString()} ${units(t)}`));
   $('mapTitle').textContent = state.view === 'month' ? `${t.vendor} ${t.constellation}, ${label(t, i)}` : `${t.vendor} ${t.constellation}, all ${units(t)} up to ${label(t, i)}`;
   $('mapNote').textContent = 'Every acquisition in the catalog, whatever its cloud cover. Point at a cell for its count.';
@@ -325,17 +344,23 @@ function start() {
 function renderTabs() {
   $('tabs').replaceChildren(...DATA.tabs.map((t, i) => {
     const sw = el('i', {class: 'swatch'}); sw.style.background = t.palette.color;
+    const many = t.groups.length > 1, plain = t.groups.filter(g => !g.parts);
     const b = el('button', {role: 'tab', 'aria-selected': i === state.tab, onclick: () => { stop(); state.tab = i; show(); }},
-      el('b', {}, sw, `${t.vendor} ${t.constellation}`), el('span', {text: `${name(t.totals[0].month)} onward`}));
+      el('b', {}, sw, many ? t.vendor : `${t.vendor} ${t.groups[0].constellation}`),
+      el('span', {text: many ? plain.map(g => g.constellation).join(', ') : `${name(t.groups[0].first)} onward`}));
     if (i === state.tab) b.style.borderBottomColor = t.palette.color;
     return b;
   }));
 }
 function show() {
+  const groups = TAB().groups, sel = $('group');
+  sel.replaceChildren(...groups.map((g, i) => el('option', {value: i, text: g.constellation})));
+  sel.value = state.group[state.tab] || 0; $('groupWrap').hidden = groups.length < 2;
   const t = T(); prepare(t); applyPalette(); renderTabs(); render();
   const entries = [['One count is', t.guide], ['Map cells', `${t.cell}° squares, placed by the center of each footprint. A wide scene counts only in the cell at its center.`],
     ['Recent months', 'These can still grow: vendors add acquisitions to their catalogs late. The current month is marked "so far".'],
-    ['Comparing tabs', 'Each constellation has its own color scale, so compare patterns between tabs, not shades.']];
+    ['Comparing', 'Each constellation has its own color scale, so compare patterns between them, not shades.'],
+    ...(t.complete ? [] : [['Still being added', `Fetched back to ${name(t.fetched_from)} so far. Earlier months are added newest first.`]])];
   $('guide').replaceChildren(...entries.flatMap(([k, v]) => [el('dt', {text: k}), el('dd', {text: v})]));
   $('foot').textContent = `${t.vendor} ${t.constellation}: catalog collections ${t.collections.join(', ')}.`;
 }
@@ -358,6 +383,7 @@ tl.addEventListener('keydown', e => {
 });
 $('play').addEventListener('click', () => state.timer ? stop() : start());
 $('view').addEventListener('change', e => { state.view = e.target.value; render(); });
+$('group').addEventListener('change', e => { stop(); state.group[state.tab] = +e.target.value; show(); });
 $('speed').addEventListener('change', () => { if (state.timer) { stop(); start(); } });
 $('map').addEventListener('pointermove', e => { const c = cellAt(e); if (c.v) showTip(e, c.v.toLocaleString(), `${units(T())} near ${Math.abs(c.lat).toFixed(0)}°${c.lat >= 0 ? 'N' : 'S'}, ${Math.abs(c.lon).toFixed(0)}°${c.lon >= 0 ? 'E' : 'W'}`); else hideTip(); });
 $('map').addEventListener('pointerleave', hideTip);
