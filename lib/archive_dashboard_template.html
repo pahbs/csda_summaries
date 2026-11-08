@@ -246,7 +246,7 @@ function renderTabs() {
   $('tabs').replaceChildren(...DATA.tabs.map((t, i) => {
     const sw = el('i', {class: 'swatch'}); sw.style.background = t.palette.color;
     const b = el('button', {role: 'tab', 'aria-selected': i === state.tab, onclick: () => { state.tab = i; renderAll(); }},
-      el('b', {}, sw, `${t.vendor} ${t.constellation}`), el('span', {text: t.bands}));
+      el('b', {}, sw, t.vendor), el('span', {text: t.constellation}));
     if (i === state.tab) b.style.borderBottomColor = t.palette.color;
     return b;
   }));
@@ -436,7 +436,7 @@ function renderSky(tab, rows) {
 }
 function renderGuide(tab, all) {
   const merged = `${tab.items.toLocaleString()} catalog items became ${tab.acqs.length.toLocaleString()} acquisitions at sites.`;
-  const entries = [['One acquisition is', tab.acquisition], ['Counted here', merged], ['Footprint', tab.footprint], ['Cloud cover', tab.cloud], ['In this tab', tab.scope]];
+  const entries = [['Imagery', tab.bands], ['One acquisition is', tab.acquisition], ['Counted here', merged], ['Footprint', tab.footprint], ['Cloud cover', tab.cloud], ['In this tab', tab.scope]];
   $('guide').replaceChildren(...entries.flatMap(([k, v]) => { const d = el('dd'); d.innerHTML = v; return [el('dt', {text: k}), d]; }));
   const rows = tab.levels.map((l, i) => {
     const mine = all.filter(a => a.lv.includes(i));

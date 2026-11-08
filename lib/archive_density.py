@@ -25,7 +25,7 @@ REPO = Path(__file__).resolve().parents[1]
 STORE = Path("/explore/nobackup/people/pmontesa/multistac/global_analysis/monthly")
 PAGE = REPO / "html" / "archive_density.html"
 TEMPLATE = Path(__file__).with_name("archive_density_template.html")
-START = "2024-01"
+START = "2020-01"
 REFRESH_MONTHS = 3
 CELL_DEG = 1.5
 
@@ -38,7 +38,7 @@ VENDORS = {
                    guide="One catalog strip (Vantor catalog ID) counts once. Strips are not merged into passes: a satellite collects "
                          "strip after strip along an orbit, so merging by time would join a whole orbit into one. This is Vantor's "
                          "own catalog, so it shows what was collected, not what CSDA holds."),
-    "worldview": dict(provider="vantor", collections=["wv02", "wv03-vnir"], vendor="Vantor", constellation="WorldView", unit="strip", start="2020-01",
+    "worldview": dict(provider="vantor", collections=["wv02", "wv03-vnir"], vendor="Vantor", constellation="WorldView", unit="strip",
                       guide="One catalog strip (Vantor catalog ID) counts once, from Vantor's own catalog. WorldView-3 is its VNIR "
                             "collection (wv03-vnir)."),
     "satellogic": dict(collections=["quickview-visual-thumb"], vendor="Satellogic", constellation="Aleph-1", unit="capture",
@@ -120,8 +120,8 @@ def fetch(vendor: str, refresh: int = REFRESH_MONTHS, only: Optional[List[str]] 
 # (label, store, catalog collections or None for all)
 TABS = [("hydrosat", [("VanZyl", "hydrosat", None)]),
         ("kuva", [("Hyperfield", "kuva", None)]),
-        ("vantor", [("Legion", "vantor", None), ("WorldView-2", "worldview", {"wv02"}), ("WorldView-3", "worldview", {"wv03-vnir"})]),
-        ("satellogic", [("Aleph-1", "satellogic", None)])]
+        ("satellogic", [("Aleph-1", "satellogic", None)]),
+        ("vantor", [("Legion", "vantor", None), ("WorldView-2", "worldview", {"wv02"}), ("WorldView-3", "worldview", {"wv03-vnir"})])]
 COMBINED = {"vantor": [("WorldView-2 and 3", ["WorldView-2", "WorldView-3"]), ("All constellations", None)]}
 
 

@@ -344,10 +344,9 @@ function start() {
 function renderTabs() {
   $('tabs').replaceChildren(...DATA.tabs.map((t, i) => {
     const sw = el('i', {class: 'swatch'}); sw.style.background = t.palette.color;
-    const many = t.groups.length > 1, plain = t.groups.filter(g => !g.parts);
+    const plain = t.groups.filter(g => !g.parts);
     const b = el('button', {role: 'tab', 'aria-selected': i === state.tab, onclick: () => { stop(); state.tab = i; show(); }},
-      el('b', {}, sw, many ? t.vendor : `${t.vendor} ${t.groups[0].constellation}`),
-      el('span', {text: many ? plain.map(g => g.constellation).join(', ') : `${name(t.groups[0].first)} onward`}));
+      el('b', {}, sw, t.vendor), el('span', {text: plain.map(g => g.constellation).join(', ')}));
     if (i === state.tab) b.style.borderBottomColor = t.palette.color;
     return b;
   }));
