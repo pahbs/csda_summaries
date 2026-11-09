@@ -471,7 +471,8 @@ function renderList(tab, rows) {
     el('td', {class: 't id', title: a.a, text: a.a})));
   $('list').replaceChildren(el('table', {class: 'list'}, el('thead', {}, el('tr', {}, head.map(h => el('th', {class: left.has(h) ? 't' : '', text: h})))), el('tbody', {}, body)));
   const n = tab.sites.filter(x => match(x.name)).length;
-  const where = s.site != null ? tab.sites[s.site].name : !terms().length ? 'all sites' : !n ? 'no sites' : n === 1 ? 'the matching site' : `the ${n} matching sites`;
+  const where = s.site != null ? tab.sites[s.site].name : !terms().length ? 'all sites' : !n ? 'no sites'
+    : n === 1 ? tab.sites.find(x => match(x.name)).name : `the ${n} matching sites`;
   $('listTitle').textContent = `Acquisitions at ${where}`;
   $('listNote').textContent = sorted.length > 200 ? `Showing the first 200 of ${sorted.length.toLocaleString()}, good ones first. The download has every good and Check AOI acquisition.` : 'Good ones first, then newest.';
   $('csv').onclick = () => {
@@ -489,12 +490,16 @@ function renderData(tab) {
   const shown = tab.sites.map((x, i) => ({x, i})).filter(({x}) => match(x.name)), filtering = terms().length > 0;
   renderAnswer(tab, all); renderScore(tab, found); renderReasons(tab, rows); renderMap(tab, found); renderHist(tab, rows); renderSky(tab, rows); renderGuide(tab, rows); renderList(tab, rows);
   const matching = n => n === 1 ? 'the matching site' : `the ${n} matching sites`;
-  $('findNote').textContent = !filtering ? '' : shown.length ? `${shown.length} of ${tab.sites.length} ${shown.length === 1 ? 'site matches' : 'sites match'}. Everything below shows only ${shown.length === 1 ? 'it' : 'these'}.`
-    : 'No sites match. Check the spelling, or clear the box to see every site.';
-  $('pickTitle').textContent = s.site != null ? `Look closer: ${tab.sites[s.site].name}` : filtering ? `Look closer: ${shown.length ? matching(shown.length) : 'no sites'}` : 'Look closer: all sites';
+  const picked = s.site != null && shown.length > 1 ? tab.sites[s.site].name : null;
+  const matchText = `${shown.length} of ${tab.sites.length} ${shown.length === 1 ? 'site matches' : 'sites match'}.`;
+  $('findNote').textContent = filtering && !shown.length ? 'No sites match. Check the spelling, or clear the box to see every site.'
+    : picked ? `${filtering ? matchText + ' ' : ''}Looking closer at ${picked}. Choose ${filtering ? 'All matching sites' : 'All sites'} in Look closer to see ${filtering ? `all ${shown.length}` : 'every site'} again.`
+    : filtering ? `${matchText} Everything below shows only ${shown.length === 1 ? 'it' : 'these'}.` : '';
+  $('pickTitle').textContent = s.site != null ? `Look closer: ${tab.sites[s.site].name}` : !filtering ? 'Look closer: all sites'
+    : shown.length === 1 ? `Look closer: ${shown[0].x.name}` : `Look closer: ${shown.length ? matching(shown.length) : 'no sites'}`;
   const pickSel = $('sitePick');
   pickSel.replaceChildren(el('option', {value: '', text: filtering ? 'All matching sites' : 'All sites'}), ...shown.map(({x, i}) => el('option', {value: i, text: x.name})));
-  pickSel.value = s.site == null ? '' : s.site;
+  pickSel.value = s.site != null ? s.site : shown.length === 1 && filtering ? shown[0].i : '';   // one match: that is the site
   pickSel.onchange = e => { s.site = e.target.value === '' ? null : +e.target.value; renderData(tab); };
 }
 function renderAll() {
@@ -509,7 +514,9 @@ function renderAll() {
   $('foot').textContent = `${tab.vendor} ${tab.constellation}: searched ${tab.searched}, ${tab.start} to ${tab.end}, ${tab.items.toLocaleString()} catalog items, ${tab.sites.length} sites. Sites with a requirement use it in place of the sliders.`;
 }
 $('updated').textContent = `Last updated: ${DATA.updated}`;
-$('find').addEventListener('input', e => { state.find = e.target.value; renderData(DATA.tabs[state.tab]); });
+$('find').addEventListener('input', e => {   // a new search replaces any site picked in Look closer, on every tab
+  state.find = e.target.value; Object.values(state.per).forEach(p => { p.site = null; }); renderData(DATA.tabs[state.tab]);
+});
 renderAll();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderAll);
 </script>
