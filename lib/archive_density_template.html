@@ -239,12 +239,14 @@ function prepare(t) {
   const size = t.columns * Math.round(180 / t.cell), running = new Int32Array(size);
   t.cum = t.frames.map(f => { for (let i = 0; i < f.length; i += 2) running[f[i]] += f[i + 1]; return running.slice(); });
   const quantile = (values, q) => { const s = [...values].sort((a, b) => a - b); return s.length ? s[Math.min(s.length - 1, Math.floor(q * s.length))] : 1; };
-  t.maxMonth = Math.max(2, quantile(t.frames.flatMap(f => f.filter((_, i) => i % 2)), .995));
-  t.maxTotal = Math.max(2, quantile(t.cum[t.cum.length - 1].filter(v => v), .995));
+  // each scale spans this constellation's own counts, from the 5th to the 99.5th percentile, so dense ones still show detail
+  const monthly = t.frames.flatMap(f => f.filter((_, i) => i % 2)), total = t.cum[t.cum.length - 1].filter(v => v);
+  t.maxMonth = Math.max(2, quantile(monthly, .995)); t.minMonth = Math.max(1, Math.min(t.maxMonth / 2, quantile(monthly, .05)));
+  t.maxTotal = Math.max(2, quantile(total, .995)); t.minTotal = Math.max(1, Math.min(t.maxTotal / 2, quantile(total, .05)));
   const full = t.totals.filter(m => m.month !== t.partial);
   state.per[t.key] = state.per[t.key] ?? Math.max(0, full.length - 1);
 }
-function step(v, max) { return Math.min(5, Math.floor(Math.log(v) / Math.log(max + 1) * 6)); }
+function step(v, max, min = 1) { return Math.max(0, Math.min(5, Math.floor(Math.log(v / min) / Math.log((max + 1) / min) * 6))); }
 let land = null, landTheme = null;
 function drawLand(w, h) {
   const theme = dark();
@@ -257,11 +259,11 @@ function drawLand(w, h) {
 function drawMap() {
   const t = T(), i = state.per[t.key], canvas = $('map'), c = canvas.getContext('2d'), w = canvas.width, h = canvas.height;
   const sx = w / 360, sy = h / (TOP - BOTTOM), ramp = mapRamp();
-  const max = state.view === 'month' ? t.maxMonth : t.maxTotal, size = t.cell;
+  const max = state.view === 'month' ? t.maxMonth : t.maxTotal, min = state.view === 'month' ? t.minMonth : t.minTotal, size = t.cell;
   c.clearRect(0, 0, w, h); c.drawImage(drawLand(w, h), 0, 0);
   const paint = (cell, v) => {
     const row = Math.floor(cell / t.columns), col = cell % t.columns, lat = 90 - row * size;
-    c.fillStyle = ramp[step(v, max)];
+    c.fillStyle = ramp[step(v, max, min)];
     c.fillRect(col * size * sx, (TOP - lat) * sy, size * sx + .5, size * sy + .5);
   };
   if (state.view === 'month') { const f = t.frames[i]; for (let k = 0; k < f.length; k += 2) paint(f[k], f[k + 1]); }
@@ -276,9 +278,9 @@ function cellAt(e) {
   return {v, lon, lat};
 }
 function renderLegend(t) {
-  const max = state.view === 'month' ? t.maxMonth : t.maxTotal, ramp = mapRamp();
-  const edge = k => Math.max(1, Math.round(Math.exp(k / 6 * Math.log(max + 1))));
-  $('legend').replaceChildren(el('span', {text: `${units(t)[0].toUpperCase() + units(t).slice(1)} in a ${t.cell}° cell:`}), el('span', {text: String(edge(0))}),
+  const max = state.view === 'month' ? t.maxMonth : t.maxTotal, min = state.view === 'month' ? t.minMonth : t.minTotal, ramp = mapRamp();
+  const edge = k => Math.max(1, Math.round(min * Math.exp(k / 6 * Math.log((max + 1) / min))));
+  $('legend').replaceChildren(el('span', {text: `${units(t)[0].toUpperCase() + units(t).slice(1)} in a ${t.cell}° cell:`}), el('span', {text: (min > 1 ? '≤ ' : '') + edge(0).toLocaleString()}),
     el('span', {class: 'scale'}, ramp.map(c => { const i = el('i'); i.style.background = c; return i; })), el('span', {text: `${edge(6).toLocaleString()}+`}),
     el('span', {text: 'The scale stays fixed for this constellation, so months compare directly.'}));
 }
@@ -362,8 +364,18 @@ function show() {
   const groups = TAB().groups, sel = $('group');
   sel.replaceChildren(...groups.map((g, i) => el('option', {value: i, text: g.constellation})));
   sel.value = state.group[state.tab] || 0; $('groupWrap').hidden = groups.length < 2;
-  const t = T(); prepare(t); applyPalette(); renderTabs(); render();
-  const entries = [['One count is', t.guide], ['Map cells', `${t.cell}° squares, placed by the center of each footprint. A wide scene counts only in the cell at its center.`],
+  const t = T();
+  applyPalette(); renderTabs();
+  if (t.lazy && !t.frames) {   // a large constellation: its monthly maps load when it is first picked
+    $('mapTitle').textContent = `${t.vendor} ${t.constellation}`; $('mapNote').textContent = 'Loading the monthly maps…';
+    fetch(`archive_density_data/${t.key}.json`).then(r => { if (!r.ok) throw r.status; return r.json(); })
+      .then(d => { t.frames = d.frames; if (T() === t) show(); })
+      .catch(() => { $('mapNote').textContent = 'These maps load on the published page: https://pahbs.github.io/csda_summaries/html/archive_density.html'; });
+    return;
+  }
+  prepare(t); render();
+  const entries = [['One count is', t.guide], ['Map cells', t.counted ? `${t.cell}° squares. Each scene counts in every square it touches, from Planet's catalog statistics.`
+    : `${t.cell}° squares, placed by the center of each footprint. A wide scene counts only in the cell at its center.`],
     ['Recent months', 'These can still grow: vendors add acquisitions to their catalogs late. The current month is marked "so far".'],
     ['Comparing', 'Each constellation has its own color scale, so compare patterns between them, not shades.'],
     ...(t.complete ? [] : [['Still being added', `Fetched back to ${name(t.fetched_from)} so far. Earlier months are added newest first.`]])];

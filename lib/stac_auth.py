@@ -201,6 +201,16 @@ class ApiKeyHeader(NoAuth):
         return {cfg.get("header", "Authorization"): f"{prefix}{key}"}
 
 
+class ApiKeyBasic(NoAuth):
+    """Static API key from the INI file as the username of HTTP Basic auth, with an empty password (Planet)."""
+
+    def headers(self) -> Dict[str, str]:
+        import base64
+        cfg = self.profile["auth"]
+        key = _read_section(cfg["credentials_section"])[cfg.get("key_name", "api_key")]
+        return {"Authorization": "Basic " + base64.b64encode(f"{key}:".encode()).decode()}
+
+
 AUTH_TYPES = {
     "none": NoAuth,
     "oauth2_client_credentials": OAuth2ClientCredentials,
@@ -208,6 +218,7 @@ AUTH_TYPES = {
     "satellogic": SatellogicAuth,
     "bearer_env": BearerEnv,
     "api_key_header": ApiKeyHeader,
+    "api_key_basic": ApiKeyBasic,
 }
 
 

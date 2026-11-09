@@ -296,6 +296,39 @@ hydrosat:
     # Item id, as in CSDA's hydrosat collection (VZ01_L2_20250929_171000): matches each processing level on its own
     vendor_item_id: [id]
 
+planet:
+  label: Planet (STAC API)
+  display_name: Planet
+  # Planet's STAC API over its Data API catalog. API key from [Planet_STAC_DATA_API] as the Basic auth username, empty password
+  # (the "api-key" header form is refused by the STAC endpoint with HTTP 401).
+  # Smoke test 2026-11-09: collections PSScene, TanagerScene, SkySatCollect, ...; standard next links.
+  # PSScene holds every PlanetScope generation: SuperDove is instrument PSB.SD (filtered after the search).
+  enabled: true
+  stac_url: https://api.planet.com/x/data
+  auth:
+    type: api_key_basic
+    credentials_section: Planet_STAC_DATA_API
+  default_collections: [PSScene]
+  # One acquisition = one strip: a pass is delivered as a run of short scenes, and neighbours often both touch a site
+  acquisition_id:
+    default: {from: 'pl:strip_id'}
+  search: {page_size: 250, max_concurrency: 2, timeout: 120}
+  geometry: intersects
+  filter_mode: client
+  affiliation: {default: Planet}
+  spectral_mode: {default: ms, TanagerScene: hyperspectral}
+  fields:
+    cloud_cover: [eo:cloud_cover]
+    platform: [platform]
+    instrument: [instruments]
+    product_type: [pl:item_type]
+    gsd: [gsd]
+    off_nadir: [view:off_nadir]
+    sun_elevation: [view:sun_elevation]
+    sun_azimuth: [view:sun_azimuth]
+    sat_azimuth: [view:azimuth]
+    vendor_item_id: [id]
+
 vantor:
   label: Vantor Hub (Discovery API)
   display_name: Vantor

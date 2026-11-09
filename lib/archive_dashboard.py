@@ -71,6 +71,20 @@ VENDORS = {
         levels={"LV2A": "Standard: map-projected, coarse DEM (CSDA)", "LV3D": "Ortho: fine DEM (CSDA)"},
         scope="Vantor's catalog shows everything collected; set Source to In CSDA to see what has been delivered. Vantor's catalog "
               "does not list levels, so levels are shown for CSDA products only."),
+    "planet": dict(
+        vendor="Planet", bands="", cloud_scope="scene", levels={}, csda_checked=False,
+        acquisition="One strip (<code>pl:strip_id</code>): a pass is delivered as a run of short scenes, and the scenes of one strip "
+                    "at a site count as one acquisition.",
+        footprint="The union of the strip's scenes that touch the site.",
+        cloud="For each scene, averaged over the scenes at the site by their area there; each scene's value covers the whole scene.",
+        scope="Planet's own catalog. CSDA also holds PlanetScope data (CSDA STAC <code>planet</code> collection), which this tab "
+              "does not check yet, so In CSDA is not shown.",
+        by_constellation={
+            "SuperDove": dict(bands="PlanetScope SuperDove: 8-band multispectral, about 3 m",
+                              scope="Planet's own catalog, SuperDove only (instrument <code>PSB.SD</code>); earlier Dove generations are "
+                                    "left out. CSDA also holds PlanetScope data (CSDA STAC <code>planet</code> collection), not checked "
+                                    "here yet. This tab is large, so it loads when opened."),
+            "Tanager": dict(bands="Tanager: hyperspectral, about 30 m")}),
     "worldview": dict(
         vendor="Vantor", bands="WorldView-2 and WorldView-3, since 2020",
         acquisition="One catalog strip (Vantor catalog ID).",
@@ -119,15 +133,24 @@ def _time_of_day(rows: pd.DataFrame) -> Optional[str]:
     return None if sun is None or sun.isna().all() else ("day" if sun.mean() > 0 else "night")
 
 
+def _rings(geometry, tolerance: float) -> List[List[List[float]]]:
+    """Outer rings of a polygon or multipolygon as [[lon, lat], ...] lists, simplified, for the page's maps."""
+    if geometry is None or geometry.is_empty:
+        return []
+    geometry = geometry.simplify(tolerance, preserve_topology=True)
+    polygons = list(geometry.geoms) if geometry.geom_type in ("MultiPolygon", "GeometryCollection") else [geometry]
+    return [[[round(x, 4), round(y, 4)] for x, y in p.exterior.coords] for p in polygons if p.geom_type == "Polygon"]
+
+
 def acquisitions(gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, levels: List[str], sensors: List[str],
-                 site_names: List[str]) -> List[dict]:
-    """One record per acquisition and site."""
+                 site_names: List[str]):
+    """One record per acquisition and site, and each record's whole footprint (not clipped to the site)."""
     aoi = {}
     for name, geometry in zip(sites.site_name, sites.geometry):
         lat = geometry.centroid.y
         aoi[name] = (_flat(geometry.buffer(0), lat), lat)
     times = pd.to_datetime(gdf["datetime"].map(pd.Timestamp), utc=True)
-    records = []
+    records, footprints = [], []
     for (site, acquisition), rows in gdf.assign(_t=times).groupby(["site_name", "acquisition_id"]):
         if site not in aoi:
             continue
@@ -145,7 +168,8 @@ def acquisitions(gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, levels: List[st
             "az": _number(_weighted(rows, "sat_azimuth", weights)), "el": _number(_weighted(rows, "sat_elevation", weights)),
             "items": int(rows.id.nunique()), "lv": sorted({levels.index(v) for v in rows.processing_level if v in levels}),
             "csda": bool(held), "dn": _time_of_day(rows)})
-    return records
+        footprints.append(_rings(unary_union([g.buffer(0) for g in rows.geometry if g is not None]), 0.001))
+    return records, footprints
 
 
 def _site_table(sites: gpd.GeoDataFrame, sites_file: Union[str, Path], name_field: str) -> List[dict]:
@@ -164,7 +188,7 @@ def _site_table(sites: gpd.GeoDataFrame, sites_file: Union[str, Path], name_fiel
 
 def tab_data(vendor: str, gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, sites_file: Union[str, Path], name_field: str,
              start: str, end: str, log: pd.DataFrame, constellation: str) -> dict:
-    info = VENDORS[vendor]
+    info = {**VENDORS[vendor], **VENDORS[vendor].get("by_constellation", {}).get(constellation, {})}
     gdf = gdf[gdf.constellation.eq(constellation)]
     if info.get("match_seconds"):
         gdf = merge_passes(gdf, info["match_seconds"])
@@ -172,7 +196,9 @@ def tab_data(vendor: str, gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, sites_
     levels = known + sorted(set(gdf.processing_level.dropna()) - set(known))
     sensors = sorted(gdf.sensor.dropna().unique())
     site_rows = _site_table(sites, sites_file, name_field)
-    records = acquisitions(gdf, sites, levels, sensors, [s["name"] for s in site_rows])
+    records, footprints = acquisitions(gdf, sites, levels, sensors, [s["name"] for s in site_rows])
+    outline = dict(zip(sites.site_name, sites.geometry))
+    fp = {"sites": [_rings(outline[s["name"]].buffer(0), 0.0002) for s in site_rows], "acqs": footprints}
     failed = sorted(log.loc[log["status"] == "failed", "site_name"].dropna().unique())
     return {"key": f"{vendor}-{constellation}".lower().replace(" ", "-"), "vendor": info["vendor"], "constellation": constellation,
             "bands": info["bands"], "acquisition": info["acquisition"], "footprint": info["footprint"], "cloud": info["cloud"],
@@ -180,7 +206,7 @@ def tab_data(vendor: str, gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, sites_
             "scope": info["scope"], "searched": f"{pd.Timestamp.today():%-d %b %Y}", "start": start, "end": end,
             "failed": failed, "items": int(gdf.id.nunique()),
             "levels": [{"code": k, "plain": info["levels"].get(k, "")} for k in levels],
-            "sensors": sensors, "sites": site_rows, "acqs": records}
+            "sensors": sensors, "sites": site_rows, "acqs": records}, fp
 
 
 def build(page: Path = PAGE) -> Path:
@@ -189,6 +215,8 @@ def build(page: Path = PAGE) -> Path:
                   key=lambda t: (t["vendor"], t["constellation"]))   # a vendor's constellations side by side
     for t in tabs:
         t["palette"] = vendor_palette(t["vendor"])
+        if len(t["acqs"]) > LAZY_ROWS:   # the page reads them from the tab's data file when the tab is opened
+            t["rows"], t["acqs"], t["lazy"] = len(t["acqs"]), None, True
     data = json.dumps({"tabs": tabs, "land": LAND.read_text(encoding="utf-8").strip(), "updated": f"{pd.Timestamp.today():%-d %b %Y}"},
                       separators=(",", ":"))
     html = TEMPLATE.read_text(encoding="utf-8").replace("/*DATA*/null", data.replace("</", "<\\/"))
@@ -196,13 +224,29 @@ def build(page: Path = PAGE) -> Path:
     return page
 
 
+def write_footprints(tab: dict, fp: dict, folder: Path) -> None:
+    """One file per site (<folder>/<site index>.json): opening a site loads only its footprints."""
+    folder.mkdir(parents=True, exist_ok=True)
+    for old in folder.glob("*.json"):
+        old.unlink()
+    by_site: Dict[int, dict] = {}
+    for i, (record, rings) in enumerate(zip(tab["acqs"], fp["acqs"])):
+        by_site.setdefault(record["s"], {})[i] = rings
+    for s, acqs in by_site.items():
+        (folder / f"{s}.json").write_text(json.dumps({"site": fp["sites"][s], "acqs": acqs}, separators=(",", ":")), encoding="utf-8")
+
+
+LAZY_ROWS = 40000   # tabs bigger than this load their acquisitions when opened
+
+
 def publish(vendor: str, gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, sites_file: Union[str, Path], name_field: str,
             start: str, end: str, log: pd.DataFrame, data_dir: Path = DATA_DIR, page: Path = PAGE) -> Path:
     """Writes this vendor's tabs, one per constellation, and rebuilds the page."""
     Path(data_dir).mkdir(parents=True, exist_ok=True)
     for constellation in sorted(gdf.constellation.dropna().unique()):
-        tab = tab_data(vendor, gdf, sites, sites_file, name_field, start, end, log, constellation)
+        tab, fp = tab_data(vendor, gdf, sites, sites_file, name_field, start, end, log, constellation)
         (Path(data_dir) / f"{tab['key']}.json").write_text(json.dumps(tab, separators=(",", ":")), encoding="utf-8")
+        write_footprints(tab, fp, Path(data_dir) / "fp" / tab["key"])
         print(f"{tab['vendor']} {constellation}: {len(tab['acqs'])} acquisition-site rows, {tab['items']} catalog items, "
               f"{len(tab['sites'])} sites")
     built = build(page)
@@ -212,7 +256,7 @@ def publish(vendor: str, gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, sites_f
 
 # Vendor colors, shared with the Vendor Specs page (vendor_specs.AFFILIATION_COLORS). The exact color marks the vendor;
 # data marks use a light-to-dark ramp of its hue, so light colors such as Vantor's cyan still contrast with the page.
-AFFILIATION = {"Hydrosat": "HydroSat", "Kuva Space": "Kuva", "Satellogic": "Satellogic", "Vantor": "Vantor"}
+AFFILIATION = {"Hydrosat": "HydroSat", "Kuva Space": "Kuva", "Satellogic": "Satellogic", "Vantor": "Vantor", "Planet": "Planet Labs"}
 RAMP_L = {"light": [0.90, 0.82, 0.73, 0.64, 0.55, 0.46, 0.37], "dark": [0.40, 0.48, 0.56, 0.65, 0.74, 0.83, 0.91],
           # maps: the lightest step is one acquisition, so it starts darker and must stand out from the page
           "map_light": [0.73, 0.65, 0.57, 0.49, 0.41, 0.33], "map_dark": [0.52, 0.60, 0.68, 0.76, 0.84, 0.92]}

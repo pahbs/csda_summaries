@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Vendor archive first look</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <meta name="description" content="Vendor archive first look">
 <meta property="og:title" content="Vendor archive first look">
 <meta property="og:description" content="Vendor archive first look">
@@ -115,6 +117,9 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
 .levels { font-size: 13px; margin-top: 12px; width: 100%; }
 .levels th, .levels td { padding: 4px 8px; border-bottom: 1px solid var(--grid); text-align: left; }
 .levels .n { text-align: right; }
+#sitemap { height: 380px; border-radius: 8px; border: 1px solid var(--grid); }
+.maphead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.leaflet-container { font: 12px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 .finder { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 12px; font-size: 14px; }
 .finder label { font-weight: 620; }
 .finder input { font: inherit; font-size: 14px; width: min(420px, 90vw); padding: 5px 10px; border-radius: 8px; border: 1px solid var(--axis);
@@ -156,7 +161,8 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
 <div class="card" style="margin-top:18px"><h2>How the acquisitions vary</h2><p class="note">Each panel counts acquisitions. The line marks the limit in use, where one limit applies to all the sites shown.</p><div class="hist" id="hist"></div>
   <div class="legend"><span><i class="sw" style="background:var(--series)"></i>Good</span><span><i class="sw" style="background:var(--check)"></i>Check AOI</span><span><i class="sw" style="background:var(--muted-mark)"></i>Not good</span></div></div>
 <div class="cols">
-  <div class="card"><h2>Where on the map</h2><p class="note">Circle area shows good acquisitions. Empty rings have none. Select one to look closer.</p><div id="map"></div></div>
+  <div class="card"><div class="maphead"><h2>Acquisition Locations</h2><button class="action" id="worldView" hidden>Show all sites</button></div>
+    <p class="note" id="mapNote"></p><div id="map"></div><div id="sitemap" hidden></div><div class="legend" id="mapLegend"></div></div>
   <div class="card"><h2>Satellite and sun positions</h2><p class="note">As seen from the site: center is overhead, the edge is the horizon, north is up.</p><div id="sky"></div></div>
 </div>
 <div class="card" style="margin-top:18px">
@@ -241,9 +247,9 @@ function test(tab, a) {
 }
 function slice(tab) {
   const s = S();
-  return tab.acqs.filter(a => a.d.slice(0, 7) >= s.from && a.d.slice(0, 7) <= s.to && (s.level === 'any' || a.lv.includes(+s.level))
+  return tab.acqs.map((a, i) => ({...a, i})).filter(a => a.d.slice(0, 7) >= s.from && a.d.slice(0, 7) <= s.to && (s.level === 'any' || a.lv.includes(+s.level))
       && (s.source === 'any' || a.csda) && (s.dn === 'any' || a.dn === s.dn))
-    .map(a => ({...a, t: test(tab, a)}));
+    .map(a => ({...a, t: test(tab, a)}));   // a.i: the row's place in tab.acqs, and in its footprint file
 }
 const uniq = rows => new Set(rows.map(a => a.a)).size;
 
@@ -378,7 +384,75 @@ function renderReasons(tab, rows) {
     tab.has.off ? line('Too far off-nadir', rows.filter(a => !a.t.off).length) : na('Too far off-nadir'),
     line('Site not covered enough', rows.filter(a => !a.t.cov).length)].filter(Boolean));
 }
+let lmap = null, lgroup = null, fitted = null, drawing = 0;
+const fpCache = {};
+function footprints(tab, f) {   // one file per site, loaded the first time that site is opened
+  const key = `${tab.key}/${f}`;
+  if (!(key in fpCache)) fpCache[key] = fetch(`archive_first_look_data/fp/${key}.json`).then(r => { if (!r.ok) throw r.status; return r.json(); });
+  return fpCache[key];
+}
+function siteMap() {
+  if (lmap) return lmap;
+  lmap = L.map('sitemap', {preferCanvas: true, zoomSnap: 0.5});
+  const esri = name => `https://server.arcgisonline.com/ArcGIS/rest/services/${name}/MapServer/tile/{z}/{y}/{x}`;
+  const imagery = L.tileLayer(esri('World_Imagery'), {maxNativeZoom: 17, maxZoom: 19, attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics'});
+  const gray = L.tileLayer(esri('Canvas/World_Light_Gray_Base'), {maxNativeZoom: 16, maxZoom: 19, attribution: 'Tiles &copy; Esri'});
+  imagery.addTo(lmap);
+  L.control.layers({'Imagery': imagery, 'Light gray': gray}).addTo(lmap);
+  lgroup = L.layerGroup().addTo(lmap);
+  return lmap;
+}
+function focusSite(tab) {   // the site being looked at: picked, or the only one the search finds
+  const s = S(), shown = tab.sites.map((x, i) => i).filter(i => match(tab.sites[i].name));
+  return s.site != null ? s.site : terms().length && shown.length === 1 ? shown[0] : null;
+}
 function renderMap(tab, all) {
+  const f = focusSite(tab), s = S();
+  $('worldView').hidden = s.site == null;
+  $('worldView').onclick = () => { s.site = null; renderData(tab); };
+  if (f == null) { $('sitemap').hidden = true; $('map').hidden = false; fitted = null; return renderWorld(tab, all); }
+  $('map').hidden = true; $('sitemap').hidden = false;
+  const map = siteMap(); map.invalidateSize();
+  const site = tab.sites[f], here = all.filter(a => a.s === f && (a.t.good || a.t.check));
+  const good = here.filter(a => a.t.good).length, check = here.length - good, token = ++drawing;
+  $('mapNote').textContent = `Loading the footprints at ${site.name}…`;
+  $('mapLegend').replaceChildren();
+  footprints(tab, f).then(fp => {
+    if (token !== drawing) return;   // a newer view was asked for meanwhile
+    const css = getComputedStyle(document.querySelector('.viz-root')), color = k => css.getPropertyValue(k).trim();
+    lgroup.clearLayers();
+    // Many footprints overlap at busy sites: then outlines only, partly transparent, so overlaps read as density
+    const busy = here.length > 30, faint = here.length > 120;
+    here.sort((a, b) => a.t.good - b.t.good).forEach(a => {   // good ones drawn last, on top
+      const rings = fp.acqs[a.i];
+      if (!rings || !rings.length) return;
+      L.polygon(rings.map(r => r.map(([x, y]) => [y, x])), {color: a.t.good ? color('--series') : color('--check'), weight: busy ? 1 : 1.5,
+        opacity: faint ? .35 : busy ? .6 : 1, fillOpacity: busy ? 0 : .06, dashArray: a.t.good ? null : '5 4'}).bindTooltip(
+        `${a.d} · ${tab.sensors[a.n]}<br>cloud ${a.cloud == null ? '–' : a.cloud + '%'} · off-nadir ${a.off == null ? '–' : a.off + '°'} · site covered ${a.cov}%` +
+        (a.t.good ? '' : '<br>Check AOI'), {sticky: true}).addTo(lgroup);
+    });
+    const outline = (fp.site || []).map(r => r.map(([x, y]) => [y, x]));
+    if (outline.length) L.polygon(outline, {color: '#ffffff', weight: 2.5, fill: false, interactive: false}).addTo(lgroup);
+    if (fitted !== `${tab.key}:${f}`) {   // zoom to the site when it changes, not on every slider move
+      const b = outline.length ? L.latLngBounds(outline.flat()) : L.latLngBounds([[site.lat, site.lon], [site.lat, site.lon]]);
+      const c = b.getCenter(), dy = Math.max(b.getNorth() - b.getSouth(), 0.12), dx = Math.max(b.getEast() - b.getWest(), 0.12 / Math.cos(c.lat * Math.PI / 180));
+      map.fitBounds([[c.lat - dy, c.lng - dx], [c.lat + dy, c.lng + dx]]);
+      fitted = `${tab.key}:${f}`;
+    }
+    $('mapNote').textContent = here.length
+      ? `Footprints at ${site.name} under the limits set above. The white outline is the site.${busy ? ' Overlapping outlines show where coverage piles up.' : ''} Point at a footprint for its details.`
+      : `No good or Check AOI acquisitions at ${site.name} under the limits set above.`;
+    const key = (cls, text) => el('span', {}, el('i', {class: 'sw', style: `background:none;border:2px ${cls === 'check' ? 'dashed' : 'solid'} var(--${cls === 'check' ? 'check' : 'series'})`}), text);
+    $('mapLegend').replaceChildren(key('good', `Good (${good})`), check ? key('check', `Check AOI (${check})`) : '',
+      el('span', {}, el('i', {class: 'sw', style: 'background:none;border:2px solid var(--ink-3)'}), 'Site outline (white on the map)'));
+  }).catch(() => {
+    if (token !== drawing) return;
+    $('mapNote').textContent = `Footprints load on the published page: open https://pahbs.github.io/csda_summaries/html/archive_first_look.html. ${good} good and ${check} Check AOI acquisitions at ${site.name}.`;
+  });
+}
+function renderWorld(tab, all) {
+  $('mapNote').textContent = 'Circle area shows good acquisitions. Empty rings have none. Select a site to see its footprints.';
+  $('mapLegend').replaceChildren();
   const s = S(), w = 560, h = 280, X = lon => (lon + 180) / 360 * w, Y = lat => (90 - lat) / 180 * h * 1;
   const good = new Map(); all.filter(a => a.t.good).forEach(a => good.set(a.s, (good.get(a.s) || 0) + 1));
   const max = Math.max(1, ...good.values());
@@ -388,7 +462,7 @@ function renderMap(tab, all) {
     const c = svg('circle', {cx: X(site.lon), cy: Y(site.lat), r, tabindex: 0, fill: v ? 'var(--series)' : 'none', 'fill-opacity': v ? .75 : 1,
       stroke: s.site === i ? 'var(--ring)' : (v ? 'var(--surface)' : 'var(--ink-3)'), 'stroke-width': s.site === i ? 2 : 1, style: 'cursor:pointer',
       onclick: () => pick(tab, i)});
-    tip(c, String(v), el('span', {text: `good at ${site.name}`}));
+    tip(c, String(v), el('span', {text: `good at ${site.name}. Select to see footprints.`}));
     return c;
   });
   $('map').replaceChildren(svg('svg', {viewBox: `0 0 ${w} ${h}`, width: '100%', role: 'img', 'aria-label': 'Map of sites by good acquisitions'}, land, dots));
@@ -502,8 +576,20 @@ function renderData(tab) {
   pickSel.value = s.site != null ? s.site : shown.length === 1 && filtering ? shown[0].i : '';   // one match: that is the site
   pickSel.onchange = e => { s.site = e.target.value === '' ? null : +e.target.value; renderData(tab); };
 }
+function loadTab(tab) {   // a large tab: its acquisitions load from its data file when it is first opened
+  renderTabs();
+  ['filters', 'answer', 'score', 'scoreLegend', 'nothing', 'reasons', 'mapNote', 'mapLegend', 'hist', 'sky', 'guide', 'levels', 'list', 'listNote', 'findNote']
+    .forEach(id => $(id).replaceChildren());
+  $('map').replaceChildren(); $('sitemap').hidden = true;
+  const note = text => $('warn').replaceChildren(el('div', {class: 'warn', text}));
+  note(`Loading ${tab.vendor} ${tab.constellation}: ${tab.rows.toLocaleString()} acquisitions at the sites…`);
+  fetch(`archive_first_look_data/${tab.key}.json`).then(r => { if (!r.ok) throw r.status; return r.json(); })
+    .then(d => { tab.acqs = d.acqs; if (DATA.tabs[state.tab] === tab) renderAll(); })
+    .catch(() => note(`This tab loads on the published page: https://pahbs.github.io/csda_summaries/html/archive_first_look.html`));
+}
 function renderAll() {
   const tab = DATA.tabs[state.tab];
+  if (tab.lazy && !tab.acqs) return loadTab(tab);
   tab.has = tab.has || {cloud: reported(tab, 'cloud'), off: reported(tab, 'off')};
   state.per[state.tab] = state.per[state.tab] || defaults(tab);
   applyPalette();
