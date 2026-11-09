@@ -2,7 +2,7 @@
 
 Download a CSV from a first-look tab, then run:
 
-    python lib/thumbnail_viewer.py legion-legion_good_acquisitions.csv
+    python lib/thumbnail_viewer.py vantor-legion_good_acquisitions.csv
 
 Each acquisition is looked up in its vendor's catalog at its site and date, and the vendor's preview image is fetched with your
 credentials. The result is ONE private HTML file (images inside it, so it opens anywhere, JupyterLab included): a card per
@@ -26,6 +26,7 @@ import numpy as np
 import pandas as pd
 import requests
 from PIL import Image, ImageDraw
+from tqdm import tqdm   # plain text bar, as in multistac: widget bars fail where ipywidgets is missing
 
 sys.path.insert(0, str(Path(__file__).parent))
 import multistac  # noqa: E402
@@ -53,6 +54,11 @@ WHOLE_PX = 640      # longest side of the whole preview (shown on the map)
 
 # --- catalog lookup ---------------------------------------------------------------------------------------------------------
 
+def _overlap(items: pd.DataFrame, site_geom) -> list:
+    """How much of the site each item covers, in square degrees: only compared within one site, so degrees rank them fine."""
+    return [g.intersection(site_geom).area if g is not None else 0.0 for g in items.geometry]
+
+
 def _matches(found: pd.DataFrame, row, site_geom) -> tuple:
     """The catalog items of one CSV acquisition: by its ID, else (Legion: CSDA names a pass differently) same sensor and date."""
     hit = found[found.acquisition_id.astype(str) == str(row.acquisition_id)]
@@ -61,10 +67,10 @@ def _matches(found: pd.DataFrame, row, site_geom) -> tuple:
         day = pd.to_datetime(found.datetime, utc=True, errors="coerce").dt.strftime("%Y-%m-%d")
         same = found[(found.sensor.astype(str).str.upper() == str(row.sensor).upper()) & (day == row.date)]
         if len(same):
-            best = same.assign(_o=same.geometry.intersection(site_geom).area).groupby("acquisition_id")._o.sum().idxmax()
+            best = same.assign(_o=_overlap(same, site_geom)).groupby("acquisition_id")._o.sum().idxmax()
             hit, how = same[same.acquisition_id == best], "sensor and date"
     if len(hit):
-        hit = hit.assign(_o=hit.geometry.intersection(site_geom).area).sort_values("_o", ascending=False).head(MAX_ITEMS)
+        hit = hit.assign(_o=_overlap(hit, site_geom)).sort_values("_o", ascending=False).head(MAX_ITEMS)
     return hit, how
 
 
@@ -208,12 +214,19 @@ def _png(image: Image.Image) -> bytes:
 # --- the page ---------------------------------------------------------------------------------------------------------------
 
 def tab_of(csv: Path) -> str:
-    return csv.name.split("-")[0].split("_")[0].lower()
+    """The vendor of a first-look download, from its name: vantor-worldview_..., planet-superdove_... (older: worldview-worldview_...)."""
+    name = csv.name.lower()
+    if name.startswith("vantor"):
+        return "worldview" if "worldview" in name else "legion"
+    return name.split("-")[0].split("_")[0]
 
 
 def build(csv, out: Optional[Path] = None, tab: Optional[str] = None, limit: Optional[int] = None,
-          sites=SITES, site_name_field: str = "Site Name", workers: int = 4) -> Path:
-    """Look up every acquisition in `csv` (a first-look download) and write the viewer page. Returns its path."""
+          sites=SITES, site_name_field: str = "Site Name", workers: int = 1) -> Path:
+    """Look up every acquisition in `csv` (a first-look download) and write the viewer page. Returns its path.
+
+    One acquisition at a time by default: the vendor APIs slow down sharply when asked in parallel (Hydrosat: 7 s for 5 one at a
+    time, over 3 minutes four at a time)."""
     csv = Path(csv)
     tab = tab or tab_of(csv)
     if tab not in SOURCES:
@@ -239,17 +252,16 @@ def build(csv, out: Optional[Path] = None, tab: Optional[str] = None, limit: Opt
         try:
             found = _search(source, site, date) if source["assets"] else None
         except Exception as error:                       # a failed search shows as "not found" on its cards
-            print(f"  search failed: {site_name} {date}: {str(error)[:120]}")
+            tqdm.write(f"  search failed: {site_name} {date}: {str(error)[:120]}")   # printed above the bar
             found = None
         return {i: preview(source, session, headers, rows.loc[i], site, found) for i in index}
 
-    done = 0
-    with ThreadPoolExecutor(max_workers=workers) as pool:
+    with ThreadPoolExecutor(max_workers=workers) as pool, \
+            tqdm(total=len(rows), desc=f"{source['vendor']} previews", unit="acq") as bar:
         for part in pool.map(run, groups):
             results.update(part)
-            done += 1
-            if done % 20 == 0 or done == len(groups):
-                print(f"  {done} of {len(groups)} site-days, {sum(1 for r in results.values() if r['crop'])} previews", flush=True)
+            bar.update(len(part))
+            bar.set_postfix(found=sum(1 for r in results.values() if r["crop"]), refresh=False)
 
     sites_used = site_table[site_table.site_name.isin(rows.site)]
     outlines = {r.site_name: [[[round(y, 5), round(x, 5)] for x, y in p.exterior.coords] for p in getattr(r.geometry, "geoms", [r.geometry])]

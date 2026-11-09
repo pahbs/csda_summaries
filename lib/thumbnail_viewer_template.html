@@ -71,6 +71,9 @@ button:hover { background: var(--surface-2); }
 </head>
 <body>
 <div class="viz-root"><div class="wrap">
+  <p id="noscript" style="background:#fff3cd;color:#3d2e00;padding:12px 14px;border-radius:8px;max-width:980px">
+    <b>The thumbnails haven't loaded.</b> This page needs its script to run. In JupyterLab, click <b>Trust HTML</b> at the top of this
+    viewer, or right-click the file and choose <b>Open in New Browser Tab</b>. Or copy the file to your computer and open it in a browser.</p>
   <h1 id="title"></h1>
   <p class="sub" id="lead"></p>
   <p class="sub hint" id="placement"></p>
@@ -84,7 +87,7 @@ button:hover { background: var(--surface-2); }
     <button id="exportKept" type="button">Download kept (CSV)</button>
     <button id="exportAll" type="button">Download all with decisions</button>
   </div>
-  <p class="hint" style="margin:8px 0 0">Keys: <b>K</b> keep, <b>D</b> drop, <b>U</b> undo, <b>←/→</b> move, <b>Enter</b> open on the map, <b>Esc</b> close. Decisions are kept in this browser.</p>
+  <p class="hint" style="margin:8px 0 0" id="keys">Keys: <b>K</b> keep, <b>D</b> drop, <b>U</b> undo, <b>←/→</b> move, <b>Enter</b> open on the map, <b>Esc</b> close. Decisions are kept in this browser.</p>
   <div id="cards"></div>
 </div>
 <div class="panel" id="panel" role="dialog" aria-modal="true" aria-label="Preview on the map">
@@ -111,9 +114,12 @@ const root = document.querySelector('.viz-root');
 const dark = matchMedia('(prefers-color-scheme: dark)').matches, ramp = DATA.palette[dark ? 'dark' : 'light'];
 root.style.setProperty('--series', ramp[2]); root.style.setProperty('--check', ramp[4]);
 
+$('noscript').remove();
+// Browser storage keeps decisions between visits; viewers that block it (JupyterLab's) still work, for this visit only
 const KEY = `thumbs:${DATA.title}`;
-const decisions = JSON.parse(localStorage.getItem(KEY) || '{}');
-const save = () => localStorage.setItem(KEY, JSON.stringify(decisions));
+let stored = true, decisions = {};
+try { decisions = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { stored = false; }
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(decisions)); } catch (e) { stored = false; } };
 const uid = c => `${c.row.site}|${c.row.acquisition_id}`;
 DATA.cards.forEach((c, i) => c.i = i);
 
@@ -245,9 +251,22 @@ function download(rows, name) {
   const lines = [cols.join(','), ...rows.map(c => cols.map(k => q(k === 'decision' ? decisions[uid(c)] || '' : c.row[k])).join(','))];
   const a = el('a', {href: URL.createObjectURL(new Blob([lines.join('\n')], {type: 'text/csv'})), download: name});
   document.body.append(a); a.click(); a.remove();
+  if (window.origin === 'null') showText(name, lines.join('\n'));   // sandboxed (JupyterLab): downloads may be blocked, so show it to copy
+}
+function showText(name, text) {
+  const area = el('textarea', {readonly: '', style: 'width:100%;flex:1;font:12px ui-monospace,monospace;padding:8px'});
+  area.value = text;
+  const box = el('div', {class: 'box', style: 'padding:14px;gap:8px'},
+    el('div', {class: 'boxhead', style: 'padding:0 0 8px'}, el('span', {class: 't', text: name}),
+      el('span', {class: 'hint', text: 'If no file was saved, copy this text into a file with that name.'}), el('span', {class: 'spacer'}),
+      el('button', {type: 'button', text: 'Select all', onclick: () => { area.focus(); area.select(); }}),
+      el('button', {type: 'button', text: 'Close', onclick: () => wrap.remove()})), area);
+  const wrap = el('div', {class: 'panel open', role: 'dialog', 'aria-label': name}, box);
+  document.body.querySelector('.viz-root').append(wrap); area.focus(); area.select();
 }
 $('exportKept').onclick = () => download(DATA.cards.filter(c => decisions[uid(c)] === 'keep'), `${DATA.title}_kept.csv`);
 $('exportAll').onclick = () => download(DATA.cards, `${DATA.title}_decisions.csv`);
+if (!stored) $('keys').lastChild.textContent = ' close. This viewer blocks browser storage, so decisions last for this visit only: download them before closing, or open the page in a browser tab.';
 render();
 </script>
 </body>

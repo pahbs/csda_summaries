@@ -138,7 +138,7 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
 <p class="sub">How many good acquisitions each vendor's archive holds at each site, from each sensor. Set what good means, then pick a site to look closer.</p>
 <p class="note" style="margin:4px 0 0">Paul Montesano, PhD · NASA Goddard Space Flight Center; ESSIC · CSDA Multispectral Optical SME Group ·
   <a href="mailto:paul.m.montesano@nasa.gov">paul.m.montesano@nasa.gov</a> · <span id="updated"></span></p>
-<div class="warn" style="margin:12px 0 0;font-size:13.5px"><b>Suggested use:</b> use this archive tool as a first pass. Select a set of acquisitions that broadly fit quality requirements, download the CSV, request thumbnails of those acquisitions, then reduce to the final selection based on the thumbnail inspection. If thumbnails are georeferenced, it is more obvious whether an acquisition is clear over a precise AOI. To see where and when each constellation collects worldwide, month by month, use the <a href="archive_density.html">Vendor archive density</a> page.</div>
+<div class="warn" style="margin:12px 0 0;font-size:13.5px"><b>Suggested use:</b> use this archive tool as a first pass. Select a set of acquisitions that broadly fit quality requirements, download the CSV, request thumbnails of those acquisitions, then reduce to the final selection based on the thumbnail inspection. If thumbnails are georeferenced, it is more obvious whether an acquisition is clear over a precise AOI. To see where and when each constellation collects worldwide, month by month, use the <a href="archive_density.html">Vendor Archive Density Dashboard</a> page.</div>
 <div class="tabs" id="tabs" role="tablist"></div>
 <div class="filters" id="filters"></div>
 <div id="warn"></div>
@@ -533,6 +533,7 @@ function renderGuide(tab, all) {
   $('levels').replaceChildren(el('table', {class: 'levels'}, el('thead', {}, el('tr', {}, el('th', {text: 'Level'}), el('th', {text: 'What it is'}), el('th', {class: 'n', text: 'Acqs'}), el('th', {class: 'n', text: 'Good'}))), el('tbody', {}, rows)));
 }
 const fmt = (v, unit) => v == null ? '–' : `${v}${unit}`;
+const slug = x => String(x).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 function renderList(tab, rows) {
   const s = S(), rank = a => a.t.good ? 2 : a.t.check ? 1 : 0, sorted = [...rows].sort((a, b) => (rank(b) - rank(a)) || b.d.localeCompare(a.d)), shown = sorted.slice(0, 200);
   const night = tab.acqs.some(a => a.dn === 'night');
@@ -550,12 +551,17 @@ function renderList(tab, rows) {
   const where = s.site != null ? tab.sites[s.site].name : !terms().length ? 'all sites' : !n ? 'no sites'
     : n === 1 ? tab.sites.find(x => match(x.name)).name : `the ${n} matching sites`;
   $('listTitle').textContent = `Acquisitions at ${where}`;
-  $('listNote').textContent = sorted.length > 200 ? `Showing the first 200 of ${sorted.length.toLocaleString()}, good ones first. The download has every good and Check AOI acquisition.` : 'Good ones first, then newest.';
+  // counts follow the limits set above: good, Check AOI, and the rest
+  const nGood = rows.filter(a => a.t.good).length, nCheck = rows.filter(a => !a.t.good && a.t.check).length, N = x => x.toLocaleString();
+  const counts = `${N(nGood)} good, ${N(nCheck)} Check AOI and ${N(rows.length - nGood - nCheck)} not good under the limits above`;
+  $('listNote').textContent = sorted.length > 200
+    ? `${N(sorted.length)} acquisitions: ${counts}. Showing the first 200, good ones first, then newest. The download has all ${N(nGood + nCheck)} good and Check AOI acquisitions.`
+    : `${N(sorted.length)} acquisitions: ${counts}. Good ones first, then newest.`;
   $('csv').onclick = () => {
     const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
     const lines = [['date', 'site', 'sensor', 'status', 'cloud_pct', 'off_nadir_deg', 'site_covered_pct', 'catalog_items', 'levels', 'in_csda', 'time_of_day', 'acquisition_id'].join(',')];
     sorted.filter(a => a.t.good || a.t.check).forEach(a => lines.push([a.d, tab.sites[a.s].name, tab.sensors[a.n], a.t.good ? 'good' : 'check AOI', a.cloud, a.off, a.cov, a.items, a.lv.map(i => tab.levels[i].code).join(' '), a.csda, a.dn, a.a].map(q).join(',')));
-    const link = el('a', {href: URL.createObjectURL(new Blob([lines.join('\n')], {type: 'text/csv'})), download: `${tab.key}_good_acquisitions.csv`});
+    const link = el('a', {href: URL.createObjectURL(new Blob([lines.join('\n')], {type: 'text/csv'})), download: `${slug(tab.vendor)}-${slug(tab.constellation)}_good_acquisitions.csv`});   // vendor, then constellation: vantor-worldview
     link.click(); URL.revokeObjectURL(link.href);
   };
 }
