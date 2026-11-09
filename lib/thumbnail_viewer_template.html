@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thumbnails</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<style>
+.viz-root {
+  color-scheme: light;
+  --surface: #fcfcfb; --surface-2: #f3f2ee; --ink: #0b0b0b; --ink-2: #52514e; --ink-3: #6f6e69; --grid: #e1e0d9; --axis: #c3c2b7;
+  --series: #2a78d6; --check: #6da7ec; --link: #1c5cab; --ok: #006300; --short: #a13a12; --empty: #3a3a38;
+}
+@media (prefers-color-scheme: dark) {
+  .viz-root {
+    color-scheme: dark;
+    --surface: #1a1a19; --surface-2: #232322; --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #a3a297; --grid: #2c2c2a; --axis: #383835;
+    --series: #3987e5; --check: #256abf; --link: #86b6ef; --ok: #0ca30c; --short: #ec835a; --empty: #2b2b29;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+.viz-root { background: var(--surface); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh; padding: 24px 20px 48px; }
+.wrap { max-width: 1400px; margin: 0 auto; }
+h1 { font-size: 22px; margin: 0 0 4px; font-weight: 650; }
+h2 { font-size: 16px; margin: 22px 0 8px; font-weight: 620; }
+h2 span { color: var(--ink-3); font-weight: 400; font-size: 13px; margin-left: 6px; }
+.sub { color: var(--ink-2); margin: 0 0 4px; max-width: 980px; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--grid);
+  position: sticky; top: 0; background: var(--surface); z-index: 5; margin-top: 14px; }
+.filters label { font-size: 13px; color: var(--ink-2); display: inline-flex; gap: 6px; align-items: center; }
+select, button { font: inherit; font-size: 13px; padding: 4px 9px; border-radius: 6px; border: 1px solid var(--axis); background: var(--surface); color: var(--ink); }
+button { cursor: pointer; }
+button:hover { background: var(--surface-2); }
+.tally { font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: 13px; }
+.tally b { color: var(--ink); }
+.spacer { flex: 1; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--card, 250px), 1fr)); gap: 12px; }
+.card { background: var(--surface-2); border-radius: 10px; overflow: hidden; border: 2px solid transparent; display: flex; flex-direction: column; }
+.card:focus-visible, .card.focus { outline: 2px solid var(--link); outline-offset: 2px; }
+.card.keep { border-color: var(--ok); }
+.card.drop { opacity: .45; }
+.img { aspect-ratio: 1; background: var(--empty); display: grid; place-items: center; cursor: zoom-in; position: relative; }
+.img img { width: 100%; height: 100%; object-fit: contain; image-rendering: auto; }
+.img .none { color: #c9c8c1; font-size: 12.5px; padding: 16px; text-align: center; cursor: default; }
+.img .approx { position: absolute; left: 6px; bottom: 6px; background: rgba(0,0,0,.6); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 4px; }
+.meta { padding: 8px 10px 4px; font-size: 12.5px; }
+.meta .when { font-weight: 620; font-size: 13.5px; }
+.meta .nums { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.meta .id { color: var(--ink-3); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pill { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 9px; margin-left: 4px; vertical-align: 1px; border: 1px solid; }
+.pill.good { border-color: var(--series); color: var(--ink); }
+.pill.good::before { content: "● "; color: var(--series); }
+.pill.check { border-color: var(--check); color: var(--ink); border-style: dashed; }
+.pill.check::before { content: "◌ "; color: var(--check); }
+.act { display: flex; gap: 6px; padding: 6px 10px 10px; margin-top: auto; }
+.act button { flex: 1; }
+.act button[aria-pressed="true"].k { background: var(--ok); color: #fff; border-color: var(--ok); }
+.act button[aria-pressed="true"].d { background: var(--short); color: #fff; border-color: var(--short); }
+.panel { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 20; display: none; }
+.panel.open { display: flex; }
+.box { background: var(--surface); margin: auto; width: min(1100px, 96vw); height: min(820px, 94vh); border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; }
+.boxhead { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--grid); }
+.boxhead .t { font-weight: 620; }
+#map { flex: 1; }
+.hint { color: var(--ink-3); font-size: 12px; }
+.leaflet-container { font: inherit; }
+</style>
+</head>
+<body>
+<div class="viz-root"><div class="wrap">
+  <h1 id="title"></h1>
+  <p class="sub" id="lead"></p>
+  <p class="sub hint" id="placement"></p>
+  <div class="filters">
+    <label>Site <select id="site"></select></label>
+    <label>Status <select id="status"><option value="">All</option><option value="good">Good</option><option value="check AOI">Check AOI</option></select></label>
+    <label>Decision <select id="decision"><option value="">All</option><option value="none">Not decided</option><option value="keep">Keep</option><option value="drop">Drop</option></select></label>
+    <label>Size <input id="size" type="range" min="180" max="420" value="250"></label>
+    <span class="tally" id="tally"></span>
+    <span class="spacer"></span>
+    <button id="exportKept" type="button">Download kept (CSV)</button>
+    <button id="exportAll" type="button">Download all with decisions</button>
+  </div>
+  <p class="hint" style="margin:8px 0 0">Keys: <b>K</b> keep, <b>D</b> drop, <b>U</b> undo, <b>←/→</b> move, <b>Enter</b> open on the map, <b>Esc</b> close. Decisions are kept in this browser.</p>
+  <div id="cards"></div>
+</div>
+<div class="panel" id="panel" role="dialog" aria-modal="true" aria-label="Preview on the map">
+  <div class="box">
+    <div class="boxhead">
+      <button id="prev" type="button" aria-label="Previous">←</button><button id="next" type="button" aria-label="Next">→</button>
+      <span class="t" id="ptitle"></span>
+      <label class="hint">Opacity <input id="opacity" type="range" min="0" max="100" value="90"></label>
+      <span class="spacer"></span>
+      <span class="act" style="padding:0"><button class="k" id="pk" type="button">✓ Keep</button><button class="d" id="pd" type="button">✕ Drop</button></span>
+      <button id="close" type="button" aria-label="Close">Close</button>
+    </div>
+    <div id="map"></div>
+  </div>
+</div>
+</div>
+<script>
+const DATA = /*DATA*/null;
+const $ = id => document.getElementById(id);
+const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) k === 'text' ? e.textContent = v : k.startsWith('on') ? e[k] = v : e.setAttribute(k, v);
+  e.append(...kids.filter(k => k != null)); return e; };
+const root = document.querySelector('.viz-root');
+const dark = matchMedia('(prefers-color-scheme: dark)').matches, ramp = DATA.palette[dark ? 'dark' : 'light'];
+root.style.setProperty('--series', ramp[2]); root.style.setProperty('--check', ramp[4]);
+
+const KEY = `thumbs:${DATA.title}`;
+const decisions = JSON.parse(localStorage.getItem(KEY) || '{}');
+const save = () => localStorage.setItem(KEY, JSON.stringify(decisions));
+const uid = c => `${c.row.site}|${c.row.acquisition_id}`;
+DATA.cards.forEach((c, i) => c.i = i);
+
+$('title').textContent = `Thumbnails: ${DATA.vendor}, ${DATA.title.replace(/_/g, ' ')}`;
+const withImg = DATA.cards.filter(c => c.crop).length;
+$('lead').textContent = DATA.has_previews
+  ? `${withImg} of ${DATA.cards.length} acquisitions have a preview from ${DATA.vendor}'s catalog. Each card shows the site up close (white outline). Open a card for the whole preview on a map. Made ${DATA.made}; private: vendor previews may not be shared publicly.`
+  : `${DATA.vendor}'s catalog has no preview images, so the cards hold the details only. Made ${DATA.made}.`;
+const exact = DATA.cards.filter(c => c.crop).every(c => c.exact);
+$('placement').textContent = !withImg ? '' : exact ? 'Previews are georeferenced, so they sit exactly.'
+  : 'Previews are plain images placed on each scene\'s bounding box: close for north-up products, but check the site against the map before relying on it.';
+
+const sites = [...new Set(DATA.cards.map(c => c.row.site))].sort();
+$('site').append(el('option', {value: '', text: `All sites (${sites.length})`}), ...sites.map(s => el('option', {value: s, text: s})));
+
+let shown = [], focus = -1;
+function visible() {
+  const site = $('site').value, status = $('status').value, decision = $('decision').value;
+  return DATA.cards.filter(c => (!site || c.row.site === site) && (!status || c.row.status === status)
+    && (!decision || (decisions[uid(c)] || 'none') === decision));
+}
+function tally() {
+  const v = Object.values(decisions), keep = v.filter(x => x === 'keep').length, drop = v.filter(x => x === 'drop').length;
+  $('tally').innerHTML = `<b>${keep}</b> kept · <b>${drop}</b> dropped · <b>${DATA.cards.length - keep - drop}</b> not decided`;
+}
+function decide(c, value) {
+  if (!value || decisions[uid(c)] === value) delete decisions[uid(c)]; else decisions[uid(c)] = value;
+  save(); tally(); paint(c);
+  if (panelOpen()) paintPanel();
+}
+const num = (v, unit) => v === '' || v == null ? '–' : `${v}${unit}`;
+function card(c) {
+  const r = c.row, why = !DATA.has_previews ? 'No preview in this catalog' : !c.found ? 'Not found in the catalog at this site and date'
+    : 'The catalog has no preview for it';
+  const image = c.crop
+    ? el('div', {class: 'img', title: 'Open on the map', onclick: () => openPanel(c.i)}, el('img', {src: c.crop, alt: `${r.site} ${r.date}`}),
+      c.exact ? null : el('span', {class: 'approx', text: 'placement approximate'}))
+    : el('div', {class: 'img'}, el('div', {class: 'none', text: why}));
+  const k = el('button', {class: 'k', type: 'button', 'aria-pressed': 'false', text: '✓ Keep', onclick: () => decide(c, 'keep')});
+  const d = el('button', {class: 'd', type: 'button', 'aria-pressed': 'false', text: '✕ Drop', onclick: () => decide(c, 'drop')});
+  const box = el('div', {class: 'card', tabindex: '0', 'data-i': c.i},
+    image,
+    el('div', {class: 'meta'},
+      el('div', {class: 'when'}, `${r.date} · ${r.sensor}`, el('span', {class: `pill ${r.status === 'good' ? 'good' : 'check'}`, text: r.status === 'good' ? 'Good' : 'Check AOI'})),
+      el('div', {class: 'nums', text: `Cloud ${num(r.cloud_pct, '%')} · Off-nadir ${num(r.off_nadir_deg, '°')} · Site covered ${num(r.site_covered_pct, '%')}`}),
+      el('div', {class: 'id', title: r.acquisition_id + (c.how === 'sensor and date' ? ' (matched by sensor and date)' : ''), text: r.acquisition_id})),
+    el('div', {class: 'act'}, k, d));
+  box.onfocus = () => { focus = shown.indexOf(c); };
+  c.node = box; paint(c); return box;
+}
+function paint(c) {
+  if (!c.node) return;
+  const v = decisions[uid(c)];
+  c.node.classList.toggle('keep', v === 'keep'); c.node.classList.toggle('drop', v === 'drop');
+  c.node.querySelector('.k').setAttribute('aria-pressed', String(v === 'keep'));
+  c.node.querySelector('.d').setAttribute('aria-pressed', String(v === 'drop'));
+}
+function render() {
+  shown = visible(); focus = -1;
+  const out = [], bySite = new Map();
+  shown.forEach(c => { if (!bySite.has(c.row.site)) bySite.set(c.row.site, []); bySite.get(c.row.site).push(c); });
+  for (const [site, list] of bySite) {
+    const good = list.filter(c => c.row.status === 'good').length;
+    out.push(el('h2', {}, site, el('span', {text: `${list.length} acquisitions, ${good} good`})), el('div', {class: 'grid'}, ...list.map(card)));
+  }
+  if (!shown.length) out.push(el('p', {class: 'sub', style: 'margin-top:20px', text: 'Nothing matches these filters.'}));
+  $('cards').replaceChildren(...out); tally();
+}
+['site', 'status', 'decision'].forEach(id => $(id).onchange = render);
+$('size').oninput = () => root.style.setProperty('--card', `${$('size').value}px`);
+
+// map panel
+let lmap = null, overlay = null, outline = null, current = -1;
+const panelOpen = () => $('panel').classList.contains('open');
+function openPanel(i) {
+  if (typeof L === 'undefined') { alert('The map needs an internet connection (Leaflet).'); return; }
+  current = shown.findIndex(c => c.i === i); $('panel').classList.add('open');
+  if (!lmap) {
+    lmap = L.map('map');
+    const imagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom: 19, attribution: 'Tiles © Esri, Maxar, Earthstar Geographics'});
+    const gray = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {maxZoom: 16, attribution: 'Tiles © Esri'});
+    imagery.addTo(lmap); L.control.layers({'Imagery': imagery, 'Light gray': gray}).addTo(lmap);
+  }
+  setTimeout(() => { lmap.invalidateSize(); paintPanel(true); }, 30);
+}
+function paintPanel(fit) {
+  const c = shown[current]; if (!c) return;
+  const r = c.row, v = decisions[uid(c)];
+  $('ptitle').textContent = `${r.site} · ${r.date} · ${r.sensor} · ${r.status === 'good' ? 'Good' : 'Check AOI'} · cloud ${num(r.cloud_pct, '%')}${c.whole && !c.exact ? ' · placement approximate' : ''}`;
+  $('pk').setAttribute('aria-pressed', String(v === 'keep')); $('pd').setAttribute('aria-pressed', String(v === 'drop'));
+  $('pk').style.cssText = v === 'keep' ? 'background:var(--ok);color:#fff' : ''; $('pd').style.cssText = v === 'drop' ? 'background:var(--short);color:#fff' : '';
+  if (!fit) return;
+  overlay?.remove(); outline?.remove();
+  if (c.whole) overlay = L.imageOverlay(c.whole, c.bounds, {opacity: $('opacity').value / 100}).addTo(lmap);
+  outline = L.polygon(DATA.sites[r.site] || [], {color: '#fff', weight: 2, fill: false}).addTo(lmap);
+  const b = outline.getBounds();
+  if (b.isValid()) lmap.fitBounds(b.pad(1.5)); else if (c.bounds) lmap.fitBounds(c.bounds);
+}
+function step(d) {
+  if (!shown.length) return;
+  current = (current + d + shown.length) % shown.length; paintPanel(true);
+  shown[current].node?.scrollIntoView({block: 'nearest'});
+}
+$('prev').onclick = () => step(-1); $('next').onclick = () => step(1);
+$('close').onclick = () => $('panel').classList.remove('open');
+$('panel').onclick = e => { if (e.target === $('panel')) $('panel').classList.remove('open'); };
+$('opacity').oninput = () => overlay?.setOpacity($('opacity').value / 100);
+$('pk').onclick = () => decide(shown[current], 'keep'); $('pd').onclick = () => decide(shown[current], 'drop');
+
+document.addEventListener('keydown', e => {
+  if (e.target.matches('select, input')) return;
+  const inPanel = panelOpen(), c = inPanel ? shown[current] : shown[focus];
+  const k = e.key.toLowerCase();
+  if (k === 'escape' && inPanel) { $('panel').classList.remove('open'); shown[current]?.node?.focus(); return; }
+  if (k === 'arrowright' || k === 'arrowleft') {
+    e.preventDefault(); const d = k === 'arrowright' ? 1 : -1;
+    if (inPanel) return step(d);
+    focus = Math.max(0, Math.min(shown.length - 1, focus + d)); shown[focus]?.node?.focus(); return;
+  }
+  if (!c) return;
+  if (k === 'k') decide(c, 'keep'); else if (k === 'd') decide(c, 'drop');
+  else if (k === 'u') { delete decisions[uid(c)]; save(); tally(); paint(c); if (inPanel) paintPanel(); }
+  else if (k === 'enter' && !inPanel && c.crop) openPanel(c.i);
+});
+
+function download(rows, name) {
+  const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+  const cols = [...DATA.columns, 'decision'];
+  const lines = [cols.join(','), ...rows.map(c => cols.map(k => q(k === 'decision' ? decisions[uid(c)] || '' : c.row[k])).join(','))];
+  const a = el('a', {href: URL.createObjectURL(new Blob([lines.join('\n')], {type: 'text/csv'})), download: name});
+  document.body.append(a); a.click(); a.remove();
+}
+$('exportKept').onclick = () => download(DATA.cards.filter(c => decisions[uid(c)] === 'keep'), `${DATA.title}_kept.csv`);
+$('exportAll').onclick = () => download(DATA.cards, `${DATA.title}_decisions.csv`);
+render();
+</script>
+</body>
+</html>

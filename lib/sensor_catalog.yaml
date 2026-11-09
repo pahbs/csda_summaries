@@ -33,6 +33,7 @@ rules:
   # --- Planet ---
   - {pattern: 'RapidEye-?(?P<n>\d)',                    affiliation: Planet, constellation: RapidEye,  sensor: 'RE{n}'}
   - {pattern: '(?:SkySat|SS)[-_]?(?P<n>\d+)',           affiliation: Planet, constellation: SkySat,    sensor: 'SS{n:02d}'}
+  - {pattern: '4001',                                 affiliation: Planet, constellation: Tanager,   sensor: Tanager-1, when_affiliation: Planet}   # Tanager-1 (Planet satellite ID)
   - {pattern: '(?P<id>[0-9a-f]{4})',                    affiliation: Planet, constellation: PlanetScope, sensor: 'PS-{id}', when_affiliation: Planet}
   - {pattern: 'PlanetScope|PS2(?:\.SD)?|PSB\.SD',       affiliation: Planet, constellation: PlanetScope, sensor: PlanetScope}
 

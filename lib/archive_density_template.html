@@ -291,7 +291,7 @@ function renderTimeline(t) {
   const root = svg('svg', {viewBox: `0 0 ${w} ${h}`, width: '100%', 'aria-hidden': 'true'});
   if (view === 'month') {
     values.forEach((v, i) => root.append(svg('rect', {x: i * bw + 1, y: y(v), width: Math.max(1, bw - 2), height: base - y(v),
-      fill: i === i0 ? 'var(--series)' : i < i0 ? 'var(--check)' : 'var(--muted-mark)'})));
+      fill: i === i0 ? 'var(--series)' : 'var(--muted-mark)'})));   // only the month on the map: this view is not cumulative
   } else {
     const line = k => values.slice(0, k + 1).map((v, i) => `${i ? 'L' : 'M'}${cx(i)},${y(v)}`).join('');
     root.append(svg('path', {d: `${line(n - 1)}L${cx(n - 1)},${base}L${cx(0)},${base}Z`, fill: 'var(--muted-mark)', opacity: .45}));

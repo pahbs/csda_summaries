@@ -39,6 +39,7 @@ requirements. A green check shows when a site has enough.
 - Type a site name in **Find sites** to see just your sites, across every vendor
 - See why images fall short: too cloudy, too oblique, or the site only partly covered
 - Download the good candidates as a CSV, then check their thumbnails before ordering
+- Select a site to see the footprints of its good acquisitions over imagery
 
 <a href="https://pahbs.github.io/csda_summaries/html/archive_first_look.html"><img src="assets/readme/first_look.png" alt="Vendor archive first look: good acquisitions by site and sensor" width="100%"></a>
 
@@ -47,10 +48,19 @@ requirements. A green check shows when a site has enough.
 ## Vendor archive density
 
 **See where and when each constellation collects.** Monthly world maps from each vendor's own catalog, from 2020 to today. Press
-Play or drag along the timeline to watch collection grow, or switch to a running total. Vantor's Legion and WorldView satellites can be
-viewed separately or together.
+Play or drag along the timeline to watch collection grow, or switch to a running total. Vantor's Legion and WorldView satellites, and
+Planet's SuperDove and Tanager, can be viewed separately.
 
 <a href="https://pahbs.github.io/csda_summaries/html/archive_density.html"><img src="assets/readme/density.png" alt="Vendor archive density: monthly global map with a timeline" width="100%"></a>
+
+---
+
+## Thumbnails of your candidates
+
+**Look before you order.** Give the CSV from the first-look page to `notebooks/thumbnail_viewer.ipynb`. It fetches each vendor's own
+preview image with your login and writes a private page on ADAPT: the site up close on every card, Keep and Drop buttons, the whole
+preview on a map, and a download of what you kept. Vantor's previews are georeferenced and sit exactly; Planet's, Satellogic's and
+Hydrosat's are placed on each scene's outline. The page stays private because vendor previews need a login and may not be shared.
 
 ---
 
@@ -117,7 +127,8 @@ the interactive map.
 
 | To refresh | Run |
 |---|---|
-| Vendor archive first look | `notebooks/multistac_site_analysis_<vendor>.ipynb` (Hydrosat, Kuva, Satellogic, Legion and WorldView) |
+| Vendor archive first look | `notebooks/multistac_site_analysis_<vendor>.ipynb` (Hydrosat, Kuva, Planet, Satellogic, Legion and WorldView) |
+| Thumbnails of candidates | `notebooks/thumbnail_viewer.ipynb` (private page on ADAPT) |
 | Vendor archive density | `python lib/archive_density.py fetch <vendor>`, then `python lib/archive_density.py build` |
 | Data tracking pages | `notebooks/airbus_order_tracking.ipynb`, `notebooks/vantor_legion_supp_tracking.ipynb` |
 | Footprints map | `notebooks/footprint_CSDA_eval_all_data.ipynb` |

@@ -422,8 +422,10 @@ function renderMap(tab, all) {
     const css = getComputedStyle(document.querySelector('.viz-root')), color = k => css.getPropertyValue(k).trim();
     lgroup.clearLayers();
     // Many footprints overlap at busy sites: then outlines only, partly transparent, so overlaps read as density
-    const busy = here.length > 30, faint = here.length > 120;
-    here.sort((a, b) => a.t.good - b.t.good).forEach(a => {   // good ones drawn last, on top
+    // ...and past a few hundred they merge into one block: then the newest only, so single passes still show
+    const busy = here.length > 30, faint = here.length > 120, MOST = 300;
+    const drawn = here.length > MOST ? [...here].sort((a, b) => b.d.localeCompare(a.d)).slice(0, MOST) : here;
+    drawn.sort((a, b) => a.t.good - b.t.good).forEach(a => {   // good ones drawn last, on top
       const rings = fp.acqs[a.i];
       if (!rings || !rings.length) return;
       L.polygon(rings.map(r => r.map(([x, y]) => [y, x])), {color: a.t.good ? color('--series') : color('--check'), weight: busy ? 1 : 1.5,
@@ -440,7 +442,7 @@ function renderMap(tab, all) {
       fitted = `${tab.key}:${f}`;
     }
     $('mapNote').textContent = here.length
-      ? `Footprints at ${site.name} under the limits set above. The white outline is the site.${busy ? ' Overlapping outlines show where coverage piles up.' : ''} Point at a footprint for its details.`
+      ? `Footprints at ${site.name} under the limits set above${drawn.length < here.length ? `: the newest ${MOST} of ${here.length.toLocaleString()}, from ${drawn[drawn.length - 1] && [...drawn].sort((a, b) => a.d.localeCompare(b.d))[0].d} on. Narrow the months above to see others` : ''}. The white outline is the site.${busy ? ' Overlapping outlines show where coverage piles up.' : ''} Point at a footprint for its details.`
       : `No good or Check AOI acquisitions at ${site.name} under the limits set above.`;
     const key = (cls, text) => el('span', {}, el('i', {class: 'sw', style: `background:none;border:2px ${cls === 'check' ? 'dashed' : 'solid'} var(--${cls === 'check' ? 'check' : 'series'})`}), text);
     $('mapLegend').replaceChildren(key('good', `Good (${good})`), check ? key('check', `Check AOI (${check})`) : '',

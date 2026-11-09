@@ -41,8 +41,9 @@ VENDORS = {
     "worldview": dict(provider="vantor", collections=["wv02", "wv03-vnir"], vendor="Vantor", constellation="WorldView", unit="strip",
                       guide="One catalog strip (Vantor catalog ID) counts once, from Vantor's own catalog. WorldView-3 is its VNIR "
                             "collection (wv03-vnir)."),
-    "tanager": dict(provider="planet", collections=["TanagerScene"], vendor="Planet", constellation="Tanager", unit="scene",
-                    guide="One Tanager scene counts once, in the cell holding its center, from Planet's own catalog."),
+    "tanager": dict(provider="planet", collections=["TanagerScene"], vendor="Planet", constellation="Tanager", unit="strip",
+                    guide="One Tanager strip counts once (pl:strip_id): a pass is delivered as a run of consecutive scenes, about four "
+                          "to a strip, from Planet's own catalog."),
     "superdove": dict(provider="planet", collections=["PSScene"], vendor="Planet", constellation="SuperDove", unit="scene", stats=True,
                       guide="PlanetScope SuperDove scenes (instrument PSB.SD), counted by Planet's catalog statistics rather than "
                             "fetched one by one: about 7 million a month. A scene counts in every cell it touches, not only the cell "
@@ -222,6 +223,8 @@ def _tables(store: str, collections) -> Dict[str, pd.DataFrame]:
         table = pd.read_pickle(path)
         if collections is not None:
             table = table[table["collection"].isin(collections)] if "collection" in table else table.iloc[0:0]
+        if store == "tanager":   # months fetched before the sensor rule named it
+            table = table.assign(sensor="Tanager-1")
         out[path.stem] = table
     return out
 
