@@ -115,6 +115,11 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
 .levels { font-size: 13px; margin-top: 12px; width: 100%; }
 .levels th, .levels td { padding: 4px 8px; border-bottom: 1px solid var(--grid); text-align: left; }
 .levels .n { text-align: right; }
+.finder { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 12px; font-size: 14px; }
+.finder label { font-weight: 620; }
+.finder input { font: inherit; font-size: 14px; width: min(420px, 90vw); padding: 5px 10px; border-radius: 8px; border: 1px solid var(--axis);
+  background: var(--surface); color: var(--ink); }
+.finder .note { margin: 0; }
 .warn { background: var(--surface-2); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 14px; }
 #tip { position: fixed; z-index: 20; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--axis); border-radius: 8px;
   padding: 7px 10px; font-size: 12.5px; max-width: 280px; display: none; box-shadow: 0 2px 8px rgba(0,0,0,.14); }
@@ -133,6 +138,9 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
 <div class="filters" id="filters"></div>
 <div id="warn"></div>
 <div class="answer" id="answer"></div>
+<div class="finder"><label for="find">Find sites</label>
+  <input type="search" id="find" placeholder="Part of a name; separate several with commas" autocomplete="off">
+  <span class="note" id="findNote"></span></div>
 <div class="card">
   <h2>Good acquisitions by site and sensor</h2>
   <div class="pick" style="margin:0"><p class="note" id="scoreNote" style="margin:0"></p><button class="action" id="moreSensors" hidden></button></div>
@@ -168,7 +176,10 @@ function applyPalette() {   // the vendor's ramp for data marks: Good is a stron
   root.style.setProperty('--series', r[4]); root.style.setProperty('--check', r[2]);
 }
 const dark = () => getComputedStyle(document.querySelector('.viz-root')).colorScheme === 'dark';
-const state = {tab: 0, per: {}};
+const state = {tab: 0, per: {}, find: ''};
+// The find box: a site is shown if its name contains any of the comma-separated terms (case ignored)
+const terms = () => state.find.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+const match = name => { const t = terms(); return !t.length || t.some(x => name.toLowerCase().includes(x)); };
 const S = () => state.per[state.tab];
 
 function el(tag, props = {}, ...kids) {
@@ -304,7 +315,7 @@ function renderScore(tab, rows) {
     const sensors = tab.sensors.map((_, n) => good.filter(a => a.n === n).length);
     const byMonth = ms.map(m => good.filter(a => a.d.startsWith(m)).length);
     return {site, i, all: mine.length, good: good.length, check, sensors, byMonth};
-  }).sort((a, b) => b.good - a.good || b.all - a.all || a.site.name.localeCompare(b.site.name));
+  }).filter(c => match(c.site.name)).sort((a, b) => b.good - a.good || b.all - a.all || a.site.name.localeCompare(b.site.name));
   const totals = tab.sensors.map((_, n) => counts.reduce((t, c) => t + c.sensors[n], 0));
   const order = tab.sensors.map((name, n) => ({name, n, total: totals[n]})).sort((a, b) => b.total - a.total);
   const fold = order.length > 8 && !s.allSensors, shown = fold ? order.slice(0, 7) : order, rest = fold ? order.slice(7) : [];
@@ -372,7 +383,7 @@ function renderMap(tab, all) {
   const good = new Map(); all.filter(a => a.t.good).forEach(a => good.set(a.s, (good.get(a.s) || 0) + 1));
   const max = Math.max(1, ...good.values());
   const land = svg('path', {d: DATA.land, fill: 'var(--land)', transform: `scale(${w / 360} ${h / 180})`});
-  const dots = tab.sites.map((site, i) => ({site, i, v: good.get(i) || 0})).sort((a, b) => b.v - a.v).map(({site, i, v}) => {
+  const dots = tab.sites.map((site, i) => ({site, i, v: good.get(i) || 0})).filter(d => match(d.site.name)).sort((a, b) => b.v - a.v).map(({site, i, v}) => {
     const r = v ? 3 + 11 * Math.sqrt(v / max) : 3;
     const c = svg('circle', {cx: X(site.lon), cy: Y(site.lat), r, tabindex: 0, fill: v ? 'var(--series)' : 'none', 'fill-opacity': v ? .75 : 1,
       stroke: s.site === i ? 'var(--ring)' : (v ? 'var(--surface)' : 'var(--ink-3)'), 'stroke-width': s.site === i ? 2 : 1, style: 'cursor:pointer',
@@ -409,7 +420,7 @@ function histogram(title, rows, field, lo, hi, step, unit, limit) {
   box.append(root); return box;
 }
 function renderHist(tab, rows) {
-  const s = S(), sites = s.site == null ? tab.sites : [tab.sites[s.site]];
+  const s = S(), sites = s.site == null ? tab.sites.filter(x => match(x.name)) : [tab.sites[s.site]];
   const one = key => { const v = new Set(sites.map(x => limits(tab, x)[key])); return v.size === 1 ? [...v][0] : null; };
   $('hist').replaceChildren(histogram('Cloud cover', rows, 'cloud', 0, 100, 10, '%', one('cloud')),
     histogram('Off-nadir angle', rows, 'off', 0, 60, 5, '°', one('off')),
@@ -459,7 +470,9 @@ function renderList(tab, rows) {
     el('td', {class: 't', text: a.lv.map(i => tab.levels[i].code).join(', ')}), checked ? el('td', {class: 't', text: a.csda ? 'Yes' : 'No'}) : null,
     el('td', {class: 't id', title: a.a, text: a.a})));
   $('list').replaceChildren(el('table', {class: 'list'}, el('thead', {}, el('tr', {}, head.map(h => el('th', {class: left.has(h) ? 't' : '', text: h})))), el('tbody', {}, body)));
-  $('listTitle').textContent = `Acquisitions at ${s.site == null ? 'all sites' : tab.sites[s.site].name}`;
+  const n = tab.sites.filter(x => match(x.name)).length;
+  const where = s.site != null ? tab.sites[s.site].name : !terms().length ? 'all sites' : !n ? 'no sites' : n === 1 ? 'the matching site' : `the ${n} matching sites`;
+  $('listTitle').textContent = `Acquisitions at ${where}`;
   $('listNote').textContent = sorted.length > 200 ? `Showing the first 200 of ${sorted.length.toLocaleString()}, good ones first. The download has every good and Check AOI acquisition.` : 'Good ones first, then newest.';
   $('csv').onclick = () => {
     const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
@@ -470,11 +483,17 @@ function renderList(tab, rows) {
   };
 }
 function renderData(tab) {
-  const s = S(), all = slice(tab), rows = s.site == null ? all : all.filter(a => a.s === s.site);
-  renderAnswer(tab, all); renderScore(tab, all); renderReasons(tab, rows); renderMap(tab, all); renderHist(tab, rows); renderSky(tab, rows); renderGuide(tab, rows); renderList(tab, rows);
-  $('pickTitle').textContent = s.site == null ? 'Look closer: all sites' : `Look closer: ${tab.sites[s.site].name}`;
+  const s = S(), all = slice(tab);
+  if (s.site != null && !match(tab.sites[s.site].name)) s.site = null;   // a picked site the search no longer finds
+  const found = all.filter(a => match(tab.sites[a.s].name)), rows = s.site == null ? found : found.filter(a => a.s === s.site);
+  const shown = tab.sites.map((x, i) => ({x, i})).filter(({x}) => match(x.name)), filtering = terms().length > 0;
+  renderAnswer(tab, all); renderScore(tab, found); renderReasons(tab, rows); renderMap(tab, found); renderHist(tab, rows); renderSky(tab, rows); renderGuide(tab, rows); renderList(tab, rows);
+  const matching = n => n === 1 ? 'the matching site' : `the ${n} matching sites`;
+  $('findNote').textContent = !filtering ? '' : shown.length ? `${shown.length} of ${tab.sites.length} ${shown.length === 1 ? 'site matches' : 'sites match'}. Everything below shows only ${shown.length === 1 ? 'it' : 'these'}.`
+    : 'No sites match. Check the spelling, or clear the box to see every site.';
+  $('pickTitle').textContent = s.site != null ? `Look closer: ${tab.sites[s.site].name}` : filtering ? `Look closer: ${shown.length ? matching(shown.length) : 'no sites'}` : 'Look closer: all sites';
   const pickSel = $('sitePick');
-  pickSel.replaceChildren(el('option', {value: '', text: 'All sites'}), ...tab.sites.map((x, i) => el('option', {value: i, text: x.name})));
+  pickSel.replaceChildren(el('option', {value: '', text: filtering ? 'All matching sites' : 'All sites'}), ...shown.map(({x, i}) => el('option', {value: i, text: x.name})));
   pickSel.value = s.site == null ? '' : s.site;
   pickSel.onchange = e => { s.site = e.target.value === '' ? null : +e.target.value; renderData(tab); };
 }
@@ -490,6 +509,7 @@ function renderAll() {
   $('foot').textContent = `${tab.vendor} ${tab.constellation}: searched ${tab.searched}, ${tab.start} to ${tab.end}, ${tab.items.toLocaleString()} catalog items, ${tab.sites.length} sites. Sites with a requirement use it in place of the sliders.`;
 }
 $('updated').textContent = `Last updated: ${DATA.updated}`;
+$('find').addEventListener('input', e => { state.find = e.target.value; renderData(DATA.tabs[state.tab]); });
 renderAll();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderAll);
 </script>
