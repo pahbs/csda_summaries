@@ -235,16 +235,31 @@ function combine(t) {   // a combined view: the constellations' counts added cel
 }
 function prepare(t) {
   if (t.parts && !t.frames) combine(t);
-  if (t.cum) return;
+  if (t.ck) return;
+  // Running totals: a full grid every 12 months only (fine grids are large), the months between added up when shown
   const size = t.columns * Math.round(180 / t.cell), running = new Int32Array(size);
-  t.cum = t.frames.map(f => { for (let i = 0; i < f.length; i += 2) running[f[i]] += f[i + 1]; return running.slice(); });
-  const quantile = (values, q) => { const s = [...values].sort((a, b) => a - b); return s.length ? s[Math.min(s.length - 1, Math.floor(q * s.length))] : 1; };
+  t.ck = new Map();
+  t.frames.forEach((f, i) => { for (let k = 0; k < f.length; k += 2) running[f[k]] += f[k + 1]; if (i % 12 === 11) t.ck.set(i, running.slice()); });
+  t.last = {i: t.frames.length - 1, a: running};
+  // a percentile from at most ~200,000 values: fine grids have millions
+  const sample = (arrays, pick) => { const n = arrays.reduce((s, a) => s + a.length, 0), every = Math.max(1, Math.floor(n / 200000)), out = [];
+    let j = 0; arrays.forEach(a => { for (let k = 0; k < a.length; k++) if (pick(a, k) && (j++ % every === 0)) out.push(a[k]); }); return out; };
+  const quantile = (values, q) => { const s = values.sort((a, b) => a - b); return s.length ? s[Math.min(s.length - 1, Math.floor(q * s.length))] : 1; };
   // each scale spans this constellation's own counts, from the 5th to the 99.5th percentile, so dense ones still show detail
-  const monthly = t.frames.flatMap(f => f.filter((_, i) => i % 2)), total = t.cum[t.cum.length - 1].filter(v => v);
+  const monthly = sample(t.frames, (a, k) => k % 2), total = sample([running], (a, k) => a[k] > 0);
   t.maxMonth = Math.max(2, quantile(monthly, .995)); t.minMonth = Math.max(1, Math.min(t.maxMonth / 2, quantile(monthly, .05)));
   t.maxTotal = Math.max(2, quantile(total, .995)); t.minTotal = Math.max(1, Math.min(t.maxTotal / 2, quantile(total, .05)));
   const full = t.totals.filter(m => m.month !== t.partial);
   state.per[t.key] = state.per[t.key] ?? Math.max(0, full.length - 1);
+}
+function cumAt(t, i) {   // running total up to month i: the nearest earlier checkpoint plus the months since
+  if (t.last && t.last.i === i) return t.last.a;
+  let k = i - (i % 12) - 1, a;
+  if (t.last && t.last.i < i && t.last.i > k) { k = t.last.i; a = t.last.a.slice(); }
+  else a = k >= 0 ? t.ck.get(k).slice() : new Int32Array(t.columns * Math.round(180 / t.cell));
+  for (let m = k + 1; m <= i; m++) { const f = t.frames[m]; for (let j = 0; j < f.length; j += 2) a[f[j]] += f[j + 1]; }
+  t.last = {i, a};
+  return a;
 }
 function step(v, max, min = 1) { return Math.max(0, Math.min(5, Math.floor(Math.log(v / min) / Math.log((max + 1) / min) * 6))); }
 let land = null, landTheme = null;
@@ -261,19 +276,21 @@ function drawMap() {
   const sx = w / 360, sy = h / (TOP - BOTTOM), ramp = mapRamp();
   const max = state.view === 'month' ? t.maxMonth : t.maxTotal, min = state.view === 'month' ? t.minMonth : t.minTotal, size = t.cell;
   c.clearRect(0, 0, w, h); c.drawImage(drawLand(w, h), 0, 0);
-  const paint = (cell, v) => {
-    const row = Math.floor(cell / t.columns), col = cell % t.columns, lat = 90 - row * size;
-    c.fillStyle = ramp[step(v, max, min)];
-    c.fillRect(col * size * sx, (TOP - lat) * sy, size * sx + .5, size * sy + .5);
-  };
+  // one pixel per cell in a small image, then scaled up without smoothing: fast even with 100,000+ cells
+  const rows = Math.round(180 / size), img = new ImageData(t.columns, rows), px = img.data;
+  const rgb = ramp.map(hex => [1, 3, 5].map(j => parseInt(hex.slice(j, j + 2), 16)));
+  const paint = (cell, v) => { const [r, g, b] = rgb[step(v, max, min)], o = cell * 4; px[o] = r; px[o + 1] = g; px[o + 2] = b; px[o + 3] = 255; };
   if (state.view === 'month') { const f = t.frames[i]; for (let k = 0; k < f.length; k += 2) paint(f[k], f[k + 1]); }
-  else t.cum[i].forEach((v, cell) => { if (v) paint(cell, v); });
+  else cumAt(t, i).forEach((v, cell) => { if (v) paint(cell, v); });
+  const cells = document.createElement('canvas'); cells.width = t.columns; cells.height = rows; cells.getContext('2d').putImageData(img, 0, 0);
+  c.imageSmoothingEnabled = false;
+  c.drawImage(cells, 0, (90 - TOP) / size, t.columns, (TOP - BOTTOM) / size, 0, 0, w, h);
 }
 function cellAt(e) {
   const t = T(), r = $('map').getBoundingClientRect(), lon = (e.clientX - r.left) / r.width * 360 - 180, lat = TOP - (e.clientY - r.top) / r.height * (TOP - BOTTOM);
   const col = Math.floor((lon + 180) / t.cell), row = Math.floor((90 - lat) / t.cell), cell = row * t.columns + col, i = state.per[t.key];
   let v = 0;
-  if (state.view === 'total') v = t.cum[i][cell];
+  if (state.view === 'total') v = cumAt(t, i)[cell];
   else { const f = t.frames[i]; for (let k = 0; k < f.length; k += 2) if (f[k] === cell) { v = f[k + 1]; break; } }
   return {v, lon, lat};
 }
@@ -360,22 +377,32 @@ function renderTabs() {
     return b;
   }));
 }
+function undelta(f) {   // cells were stored as steps from the previous cell
+  const out = new Int32Array(f.length); let c = 0;
+  for (let k = 0; k < f.length; k += 2) { c += f[k]; out[k] = c; out[k + 1] = f[k + 1]; }
+  return out;
+}
 function show() {
   const groups = TAB().groups, sel = $('group');
   sel.replaceChildren(...groups.map((g, i) => el('option', {value: i, text: g.constellation})));
   sel.value = state.group[state.tab] || 0; $('groupWrap').hidden = groups.length < 2;
   const t = T();
   applyPalette(); renderTabs();
-  if (t.lazy && !t.frames) {   // a large constellation: its monthly maps load when it is first picked
+  // large constellations load their monthly maps when first picked; a combined view needs all of its parts
+  const need = (t.parts ? groups.filter(g => t.parts.includes(g.constellation)) : [t]).filter(g => g.lazy && !g.frames);
+  if (need.length) {
     $('mapTitle').textContent = `${t.vendor} ${t.constellation}`; $('mapNote').textContent = 'Loading the monthly maps…';
-    fetch(`archive_density_data/${t.key}.json`).then(r => { if (!r.ok) throw r.status; return r.json(); })
-      .then(d => { t.frames = d.frames; if (T() === t) show(); })
+    Promise.all(need.map(g => fetch(`${DATA.data_base}${g.key}.json`).then(r => { if (!r.ok) throw r.status; return r.json(); })
+      .then(d => { g.frames = d.delta ? d.frames.map(undelta) : d.frames; })))
+      .then(() => { if (T() === t) show(); })
       .catch(() => { $('mapNote').textContent = 'These maps load on the published page: https://pahbs.github.io/csda_summaries/html/archive_density.html'; });
     return;
   }
   prepare(t); render();
   const entries = [['One count is', t.guide], ['Map cells', t.counted ? `${t.cell}° squares. Each scene counts in every square it touches, from Planet's catalog statistics.`
-    : `${t.cell}° squares, placed by the center of each footprint. A wide scene counts only in the cell at its center.`],
+    : t.footprints || (t.parts && groups.some(g => t.parts.includes(g.constellation) && g.footprints))
+      ? `${t.cell}° squares. Each acquisition counts once in every square its footprint touches, so a long strip lights up the whole line it covers.`
+      : `${t.cell}° squares, placed by the center of each footprint. A wide scene counts only in the cell at its center.`],
     ['Recent months', 'These can still grow: vendors add acquisitions to their catalogs late. The current month is marked "so far".'],
     ['Comparing', 'Each constellation has its own color scale, so compare patterns between them, not shades.'],
     ...(t.complete ? [] : [['Still being added', `Fetched back to ${name(t.fetched_from)} so far. Earlier months are added newest first.`]])];

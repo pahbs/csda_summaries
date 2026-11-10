@@ -11,23 +11,30 @@ searched next time and never shows as empty. Failed windows are halved: busy cat
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
+import numpy as np
 import pandas as pd
+import shapely
+import shapely.wkb
 
 import multistac
 from archive_dashboard import LAND, vendor_palette
+import data_repo
 
 REPO = Path(__file__).resolve().parents[1]
-STORE = Path("/explore/nobackup/people/pmontesa/multistac/global_analysis/monthly")
+# Footprint stores (one outline per item) count each acquisition in every cell it covers; older point stores, only at its center.
+STORE = Path(os.environ.get("ARCHIVE_DENSITY_STORE", "/explore/nobackup/people/pmontesa/multistac/global_analysis/monthly"))
 PAGE = REPO / "html" / "archive_density.html"
 TEMPLATE = Path(__file__).with_name("archive_density_template.html")
 START = "2020-01"
 REFRESH_MONTHS = 3
-CELL_DEG = 1.5
+CELL_DEG = float(os.environ.get("ARCHIVE_DENSITY_CELL", 1.5))
+SIMPLIFY_DEG = 0.001   # outlines kept to about 100 m: far finer than any map cell
 
 VENDORS = {
     "hydrosat": dict(collections=["vz-l1b"], vendor="Hydrosat", constellation="VanZyl", unit="scene",
@@ -75,15 +82,16 @@ def _search(vendor: str, first: pd.Timestamp, last: pd.Timestamp, failed: List[s
 
 
 def _points(frames: List[pd.DataFrame], vendor: str) -> pd.DataFrame:
-    """What the maps need: one row per item, with the footprint's center."""
-    columns = ["provider", "collection", "id", "acquisition_id", "sensor", "datetime", "cloud_cover", "lon", "lat"]
+    """What the maps need: one row per item, with its center and its outline (WKB, simplified), so any grid can be counted later."""
+    columns = ["provider", "collection", "id", "acquisition_id", "sensor", "datetime", "cloud_cover", "lon", "lat", "wkb"]
     if not frames:
         return pd.DataFrame(columns=columns)
     g = pd.concat(frames, ignore_index=True).drop_duplicates("id")
     if "satl:product_version" in g:
         g = g[g["satl:product_version"].astype(str).str.split(".").str[0].astype(float) >= 1]
     points = g.geometry.representative_point()
-    return pd.DataFrame(g.drop(columns="geometry")).assign(lon=points.x.values, lat=points.y.values)[columns]
+    outlines = [None if x is None or x.is_empty else shapely.wkb.dumps(x) for x in g.geometry.simplify(SIMPLIFY_DEG).values]
+    return pd.DataFrame(g.drop(columns="geometry")).assign(lon=points.x.values, lat=points.y.values, wkb=outlines)[columns]
 
 
 def fetch_month(vendor: str, month: str) -> Optional[pd.DataFrame]:
@@ -141,24 +149,31 @@ def _planet_stats(session, filters: list, start: str, end: str, item_type: str =
     """Monthly counts from Planet's stats endpoint, retried when Planet asks to slow down."""
     body = {"item_types": [item_type], "interval": "month", "filter": {"type": "AndFilter", "config": [
         {"type": "DateRangeFilter", "field_name": "acquired", "config": {"gte": f"{start}-01T00:00:00Z", "lte": f"{end}T23:59:59Z"}}] + filters}}
+    import requests
     for attempt in range(8):
-        r = session.post(f"{PLANET_DATA}/stats", json=body, timeout=120)
+        try:
+            r = session.post(f"{PLANET_DATA}/stats", json=body, timeout=120)
+        except requests.exceptions.RequestException:   # a dropped or timed-out connection: wait and try again
+            time.sleep(min(120, 5 * 2 ** attempt))
+            continue
         if r.status_code in (429, 500, 502, 503, 504):
             time.sleep(min(60, 2 ** attempt))
             continue
         r.raise_for_status()
         return {b["start_time"][:7]: int(b["count"]) for b in r.json().get("buckets", [])}
-    raise RuntimeError(f"Planet stats kept failing: HTTP {r.status_code}")
+    raise RuntimeError("Planet stats kept failing")
 
 
 def land_cells(cell: float = CELL_DEG) -> List[int]:
     """Cells touching land (and a little around it), numbered as on the page: row * columns + column."""
     import geopandas as gpd
     from shapely.geometry import box
-    land = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres")).geometry.unary_union.buffer(cell / 2)
+    land = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres")).geometry.unary_union.buffer(min(cell / 2, 0.5))
     columns, rows = int(360 / cell), int(180 / cell)
-    return [r * columns + c for r in range(rows) for c in range(columns)
-            if land.intersects(box(-180 + c * cell, 90 - (r + 1) * cell, -180 + (c + 1) * cell, 90 - r * cell))]
+    r, c = np.divmod(np.arange(rows * columns), columns)
+    boxes = shapely.box(-180 + c * cell, 90 - (r + 1) * cell, -180 + (c + 1) * cell, 90 - r * cell)
+    shapely.prepare(land)
+    return [int(i) for i in np.flatnonzero(shapely.intersects(land, boxes))]
 
 
 def fetch_stats(vendor: str = "superdove", refresh: int = REFRESH_MONTHS, workers: int = 3, cell: float = CELL_DEG) -> None:
@@ -229,6 +244,29 @@ def _tables(store: str, collections) -> Dict[str, pd.DataFrame]:
     return out
 
 
+def _footprint_counts(table: pd.DataFrame, cell: float) -> pd.Series:
+    """How many acquisitions cover each cell: each acquisition's outline (its items joined) counts once in every cell it touches."""
+    from rasterio import features
+    from rasterio.enums import MergeAlg
+    from rasterio.transform import from_origin
+    t = table[table.wkb.notna()]
+    geoms = pd.Series(shapely.from_wkb(t.wkb.values), index=t.acquisition_id.astype(str).values)
+    geoms = geoms[~shapely.is_empty(geoms.values)]
+    repeated = geoms.index.duplicated(keep=False)
+    joined = geoms[repeated].groupby(level=0).agg(lambda s: shapely.union_all(shapely.make_valid(s.values)))
+    shapes = np.concatenate([geoms[~repeated].values, joined.values])
+    bounds = shapely.bounds(shapes)
+    wraps = (bounds[:, 2] - bounds[:, 0]) > 180   # across the antimeridian: move the western part east by 360°
+    if wraps.any():
+        shapes[wraps] = [shapely.transform(g, lambda xy: np.where(xy[:, :1] < 0, xy + [360, 0], xy)) for g in shapes[wraps]]
+    columns, rows = int(round(360 / cell)), int(round(180 / cell))
+    grid = features.rasterize(((g, 1) for g in shapes if g is not None and not g.is_empty), out_shape=(rows, 2 * columns),
+                              transform=from_origin(-180, 90, cell, cell), all_touched=True, merge_alg=MergeAlg.add, dtype="uint32")
+    grid = grid[:, :columns] + grid[:, columns:]   # fold the part east of 180° back
+    r, c = np.nonzero(grid)
+    return pd.Series(grid[r, c], index=r * columns + c)
+
+
 def _group(name: str, tables: Dict[str, pd.DataFrame], every: List[str], cell: float) -> dict:
     """For each month, the cells with acquisitions and how many, plus the month's totals."""
     columns, frames, totals = int(360 / cell), [], []
@@ -237,9 +275,12 @@ def _group(name: str, tables: Dict[str, pd.DataFrame], every: List[str], cell: f
         if table is None or not len(table):
             frames.append([]); totals.append({"month": month, "n": 0, "cells": 0, "sensors": {}, "clear": 0})
             continue
-        col = ((table.lon + 180) / cell).astype(int).clip(0, columns - 1)
-        row = ((90 - table.lat) / cell).astype(int).clip(0, int(180 / cell) - 1)
-        counts = table.assign(cell=row * columns + col).drop_duplicates(["acquisition_id", "cell"]).groupby("cell").size()
+        if "wkb" in table and table.wkb.notna().any():
+            counts = _footprint_counts(table, cell)
+        else:   # an older point store: each acquisition at its center only
+            col = ((table.lon + 180) / cell).astype(int).clip(0, columns - 1)
+            row = ((90 - table.lat) / cell).astype(int).clip(0, int(180 / cell) - 1)
+            counts = table.assign(cell=row * columns + col).drop_duplicates(["acquisition_id", "cell"]).groupby("cell").size()
         acqs = table.drop_duplicates("acquisition_id")
         frames.append([int(v) for pair in counts.items() for v in pair])
         totals.append({"month": month, "n": int(len(acqs)), "cells": int(counts.size),
@@ -284,6 +325,8 @@ def tab(key: str, groups, cell: float = CELL_DEG) -> Optional[dict]:
             continue
         else:
             g, start = _group(name, tables, every, cell), min(tables)
+            g["footprints"] = any("wkb" in x and x.wkb.notna().any() for x in tables.values() if len(x))
+            g["lazy"] = cell < 1.5   # fine grids are large: each constellation loads when it is picked
         g.update(key=f"{key}-{name}".lower().replace(" ", "-"), unit=info["unit"], guide=info["guide"], collections=info["collections"],
                  first=next(m["month"] for m in g["totals"] if m["n"]), fetched_from=start, complete=start <= info.get("start", START))
         out.append(g)
@@ -299,20 +342,33 @@ def tab(key: str, groups, cell: float = CELL_DEG) -> Optional[dict]:
     vendor = VENDORS[groups[0][1]]["vendor"]
     palette = vendor_palette(vendor)
     for g in out:
-        g.update(vendor=vendor, cell=cell, columns=int(360 / cell), partial=f"{pd.Timestamp.today():%Y-%m}", palette=palette)
+        c = CELL_DEG if g.get("counted") else cell   # Planet's statistics were counted on the 1.5° grid
+        g.update(vendor=vendor, cell=c, columns=int(360 / c), partial=f"{pd.Timestamp.today():%Y-%m}", palette=palette)
     return {"key": key, "vendor": vendor, "palette": palette, "groups": out}
 
 
-def build(page: Path = PAGE) -> Path:
-    tabs = [t for t in (tab(k, g) for k, g in TABS) if t]
-    lazy_dir = page.parent / "archive_density_data"
+def _delta(frame: List[int]) -> List[int]:
+    """[cell, n, cell, n, ...] sorted by cell, each cell stored as the step from the one before: small numbers, a smaller file."""
+    pairs, out, previous = sorted(zip(frame[::2], frame[1::2])), [], 0
+    for c, n in pairs:
+        out += [c - previous, n]
+        previous = c
+    return out
+
+
+def build(page: Path = PAGE, cell: float = CELL_DEG, data_dir: Optional[Path] = None,
+          data_base: str = data_repo.DATA_URL + "archive_density/") -> Path:
+    """The page. Large frames go to `data_dir` (default: the data repository), read by the page from `data_base`."""
+    tabs = [t for t in (tab(k, g, cell) for k, g in TABS) if t]
+    lazy_dir = data_dir or data_repo.folder("archive_density")
     for t in tabs:
         for g in t["groups"]:
             if g.get("lazy"):   # frames in their own file, read by the page when this constellation is picked
                 lazy_dir.mkdir(exist_ok=True)
-                (lazy_dir / f"{g['key']}.json").write_text(json.dumps({"frames": g.pop("frames")}, separators=(",", ":")))
-    data = json.dumps({"tabs": tabs, "land": LAND.read_text(encoding="utf-8").strip(), "updated": f"{pd.Timestamp.today():%-d %b %Y}"},
-                      separators=(",", ":"))
+                (lazy_dir / f"{g['key']}.json").write_text(json.dumps({"delta": True, "frames": [_delta(f) for f in g.pop("frames")]},
+                                                                      separators=(",", ":")))
+    data = json.dumps({"tabs": tabs, "land": LAND.read_text(encoding="utf-8").strip(), "updated": f"{pd.Timestamp.today():%-d %b %Y}",
+                       "data_base": data_base}, separators=(",", ":"))
     page.write_text(TEMPLATE.read_text(encoding="utf-8").replace("/*DATA*/null", data.replace("</", "<\\/")), encoding="utf-8")
     print(page, f"{page.stat().st_size / 1e6:.1f} MB",
           [f"{g['constellation']}: {sum(m['n'] for m in g['totals'])}" for t in tabs for g in t["groups"] if "totals" in g])

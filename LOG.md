@@ -31,6 +31,8 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-10 · [3] Hydrosat order 9265 (417 presigned links, L1b and L2 from VZ01 and VZ02) downloaded with the vendor's `download_presigned.sh` into `/explore/nobackup/projects/CSDA_eval/Data/Hydrosat/cac/` (named `cac` so it is clearly not from the CSDA STAC); links expire 13 Nov.
+- 2026-11-10 · [7] Large page data moved to its own repository, `pahbs/csda_summaries_data` (GitHub Pages at pahbs.github.io/csda_summaries_data/, one commit replaced on each push, via `lib/data_repo.py`). The first-look and density pages read their data from there; `html/archive_first_look_data/` and `html/archive_density_data/` are no longer in this repo.
 - 2026-11-09 · [2] Planet on the first-look page: SuperDove (129k strip-site acquisitions since 2020, loaded on demand, one sensor column) and Tanager tabs, from `notebooks/multistac_site_analysis_planet.ipynb`. Tanager density complete (68k strips; counted as strips). Density timeline: *This month* now highlights only the month on the map. Busy footprint maps draw the newest 300.
 - 2026-11-09 · [2] Thumbnail viewer (`lib/thumbnail_viewer.py`, `notebooks/thumbnail_viewer.ipynb`): a first-look CSV becomes a private page on ADAPT of vendor previews (Vantor browse GeoTIFF exact; Planet, Satellogic, Hydrosat placed on bounding boxes; Kuva has none) with keep/drop and a CSV of kept. Output in `/explore/nobackup/people/pmontesa/multistac/thumbnails/`.
 - 2026-11-09 · [2] Archive first look: the map card is now *Acquisition Locations*; selecting a site shows the footprints of its good and Check AOI acquisitions over imagery (Leaflet), loaded per site from `html/archive_first_look_data/fp/`.
@@ -292,6 +294,12 @@ only if needed), never a separate search API.
 ---
 
 ## 3 · Data requests and downloads
+
+### 2026-11-10 · Hydrosat order 9265 downloaded (vendor presigned links)
+- `HydrosatRequest.zip` (README, `download_presigned.sh`/`.ps1`, `id_9265_all.txt` with 417 CloudFront presigned links
+  under `csdap-nga-collections/Hydrosat/NonDomestic/`) unpacked to `Data/Hydrosat/HydrosatRequest/`.
+- Downloaded into `Data/Hydrosat/cac/` (keeps the vendor's `Hydrosat/NonDomestic/<scene>/` layout); log
+  `Data/Hydrosat/cac_download.log`. `cac` marks data delivered outside the CSDA STAC. Links expire 13 Nov 2026 12:08 EST.
 
 ### 2026-11-07 · Tracking notebooks made consistent (`lib/tracking_report.py`)
 - `airbus_order_tracking.ipynb` and `vantor_legion_supp_tracking.ipynb` share sections 2, 3 and 5–8 and the parameter names; only
@@ -748,6 +756,15 @@ only if needed), never a separate search API.
 ---
 
 ## 7 · Repository and docs
+
+### 2026-11-10 · Page data in a separate repository
+- The repo had grown to ~269 MB, mostly from regenerated page data. The archive pages' data files now live in
+  `pahbs/csda_summaries_data` (working copy `~/code/csda_summaries_data`, env `CSDA_DATA_REPO`), published by GitHub
+  Pages on the same site as these pages. `lib/data_repo.py`: `folder(name)` for builders, `push(message)` replaces the
+  single commit (orphan branch, force push), so that repo never accumulates history. After a refresh:
+  `python lib/data_repo.py push "what changed"`, then commit the rebuilt pages here.
+- Pages embed `data_base` (the data repo URL) and fetch tab, footprint and density files from it.
+- Old data stays in this repo's history; trimming that history is possible but not done.
 
 ### 2026-11-04 · Published maps moved to `html/`
 - `footprints_csda_map.html`, `aoi_csda_sites_map.html`, `aoi_eval_sites_map.html` moved from `notebooks/`; the old

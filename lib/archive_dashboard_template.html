@@ -388,7 +388,7 @@ let lmap = null, lgroup = null, fitted = null, drawing = 0;
 const fpCache = {};
 function footprints(tab, f) {   // one file per site, loaded the first time that site is opened
   const key = `${tab.key}/${f}`;
-  if (!(key in fpCache)) fpCache[key] = fetch(`archive_first_look_data/fp/${key}.json`).then(r => { if (!r.ok) throw r.status; return r.json(); });
+  if (!(key in fpCache)) fpCache[key] = fetch(`${DATA.data_base}fp/${key}.json`).then(r => { if (!r.ok) throw r.status; return r.json(); });
   return fpCache[key];
 }
 function siteMap() {
@@ -591,7 +591,7 @@ function loadTab(tab) {   // a large tab: its acquisitions load from its data fi
   $('map').replaceChildren(); $('sitemap').hidden = true;
   const note = text => $('warn').replaceChildren(el('div', {class: 'warn', text}));
   note(`Loading ${tab.vendor} ${tab.constellation}: ${tab.rows.toLocaleString()} acquisitions at the sites…`);
-  fetch(`archive_first_look_data/${tab.key}.json`).then(r => { if (!r.ok) throw r.status; return r.json(); })
+  fetch(`${DATA.data_base}${tab.key}.json`).then(r => { if (!r.ok) throw r.status; return r.json(); })
     .then(d => { tab.acqs = d.acqs; if (DATA.tabs[state.tab] === tab) renderAll(); })
     .catch(() => note(`This tab loads on the published page: https://pahbs.github.io/csda_summaries/html/archive_first_look.html`));
 }

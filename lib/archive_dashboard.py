@@ -4,7 +4,8 @@ Each multistac_site_analysis_<vendor>.ipynb ends with
 
     archive_dashboard.publish('kuva', dash.gdf, sites, SITES, SITE_NAME_FIELD, START, END, dash.log)
 
-which writes html/archive_first_look_data/<tab>.json and rebuilds html/archive_first_look.html from every tab's file.
+which writes <data repo>/archive_first_look/<tab>.json and rebuilds html/archive_first_look.html from every tab's file
+(the data files are published from their own repository: see data_repo.py).
 `dash` is a search with no cloud limit, since the SMEs set the limits on the page.
 
 The unit is one acquisition at one site, whatever the catalog calls an item, so vendors can be compared:
@@ -18,6 +19,7 @@ The unit is one acquisition at one site, whatever the catalog calls an item, so 
 from __future__ import annotations
 
 import json
+import sys
 import math
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Union
@@ -27,8 +29,11 @@ import pandas as pd
 from shapely import affinity
 from shapely.ops import unary_union
 
+sys.path.insert(0, str(Path(__file__).parent))
+import data_repo  # noqa: E402
+
 REPO = Path(__file__).resolve().parents[1]
-DATA_DIR = REPO / "html" / "archive_first_look_data"
+DATA_DIR = data_repo.folder("archive_first_look")
 PAGE = REPO / "html" / "archive_first_look.html"
 TEMPLATE = Path(__file__).with_name("archive_dashboard_template.html")
 LAND = Path(__file__).with_name("archive_dashboard_land.txt")
@@ -209,16 +214,16 @@ def tab_data(vendor: str, gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, sites_
             "sensors": sensors, "sites": site_rows, "acqs": records}, fp
 
 
-def build(page: Path = PAGE) -> Path:
-    """The page, from the template and every tab's data file."""
+def build(page: Path = PAGE, data_base: str = data_repo.DATA_URL + "archive_first_look/") -> Path:
+    """The page, from the template and every tab's data file. `data_base`: where the page reads the large files."""
     tabs = sorted((json.loads(p.read_text(encoding="utf-8")) for p in DATA_DIR.glob("*.json")),
                   key=lambda t: (t["vendor"], t["constellation"]))   # a vendor's constellations side by side
     for t in tabs:
         t["palette"] = vendor_palette(t["vendor"])
         if len(t["acqs"]) > LAZY_ROWS:   # the page reads them from the tab's data file when the tab is opened
             t["rows"], t["acqs"], t["lazy"] = len(t["acqs"]), None, True
-    data = json.dumps({"tabs": tabs, "land": LAND.read_text(encoding="utf-8").strip(), "updated": f"{pd.Timestamp.today():%-d %b %Y}"},
-                      separators=(",", ":"))
+    data = json.dumps({"tabs": tabs, "land": LAND.read_text(encoding="utf-8").strip(), "updated": f"{pd.Timestamp.today():%-d %b %Y}",
+                       "data_base": data_base}, separators=(",", ":"))
     html = TEMPLATE.read_text(encoding="utf-8").replace("/*DATA*/null", data.replace("</", "<\\/"))
     page.write_text(html, encoding="utf-8")
     return page

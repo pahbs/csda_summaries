@@ -124,6 +124,10 @@ the interactive map.
   change to GitHub publishes it.
 - **Pages stand on their own.** Every page is a single HTML file in `html/`, served by GitHub Pages. No server or login is needed to
   view them.
+- **Large data lives next door.** The archive pages read their bigger data files (per-site footprints, monthly density maps) from a
+  second repository, [`csda_summaries_data`](https://github.com/pahbs/csda_summaries_data), published at
+  `pahbs.github.io/csda_summaries_data/`. It keeps a single commit, so this repository stays small. After refreshing a page, run
+  `python lib/data_repo.py push "what changed"`, then commit and push this repository as usual.
 
 | To refresh | Run |
 |---|---|
