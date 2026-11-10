@@ -31,6 +31,7 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-10 · [2] Archive first look: every tab now covers the same 78 sites, the CSDA sites for optical or thermal validation (`csda_sites_aoi.geojson`, domain contains Optical or Thermal, whole sites only), defined once in `archive_dashboard.load_sites()`. Before: 58 optical sites (Hydrosat: its 29 request sites). All tabs re-searched; Satellogic's busy months retried in halves.
 - 2026-11-10 · [3] Hydrosat order 9265 (417 presigned links, L1b and L2 from VZ01 and VZ02) downloaded with the vendor's `download_presigned.sh` into `/explore/nobackup/projects/CSDA_eval/Data/Hydrosat/cac/` (named `cac` so it is clearly not from the CSDA STAC); links expire 13 Nov.
 - 2026-11-10 · [7] Large page data moved to its own repository, `pahbs/csda_summaries_data` (GitHub Pages at pahbs.github.io/csda_summaries_data/, one commit replaced on each push, via `lib/data_repo.py`). The first-look and density pages read their data from there; `html/archive_first_look_data/` and `html/archive_density_data/` are no longer in this repo.
 - 2026-11-09 · [2] Planet on the first-look page: SuperDove (129k strip-site acquisitions since 2020, loaded on demand, one sensor column) and Tanager tabs, from `notebooks/multistac_site_analysis_planet.ipynb`. Tanager density complete (68k strips; counted as strips). Density timeline: *This month* now highlights only the month on the map. Busy footprint maps draw the newest 300.
@@ -259,6 +260,18 @@ only if needed), never a separate search API.
 ---
 
 ## 2 · Archive analyses: site and global
+
+### 2026-11-10 · First look on the optical and thermal validation sites
+- One site set for every tab: `archive_dashboard.SITES` (`sites/csda_sites_aoi.geojson`) with `SITE_FILTERS` (Remote
+  Sensing Domain contains Optical or Thermal; `feature_type` = site, so the FMI corner-reflector points are left out):
+  78 sites, 54 optical (7 also thermal) and 24 thermal. The Kuva, Satellogic, Legion and Planet notebooks use the same
+  filter; the Hydrosat notebook keeps its site request for its own analysis and publishes on `load_sites()`.
+- Hydrosat's request site `CA_SanFrancisco_1_B23` (SLI, next to SF Bay Bridge) is not in the set.
+- Re-searched 10 Nov on forest203 (`multistac/site_analysis/first_look_refresh/`): Hydrosat 829 acquisition-site rows,
+  Kuva 1,407, Legion 6,115, WorldView 11,628, SuperDove 176,047, Tanager 1,367, Satellogic 21,862. Planet: only the
+  new sites were searched and merged into `planet_sites/<year>.pkl` (backup of the optical-only files in
+  `planet_sites/optical_sites_only_20261110/`). Satellogic: 9 month searches at Railroad Valley failed (HTTP 502) and
+  were retried in halves; the notebook's publish cell has no such retry yet.
 
 ### 2026-11-04 · Kuva site analysis (`multistac_site_analysis_kuva.ipynb`)
 - From the Satellogic notebook: `kuva` L1B / L1C / L2A + CSDA `kuvaspace` (no items found there), 2025-01-01 to

@@ -4,6 +4,8 @@ Each multistac_site_analysis_<vendor>.ipynb ends with
 
     archive_dashboard.publish('kuva', dash.gdf, sites, SITES, SITE_NAME_FIELD, START, END, dash.log)
 
+where `sites` is the same set for every tab: load_sites(), the CSDA sites for optical or thermal validation.
+
 which writes <data repo>/archive_first_look/<tab>.json and rebuilds html/archive_first_look.html from every tab's file
 (the data files are published from their own repository: see data_repo.py).
 `dash` is a search with no cloud limit, since the SMEs set the limits on the page.
@@ -37,6 +39,19 @@ DATA_DIR = data_repo.folder("archive_first_look")
 PAGE = REPO / "html" / "archive_first_look.html"
 TEMPLATE = Path(__file__).with_name("archive_dashboard_template.html")
 LAND = Path(__file__).with_name("archive_dashboard_land.txt")
+
+# The sites every tab covers: CSDA evaluation sites for optical or thermal validation (Remote Sensing Domain contains
+# Optical or Thermal), as whole sites, not the corner-reflector points inside some of them.
+SITES = str(REPO / "sites" / "csda_sites_aoi.geojson")
+SITE_NAME_FIELD = "Site Name"
+SITE_FILTERS = {"Remote Sensing Domain": lambda s: s.str.contains("Optical|Thermal", case=False, na=False),
+                "feature_type": ["site"]}
+
+
+def load_sites() -> gpd.GeoDataFrame:
+    """The first-look sites (SITES with SITE_FILTERS), named by SITE_NAME_FIELD."""
+    import multistac
+    return multistac.load_sites(SITES, site_name_field=SITE_NAME_FIELD, filters=SITE_FILTERS)
 
 # What differs between vendors, for the SMEs. Levels are in processing order.
 VENDORS = {
