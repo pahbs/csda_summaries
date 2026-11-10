@@ -347,6 +347,7 @@ function renderTable(t) {
   $('tableNote').textContent = 'Newest first. Select a month to show it on the map.';
 }
 function render() {
+  if (!T().ck) return;   // still loading: show() renders once the maps arrive, with whatever view was picked meanwhile
   const t = T(), i = state.per[t.key], m = t.totals[i], total = t.totals.slice(0, i + 1).reduce((s, x) => s + x.n, 0), busiest = t.totals.reduce((a, b) => b.n > a.n ? b : a);
   const now = t.totals[i].month === t.partial;
   const missing = t.totals[i].month < t.fetched_from;
@@ -359,10 +360,11 @@ function render() {
     : 'Every acquisition in the catalog, whatever its cloud cover. Point at a cell for its count.';
   drawMap(); renderLegend(t); renderTimeline(t); renderTable(t);
 }
-function go(i) { state.per[T().key] = i; render(); }
+function go(i) { if (!T().ck) return; state.per[T().key] = i; render(); }
 function stop() { clearInterval(state.timer); state.timer = null; $('play').textContent = '▶ Play'; }
 function start() {
   const t = T();
+  if (!t.ck) return;
   if (state.per[t.key] >= t.totals.length - 2) go(0);   // from the latest month, play from the start
   $('play').textContent = '❚❚ Pause';
   state.timer = setInterval(() => { const n = state.per[T().key] + 1; if (n > T().totals.length - 1) stop(); else go(n); }, +$('speed').value);
