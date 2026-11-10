@@ -31,6 +31,7 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-10 · [2] Density dashboard at 0.5° (was 1.5°), each acquisition counted in every cell its outline touches (was: its center only). Outlines re-fetched for all catalogs since 2020 into `global_analysis/monthly_fp/` (now the default store); SuperDove recounted from Planet's statistics at 0.5°. Every constellation loads on demand from the data repo (~15 MB compressed in all).
 - 2026-11-10 · [2] Archive first look: every tab now covers the same 78 sites, the CSDA sites for optical or thermal validation (`csda_sites_aoi.geojson`, domain contains Optical or Thermal, whole sites only), defined once in `archive_dashboard.load_sites()`. Before: 58 optical sites (Hydrosat: its 29 request sites). All tabs re-searched; Satellogic's busy months retried in halves.
 - 2026-11-10 · [3] Hydrosat order 9265 (417 presigned links, L1b and L2 from VZ01 and VZ02) downloaded with the vendor's `download_presigned.sh` into `/explore/nobackup/projects/CSDA_eval/Data/Hydrosat/cac/` (named `cac` so it is clearly not from the CSDA STAC); links expire 13 Nov.
 - 2026-11-10 · [7] Large page data moved to its own repository, `pahbs/csda_summaries_data` (GitHub Pages at pahbs.github.io/csda_summaries_data/, one commit replaced on each push, via `lib/data_repo.py`). The first-look and density pages read their data from there; `html/archive_first_look_data/` and `html/archive_density_data/` are no longer in this repo.
@@ -260,6 +261,18 @@ only if needed), never a separate search API.
 ---
 
 ## 2 · Archive analyses: site and global
+
+### 2026-11-10 · Density dashboard: 0.5° cells from footprints
+- `archive_density.py` defaults: `STORE` = `global_analysis/monthly_fp/` (one simplified outline per item, WKB) and
+  `CELL_DEG` = 0.5. The old point store `monthly/` is kept but no longer used. A cell's number is now how many
+  acquisitions cover it, so long strips count along their whole length.
+- Counting bug found in the first 0.5° build, fixed before publishing: rasterizing all outlines at once with
+  `all_touched` and an adding merge counted edge cells several times per polygon (up to 15 for a long diagonal strip;
+  Satellogic ~7× too high). `_footprint_counts` now tests each outline against the cells of its bounding box
+  (vectorized shapely), checked against one-at-a-time rasterizing; ~50× faster, a full build takes ~4 min on a forest node.
+- Satellogic's straight-edged blocks (Yukon, BC, Middle East, SE Australia) are real: long ~2° × 7.5° catalog strips
+  imaged repeatedly in 2023–24 (checked cell counts against the footprints).
+- Data per constellation in the data repo (`archive_density/<key>.json`): 60 MB, ~15 MB gzip; SuperDove 31 MB (8 MB).
 
 ### 2026-11-10 · First look on the optical and thermal validation sites
 - One site set for every tab: `archive_dashboard.SITES` (`sites/csda_sites_aoi.geojson`) with `SITE_FILTERS` (Remote

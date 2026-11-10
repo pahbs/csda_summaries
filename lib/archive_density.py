@@ -28,12 +28,12 @@ import data_repo
 
 REPO = Path(__file__).resolve().parents[1]
 # Footprint stores (one outline per item) count each acquisition in every cell it covers; older point stores, only at its center.
-STORE = Path(os.environ.get("ARCHIVE_DENSITY_STORE", "/explore/nobackup/people/pmontesa/multistac/global_analysis/monthly"))
+STORE = Path(os.environ.get("ARCHIVE_DENSITY_STORE", "/explore/nobackup/people/pmontesa/multistac/global_analysis/monthly_fp"))
 PAGE = REPO / "html" / "archive_density.html"
 TEMPLATE = Path(__file__).with_name("archive_density_template.html")
 START = "2020-01"
 REFRESH_MONTHS = 3
-CELL_DEG = float(os.environ.get("ARCHIVE_DENSITY_CELL", 1.5))
+CELL_DEG = float(os.environ.get("ARCHIVE_DENSITY_CELL", 0.5))   # map cell; SuperDove is counted on it when fetched
 SIMPLIFY_DEG = 0.001   # outlines kept to about 100 m: far finer than any map cell
 
 VENDORS = {
@@ -245,10 +245,11 @@ def _tables(store: str, collections) -> Dict[str, pd.DataFrame]:
 
 
 def _footprint_counts(table: pd.DataFrame, cell: float) -> pd.Series:
-    """How many acquisitions cover each cell: each acquisition's outline (its items joined) counts once in every cell it touches."""
-    from rasterio import features
-    from rasterio.enums import MergeAlg
-    from rasterio.transform import from_origin
+    """How many acquisitions cover each cell: each acquisition's outline (its items joined) counts once in every cell it touches.
+
+    Each outline is tested against the cells of its bounding box. (Rasterizing with all_touched and an adding merge, as
+    before, counts a cell along a polygon's edge several times for one polygon: up to 15 for a long diagonal strip.)
+    """
     t = table[table.wkb.notna()]
     geoms = pd.Series(shapely.from_wkb(t.wkb.values), index=t.acquisition_id.astype(str).values)
     geoms = geoms[~shapely.is_empty(geoms.values)]
@@ -259,12 +260,21 @@ def _footprint_counts(table: pd.DataFrame, cell: float) -> pd.Series:
     wraps = (bounds[:, 2] - bounds[:, 0]) > 180   # across the antimeridian: move the western part east by 360°
     if wraps.any():
         shapes[wraps] = [shapely.transform(g, lambda xy: np.where(xy[:, :1] < 0, xy + [360, 0], xy)) for g in shapes[wraps]]
+    shapes = shapes[~(pd.isna(shapes) | shapely.is_empty(shapes))]
     columns, rows = int(round(360 / cell)), int(round(180 / cell))
-    grid = features.rasterize(((g, 1) for g in shapes if g is not None and not g.is_empty), out_shape=(rows, 2 * columns),
-                              transform=from_origin(-180, 90, cell, cell), all_touched=True, merge_alg=MergeAlg.add, dtype="uint32")
-    grid = grid[:, :columns] + grid[:, columns:]   # fold the part east of 180° back
-    r, c = np.nonzero(grid)
-    return pd.Series(grid[r, c], index=r * columns + c)
+    b = shapely.bounds(shapes)
+    c0, c1 = [np.floor((b[:, k] + 180) / cell).astype(int).clip(0, 2 * columns - 1) for k in (0, 2)]   # up to 540° east
+    r0, r1 = [np.floor((90 - b[:, k]) / cell).astype(int).clip(0, rows - 1) for k in (3, 1)]
+    nc, n = c1 - c0 + 1, (c1 - c0 + 1) * (r1 - r0 + 1)
+    which = np.repeat(np.arange(len(shapes)), n)                  # every (outline, cell of its bounding box) pair
+    k = np.arange(n.sum()) - np.repeat(np.cumsum(n) - n, n)
+    r, c = r0[which] + k // nc[which], c0[which] + k % nc[which]
+    shapely.prepare(shapes)
+    hit = shapely.intersects(shapes[which], shapely.box(-180 + c * cell, 90 - (r + 1) * cell, -180 + (c + 1) * cell, 90 - r * cell))
+    cells = r[hit] * columns + c[hit] % columns                   # fold the part east of 180° back
+    counts = np.bincount(cells, minlength=rows * columns)
+    found = np.nonzero(counts)[0]
+    return pd.Series(counts[found], index=found)
 
 
 def _group(name: str, tables: Dict[str, pd.DataFrame], every: List[str], cell: float) -> dict:
@@ -342,7 +352,7 @@ def tab(key: str, groups, cell: float = CELL_DEG) -> Optional[dict]:
     vendor = VENDORS[groups[0][1]]["vendor"]
     palette = vendor_palette(vendor)
     for g in out:
-        c = CELL_DEG if g.get("counted") else cell   # Planet's statistics were counted on the 1.5° grid
+        c = CELL_DEG if g.get("counted") else cell   # Planet's statistics: the grid they were counted on (CELL_DEG)
         g.update(vendor=vendor, cell=c, columns=int(360 / c), partial=f"{pd.Timestamp.today():%Y-%m}", palette=palette)
     return {"key": key, "vendor": vendor, "palette": palette, "groups": out}
 
