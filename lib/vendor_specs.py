@@ -366,12 +366,15 @@ def completeness(df: pd.DataFrame) -> pd.DataFrame:
 SECTOR_COLORS = {"Commercial": "#2a78d6", "Government": "#eb6834"}
 # Data-owner colors: the palette of csda_specs_multispec_smry.ipynb (RColorBrewer Set1 + Dark2, BlackSky black,
 # US Agency blue), so plots stay familiar; owners added since get unused Dark2 colors.
+# Affiliation colors. The seven vendors on the archive pages (Airbus, EarthDaily, HydroSat, Kuva, Planet Labs, Satellogic,
+# Vantor) are validated as a set (dataviz checks, all pairs, light and dark): OKLab delta E >= 15.6 in normal vision and
+# >= 8.0 under protan/deutan simulation, contrast >= 3:1. Every pair of all 20 is >= 15 apart in normal vision (11 Nov 2026).
 AFFILIATION_COLORS = {
-    "Airbus": "#E41A1C", "BlackSky": "#000000", "DLR / Teledyne": "#4DAF4A", "Earth Fire Alliance / Muon": "#984EA3",
-    "EarthDaily": "#FF7F00", "ESA": "#FFFF33", "HydroSat": "#A65628", "ImageSat": "#F781BF", "JAXA": "#1B9E77",
-    "Kuva": "#C16610", "OroraTech": "#8D6B86", "Planet Labs": "#BC4399", "Satellogic": "#A66753",
-    "Satlantis": "#96A713", "SatVu": "#D59D08", "US Agency": "#0000FF", "Vantor": "#00B8D9",
-    "OrbitalSideKick": "#7570B3", "DLR": "#00441B",   # added (not in the sheet when the R palette was made)
+    "Airbus": "#d81618", "BlackSky": "#000000", "DLR / Teledyne": "#4ea4f1", "Earth Fire Alliance / Muon": "#5f1547",
+    "EarthDaily": "#cc7d1e", "ESA": "#FFFF33", "HydroSat": "#057918", "ImageSat": "#F781BF", "JAXA": "#9ec0b4",
+    "Kuva": "#9867e1", "OroraTech": "#94666b", "Planet Labs": "#be3191", "Satellogic": "#34a08e", "Satlantis": "#98b224",
+    "SatVu": "#753c05", "US Agency": "#0000FF", "Vantor": "#1e74af", "OrbitalSideKick": "#6a3f96", "DLR": "#00441B",
+    "Pixxel": "#093e6f",
 }
 EXTRA_COLORS = ["#E7298A", "#66A61E", "#E6AB02", "#D95F02", "#A6761D", "#377EB8"]   # for owners new to the sheet
 SURFACE, INK, INK_2, INK_3, GRID = "#fcfcfb", "#0b0b0b", "#52514e", "#8a8984", "#e8e7e2"

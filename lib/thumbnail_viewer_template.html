@@ -33,7 +33,7 @@ h2 span { color: var(--ink-3); font-weight: 400; font-size: 13px; margin-left: 6
   font-variant-numeric: tabular-nums; }
 /* the vendor, in its affiliation color: the same rounded tag as "Work in progress" on the Review pages */
 .tag { display: inline-block; white-space: nowrap; padding: 2px 10px; border-radius: 9999px; font-weight: 600; font-size: 12.5px;
-  background: var(--tag-bg); color: var(--tag-ink); }
+  background: color-mix(in oklab, var(--tag-bg) 65%, var(--surface)); color: var(--tag-ink); }   /* softened: some hues are loud */
 .tag.quiet { --tag-bg: var(--surface-2); --tag-ink: var(--ink-2); font-weight: 500; font-size: 11px; padding: 1px 8px; }
 .note { color: var(--ink-3); font-size: 12.5px; margin: 0 0 2px; max-width: 980px; }
 .filters { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--grid);

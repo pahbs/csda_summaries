@@ -1,4 +1,4 @@
-"""Thumbnail viewer for acquisitions picked on the Vendor archive first look page.
+"""Thumbnail viewer for acquisitions picked on the Vendor Archive First Look page.
 
 Download a CSV from a first-look tab, then run:
 
@@ -295,7 +295,7 @@ def build(csv, out: Optional[Path] = None, tab: Optional[str] = None, limit: Opt
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("csv", help="a CSV downloaded from the Vendor archive first look page")
+    parser.add_argument("csv", help="a CSV downloaded from the Vendor Archive First Look page")
     parser.add_argument("--out", help=f"output HTML (default: {OUT}/<csv name>_thumbnails.html)")
     parser.add_argument("--tab", choices=sorted(SOURCES), help="vendor, if the CSV was renamed")
     parser.add_argument("--limit", type=int, help="only the first N acquisitions (the CSV lists good ones first)")

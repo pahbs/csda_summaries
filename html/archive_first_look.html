@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Vendor archive first look</title>
+<title>Vendor Archive First Look</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<meta name="description" content="Vendor archive first look">
-<meta property="og:title" content="Vendor archive first look">
-<meta property="og:description" content="Vendor archive first look">
+<meta name="description" content="Vendor Archive First Look: identify Candidate Acquisitions for CSDA evaluation">
+<meta property="og:title" content="Vendor Archive First Look: identify Candidate Acquisitions for CSDA evaluation">
+<meta property="og:description" content="Vendor Archive First Look: identify Candidate Acquisitions for CSDA evaluation">
 <style>
 .viz-root {
   color-scheme: light;
@@ -40,9 +40,9 @@ h2 { font-size: 17px; margin: 0 0 2px; font-weight: 620; }
 h3 { font-size: 13px; margin: 0 0 4px; font-weight: 620; }
 .sub { color: var(--ink-2); margin: 0; }
 .subhead { color: var(--ink-2); font-size: 15.5px; margin: 0 0 6px; }
-/* Good Quality, in the tab's vendor color: the same rounded tag as "Work in progress" on the Review pages */
+/* Candidate Acquisition, in the tab's vendor color: the same rounded tag as "Work in progress" on the Review pages */
 .gq { display: inline-block; white-space: nowrap; padding: 1px 9px; border-radius: 9999px; font-weight: 600; font-size: .92em;
-  background: var(--gq-bg, #dbe8f7); color: var(--gq-ink, #163f73); }
+  background: color-mix(in oklab, var(--gq-bg, #dbe8f7) 65%, var(--surface)); color: var(--gq-ink, #163f73); }   /* softened: some hues are loud */
 .note { color: var(--ink-2); font-size: 12.5px; margin: 0 0 10px; }
 a { color: var(--link); }
 code { font-size: .92em; }
@@ -138,12 +138,11 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
 </head>
 <body>
 <div class="viz-root"><div class="wrap">
-<h1>Vendor archive first look: what is available at the evaluation sites</h1>
+<h1>Vendor Archive First Look: identify <span class="gq">Candidate Acquisitions</span> for CSDA evaluation</h1>
 <p class="subhead">A tool to explore vendor archive acquisitions available at sites in the Evaluation Sites Database.</p>
-<p class="sub">How many Good Quality acquisitions each vendor's archive holds at each site, from each sensor. Set what Good Quality means, then pick a site to look closer. Sites: the CSDA evaluation sites for optical or thermal validation, the same in every tab.</p>
 <p class="note" style="margin:4px 0 0">Paul Montesano, PhD · NASA Goddard Space Flight Center; ESSIC · CSDA Multispectral Optical SME Group ·
   <a href="mailto:paul.m.montesano@nasa.gov">paul.m.montesano@nasa.gov</a> · <span id="updated"></span></p>
-<div class="warn" style="margin:12px 0 0;font-size:13.5px"><b>Suggested use:</b> filter to determine a <span class="gq">Good Quality</span> set that is evaluation-ready, download a CSV of candidate <span class="gq">Good Quality</span> acquisitions for manual thumbnail review before sending to CSDA Data Management Team for purchase recommendation. To see where and when each constellation collects worldwide, month by month, use the <a href="archive_density.html">Vendor Archive Density Dashboard</a> page.</div>
+<div class="warn" style="margin:12px 0 0;font-size:13.5px"><b>Suggested use:</b> filter to determine a set of <span class="gq">Candidate Acquisitions</span> that is evaluation-ready, download a CSV of them for manual thumbnail review before sending to CSDA Data Management Team for purchase recommendation. To see where and when each constellation collects worldwide, month by month, use the <a href="archive_density.html">Vendor Archive Density Dashboard</a> page.</div>
 <div class="tabs" id="tabs" role="tablist"></div>
 <div class="filters" id="filters"></div>
 <div id="warn"></div>
@@ -152,7 +151,7 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
   <input type="search" id="find" placeholder="Part of a name; separate several with commas" autocomplete="off">
   <span class="note" id="findNote"></span></div>
 <div class="card">
-  <h2><span class="gq">Good Quality</span> acquisitions by site and sensor</h2>
+  <h2><span class="gq">Candidate Acquisitions</span> by site and sensor</h2>
   <div class="pick" style="margin:0"><p class="note" id="scoreNote" style="margin:0"></p><button class="action" id="moreSensors" hidden></button></div>
   <div class="scroll" id="score"></div>
   <div class="legend" id="scoreLegend"></div>
@@ -164,14 +163,14 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
   <div class="card"><h2>How to read this vendor</h2><dl class="guide" id="guide"></dl><div id="levels"></div></div>
 </div>
 <div class="card" style="margin-top:18px"><h2>How the acquisitions vary</h2><p class="note">Each panel counts acquisitions. The line marks the limit in use, where one limit applies to all the sites shown.</p><div class="hist" id="hist"></div>
-  <div class="legend"><span><i class="sw" style="background:var(--series)"></i>Good Quality</span><span><i class="sw" style="background:var(--check)"></i>Check AOI</span><span><i class="sw" style="background:var(--muted-mark)"></i>Not good</span></div></div>
+  <div class="legend"><span><i class="sw" style="background:var(--series)"></i><span class="gq">Candidate Acquisition</span></span><span><i class="sw" style="background:var(--check)"></i>Check AOI</span><span><i class="sw" style="background:var(--muted-mark)"></i>Not a candidate</span></div></div>
 <div class="cols">
   <div class="card"><div class="maphead"><h2>Acquisition Locations</h2><button class="action" id="worldView" hidden>Show all sites</button></div>
     <p class="note" id="mapNote"></p><div id="map"></div><div id="sitemap" hidden></div><div class="legend" id="mapLegend"></div></div>
   <div class="card"><h2>Satellite and sun positions</h2><p class="note">As seen from the site: center is overhead, the edge is the horizon, north is up.</p><div id="sky"></div></div>
 </div>
 <div class="card" style="margin-top:18px">
-  <div class="pick" style="margin-top:0"><h2 id="listTitle"></h2><button class="action" id="csv">Download Good Quality and Check AOI acquisitions (CSV)</button></div>
+  <div class="pick" style="margin-top:0"><h2 id="listTitle"></h2><button class="action" id="csv">Download <span class="gq">Candidate Acquisitions</span> and Check AOI acquisitions (CSV)</button></div>
   <div class="scroll" id="list"></div><p class="note" id="listNote" style="margin-top:8px"></p>
 </div>
 <p class="note" id="foot"></p>
@@ -182,10 +181,10 @@ let DATA = JSON.parse(document.getElementById('data').textContent);   // {index:
 const $ = id => document.getElementById(id);
 const pal = () => DATA.tabs[state.tab].palette;
 const ramp = () => pal()[dark() ? 'dark' : 'light'];
-function applyPalette() {   // the vendor's ramp for data marks: Good Quality is a strong step, Check AOI a lighter one
+function applyPalette() {   // the vendor's ramp for data marks: Candidate Acquisitions are a strong step, Check AOI a lighter one
   const root = document.querySelector('.viz-root'), r = ramp();
   root.style.setProperty('--series', r[4]); root.style.setProperty('--check', r[2]);
-  root.style.setProperty('--gq-bg', r[0]); root.style.setProperty('--gq-ink', r[6]);   // the Good Quality tag: lightest and darkest steps
+  root.style.setProperty('--gq-bg', r[0]); root.style.setProperty('--gq-ink', r[6]);   // the Candidate Acquisition tag: lightest and darkest steps
 }
 const dark = () => getComputedStyle(document.querySelector('.viz-root')).colorScheme === 'dark';
 const state = {tab: 0, per: {}, find: ''};
@@ -211,6 +210,9 @@ function svg(tag, props = {}, ...kids) {
   kids.flat().forEach(c => c != null && node.append(c));
   return node;
 }
+// Text with "Candidate Acquisition(s)" in it: the words become the tag, the rest stays text
+const rich = text => String(text).split(/(Candidate Acquisitions?)/).filter(Boolean)
+  .map(part => /^Candidate Acquisitions?$/.test(part) ? el('span', {class: 'gq', text: part}) : part);
 function tip(node, value, label) {
   const show = e => {
     const t = $('tip'); t.replaceChildren(el('b', {text: value}), label); t.style.display = 'block';
@@ -300,7 +302,7 @@ function renderFilters(tab) {
     sel.value = s[key]; return el('label', {}, label, sel);
   };
   const hasNight = tab.acqs.some(a => a.dn === 'night');
-  f.replaceChildren(...[el('span', {class: 'lead'}, el('span', {class: 'gq', text: 'Good Quality'}), ' means'),
+  f.replaceChildren(...[el('span', {class: 'lead'}, el('span', {class: 'gq', text: 'Candidate Acquisition'}), ' means'),
     slider('cloud', 'Cloud up to', 100, '%', tab.has.cloud), slider('off', 'Off-nadir up to', 60, '°', tab.has.off),
     slider('cov', 'Site covered at least', 100, '%', true),
     el('label', {}, own, 'Use site requirements where they exist'),
@@ -313,12 +315,12 @@ function renderAnswer(tab, rows) {
   const needing = tab.sites.map((x, i) => ({...x, i})).filter(x => x.need != null);
   const met = needing.filter(x => (bySite.get(x.i) || 0) >= x.need).length;
   const last = good.map(a => a.d).sort().pop();
-  const tile = (v, k, cls = '') => el('div', {class: 'tile ' + cls}, el('div', {class: 'v', text: v}), el('div', {class: 'k', text: k}));
+  const tile = (v, k, cls = '') => el('div', {class: 'tile ' + cls}, el('div', {class: 'v', text: v}), el('div', {class: 'k'}, ...rich(k)));
   $('answer').replaceChildren(
-    tile(good.length.toLocaleString(), `Good Quality acquisitions at these sites, of ${rows.length.toLocaleString()} found.` + (uniq(good) < good.length ? ` ${uniq(good).toLocaleString()} are unique: one can cover two sites.` : '') + (tab.csda_checked === false ? '' : ` ${good.filter(a => a.csda).length.toLocaleString()} are in CSDA.`) + (rows.some(a => a.t.check) ? ` ${rows.filter(a => a.t.check).length.toLocaleString()} more to check over the site.` : ''), 'hero'),
-    tile(`${bySite.size} of ${tab.sites.length}`, 'sites with a Good Quality acquisition'),
+    tile(good.length.toLocaleString(), `Candidate Acquisitions at these sites, of ${rows.length.toLocaleString()} found.` + (uniq(good) < good.length ? ` ${uniq(good).toLocaleString()} are unique: one can cover two sites.` : '') + (tab.csda_checked === false ? '' : ` ${good.filter(a => a.csda).length.toLocaleString()} are in CSDA.`) + (rows.some(a => a.t.check) ? ` ${rows.filter(a => a.t.check).length.toLocaleString()} more to check over the site.` : ''), 'hero'),
+    tile(`${bySite.size} of ${tab.sites.length}`, 'sites with a Candidate Acquisition'),
     tile(needing.length ? `${met} of ${needing.length}` : 'none set', 'sites reaching their minimum number'),
-    tile(last || 'none', 'newest Good Quality acquisition'));
+    tile(last || 'none', 'newest Candidate Acquisition'));
 }
 function renderScore(tab, rows) {
   const s = S(), ms = months(tab).filter(m => m >= s.from && m <= s.to);
@@ -334,7 +336,7 @@ function renderScore(tab, rows) {
   const cellMax = Math.max(1, ...counts.flatMap(c => [...shown.map(o => c.sensors[o.n]), rest.reduce((t, o) => t + c.sensors[o.n], 0)]));
   const monthMax = Math.max(1, ...counts.flatMap(c => c.byMonth));
   const scene = tab.cloud_scope === 'scene';
-  const head = el('tr', {}, el('th', {text: 'Site'}), el('th', {text: 'Enough?'}), el('th', {class: 'n', text: 'Good Quality'}), scene ? el('th', {class: 'n', text: 'Check AOI'}) : null, el('th', {class: 'n', text: 'Found'}),
+  const head = el('tr', {}, el('th', {text: 'Site'}), el('th', {text: 'Enough?'}), el('th', {class: 'n'}, ...rich('Candidate Acquisitions')), scene ? el('th', {class: 'n', text: 'Check AOI'}) : null, el('th', {class: 'n', text: 'Found'}),
     shown.map(o => el('th', {class: 'heat', text: o.name})), rest.length ? el('th', {class: 'heat', text: `${rest.length} others`}) : null,
     el('th', {class: 'months'}, el('div', {class: 'strip head'}, ms.map((m, i) => el('i', {text: i === 0 || m.endsWith('-01') ? m.slice(0, 4) : ''})))));
   const nothing = counts.filter(c => !c.all && !tab.failed.includes(c.site.name)).map(c => c.site.name);
@@ -345,14 +347,14 @@ function renderScore(tab, rows) {
     const heat = (v, name) => {
       const td = el('td', {class: 'heat', tabindex: 0, text: v ? v : ''});
       if (v) { const k = color(v, cellMax); td.style.background = k.bg; td.style.color = k.fg; }
-      const label = el('span', {text: `Good Quality at ${c.site.name} from ${name}`});
+      const label = el('span', {}, ...rich(`Candidate Acquisitions at ${c.site.name} from ${name}`));
       tip(td, String(v), label);
       return td;
     };
     const strip = el('div', {class: 'strip'}, c.byMonth.map((v, i) => {
       const cell = el('i', {tabindex: 0});
       if (v) cell.style.background = color(v, monthMax).bg;
-      tip(cell, String(v), el('span', {text: `Good Quality in ${ms[i]} at ${c.site.name}`}));
+      tip(cell, String(v), el('span', {}, ...rich(`Candidate Acquisitions in ${ms[i]} at ${c.site.name}`)));
       return cell;
     }));
     const row = el('tr', {class: s.site === c.i ? 'sel' : '', tabindex: 0, onclick: () => pick(tab, c.i),
@@ -366,14 +368,14 @@ function renderScore(tab, rows) {
   });
   $('score').replaceChildren(el('table', {class: 'score'}, el('thead', {}, head), el('tbody', {}, body)));
   const lights = ramp();
-  $('scoreNote').textContent = `Sorted by Good Quality acquisitions. Columns are ${tab.sensors.length === 1 ? 'the sensor' : 'sensors, most productive first'}, then months. Select a row to look closer.`
-    + (scene ? ' Check AOI: the scene is over the site\'s cloud limit but within the scene limit, so the site itself may be clear. Look at the image.' : '');
+  $('scoreNote').replaceChildren(...rich(`Sorted by Candidate Acquisitions. Columns are ${tab.sensors.length === 1 ? 'the sensor' : 'sensors, most productive first'}, then months. Select a row to look closer.`
+    + (scene ? ' Check AOI: the scene is over the site\'s cloud limit but within the scene limit, so the site itself may be clear. Look at the image.' : '')));
   $('nothing').textContent = nothing.length ? `Nothing found at ${plural(nothing.length, 'site')}: ${nothing.join(', ')}.` : '';
   const more = $('moreSensors');
   more.hidden = order.length <= 8;
   more.textContent = s.allSensors ? 'Show top sensors only' : `Show all ${order.length} sensors`;
   more.onclick = () => { s.allSensors = !s.allSensors; renderData(tab); };
-  $('scoreLegend').replaceChildren(el('span', {}, 'Fewer', el('span', {class: 'ramp'}, lights.map(c => { const i = el('i'); i.style.background = c; return i; })), `More Good Quality acquisitions in a sensor or month cell (up to ${cellMax} and ${monthMax})`));
+  $('scoreLegend').replaceChildren(el('span', {}, 'Fewer', el('span', {class: 'ramp'}, lights.map(c => { const i = el('i'); i.style.background = c; return i; })), ...rich(`More Candidate Acquisitions in a sensor or month cell (up to ${cellMax} and ${monthMax})`)));
 }
 function pick(tab, i) { const s = S(); s.site = s.site === i ? null : i; renderData(tab); }
 
@@ -381,10 +383,10 @@ function renderReasons(tab, rows) {
   const n = rows.length, good = rows.filter(a => a.t.good).length;
   const line = (label, v, cls = '') => {
     const bar = el('div', {class: 'bar'}); bar.style.width = n ? `${100 * v / n}%` : '0';
-    return el('div', {class: 'reason ' + cls}, el('span', {text: label}), el('div', {class: 'track'}, bar), el('span', {class: 'num', text: v.toLocaleString()}));
+    return el('div', {class: 'reason ' + cls}, el('span', {}, ...rich(label)), el('div', {class: 'track'}, bar), el('span', {class: 'num', text: v.toLocaleString()}));
   };
   const na = field => el('div', {class: 'reason'}, el('span', {text: field}), el('span', {class: 'note', style: 'margin:0', text: 'Not reported by this vendor'}), el('span'));
-  $('reasons').replaceChildren(...[line('Good Quality', good, 'good'),
+  $('reasons').replaceChildren(...[line('Candidate Acquisitions', good, 'good'),
     tab.cloud_scope === 'scene' ? line('Check AOI: site may be clear', rows.filter(a => a.t.check).length, 'check') : null,
     tab.has.cloud ? line('Too cloudy', rows.filter(a => !a.t.cloud).length) : na('Too cloudy'),
     tab.has.off ? line('Too far off-nadir', rows.filter(a => !a.t.off).length) : na('Too far off-nadir'),
@@ -447,19 +449,19 @@ function renderMap(tab, all) {
       map.fitBounds([[c.lat - dy, c.lng - dx], [c.lat + dy, c.lng + dx]]);
       fitted = `${tab.key}:${f}`;
     }
-    $('mapNote').textContent = here.length
+    $('mapNote').replaceChildren(...rich(here.length
       ? `Footprints at ${site.name} under the limits set above${drawn.length < here.length ? `: the newest ${MOST} of ${here.length.toLocaleString()}, from ${drawn[drawn.length - 1] && [...drawn].sort((a, b) => a.d.localeCompare(b.d))[0].d} on. Narrow the months above to see others` : ''}. The white outline is the site.${busy ? ' Overlapping outlines show where coverage piles up.' : ''} Point at a footprint for its details.`
-      : `No Good Quality or Check AOI acquisitions at ${site.name} under the limits set above.`;
-    const key = (cls, text) => el('span', {}, el('i', {class: 'sw', style: `background:none;border:2px ${cls === 'check' ? 'dashed' : 'solid'} var(--${cls === 'check' ? 'check' : 'series'})`}), text);
-    $('mapLegend').replaceChildren(key('good', `Good Quality (${good})`), check ? key('check', `Check AOI (${check})`) : '',
+      : `No Candidate Acquisitions or Check AOI acquisitions at ${site.name} under the limits set above.`));
+    const key = (cls, text) => el('span', {}, el('i', {class: 'sw', style: `background:none;border:2px ${cls === 'check' ? 'dashed' : 'solid'} var(--${cls === 'check' ? 'check' : 'series'})`}), ...rich(text));
+    $('mapLegend').replaceChildren(key('good', `Candidate Acquisitions (${good})`), check ? key('check', `Check AOI (${check})`) : '',
       el('span', {}, el('i', {class: 'sw', style: 'background:none;border:2px solid var(--ink-3)'}), 'Site outline (white on the map)'));
   }).catch(() => {
     if (token !== drawing) return;
-    $('mapNote').textContent = `Footprints load on the published page: open https://pahbs.github.io/csda_summaries/html/archive_first_look.html. ${good} Good Quality and ${check} Check AOI acquisitions at ${site.name}.`;
+    $('mapNote').replaceChildren(...rich(`Footprints load on the published page: open https://pahbs.github.io/csda_summaries/html/archive_first_look.html. ${good} Candidate Acquisitions and ${check} Check AOI acquisitions at ${site.name}.`));
   });
 }
 function renderWorld(tab, all) {
-  $('mapNote').textContent = 'Circle area shows Good Quality acquisitions. Empty rings have none. Select a site to see its footprints.';
+  $('mapNote').replaceChildren(...rich('Circle area shows Candidate Acquisitions. Empty rings have none. Select a site to see its footprints.'));
   $('mapLegend').replaceChildren();
   const s = S(), w = 560, h = 280, X = lon => (lon + 180) / 360 * w, Y = lat => (90 - lat) / 180 * h * 1;
   const good = new Map(); all.filter(a => a.t.good).forEach(a => good.set(a.s, (good.get(a.s) || 0) + 1));
@@ -470,10 +472,10 @@ function renderWorld(tab, all) {
     const c = svg('circle', {cx: X(site.lon), cy: Y(site.lat), r, tabindex: 0, fill: v ? 'var(--series)' : 'none', 'fill-opacity': v ? .75 : 1,
       stroke: s.site === i ? 'var(--ring)' : (v ? 'var(--surface)' : 'var(--ink-3)'), 'stroke-width': s.site === i ? 2 : 1, style: 'cursor:pointer',
       onclick: () => pick(tab, i)});
-    tip(c, String(v), el('span', {text: `Good Quality at ${site.name}. Select to see footprints.`}));
+    tip(c, String(v), el('span', {}, ...rich(`Candidate Acquisitions at ${site.name}. Select to see footprints.`)));
     return c;
   });
-  $('map').replaceChildren(svg('svg', {viewBox: `0 0 ${w} ${h}`, width: '100%', role: 'img', 'aria-label': 'Map of sites by Good Quality acquisitions'}, land, dots));
+  $('map').replaceChildren(svg('svg', {viewBox: `0 0 ${w} ${h}`, width: '100%', role: 'img', 'aria-label': 'Map of sites by Candidate Acquisitions'}, land, dots));
 }
 function histogram(title, rows, field, lo, hi, step, unit, limit) {
   const box = el('div', {}, el('h3', {text: title}));
@@ -524,7 +526,7 @@ function renderSky(tab, rows) {
     tip(g, `${a.sun}° sun`, el('span', {text: `${a.d}, ${tab.sites[a.s].name}`})); root.append(g); });
   placed.slice(0, 1500).forEach(a => { const [x, y] = xy(a.az, a.el); root.append(dot(a, x, y, a.t.good ? 'var(--series)' : 'var(--muted-mark)', `${a.el}° elevation`, `${a.d}, ${tab.sensors[a.n]}, ${tab.sites[a.s].name}`)); });
   $('sky').replaceChildren(root, el('div', {class: 'legend'}, el('span', {}, el('i', {class: 'sw dot', style: 'background:var(--series)'}), 'Satellite, good'),
-    el('span', {}, el('i', {class: 'sw dot', style: 'background:var(--muted-mark)'}), 'Satellite, not Good Quality'),
+    el('span', {}, el('i', {class: 'sw dot', style: 'background:var(--muted-mark)'}), 'Satellite, not a candidate'),
     el('span', {}, el('i', {class: 'sw dot', style: 'background:none;border:1.5px solid var(--ink-2);width:9px;height:9px'}), 'Sun')));
 }
 function renderGuide(tab, all) {
@@ -536,7 +538,7 @@ function renderGuide(tab, all) {
     return el('tr', {}, el('td', {}, el('code', {text: l.code})), el('td', {text: l.plain}), el('td', {class: 'n', text: mine.length.toLocaleString()}), el('td', {class: 'n', text: mine.filter(a => a.t.good).length.toLocaleString()}));
   });
   if (!tab.levels.length) { $('levels').replaceChildren(); return; }
-  $('levels').replaceChildren(el('table', {class: 'levels'}, el('thead', {}, el('tr', {}, el('th', {text: 'Level'}), el('th', {text: 'What it is'}), el('th', {class: 'n', text: 'Acqs'}), el('th', {class: 'n', text: 'Good Quality'}))), el('tbody', {}, rows)));
+  $('levels').replaceChildren(el('table', {class: 'levels'}, el('thead', {}, el('tr', {}, el('th', {text: 'Level'}), el('th', {text: 'What it is'}), el('th', {class: 'n', text: 'Acqs'}), el('th', {class: 'n'}, ...rich('Candidate Acquisitions')))), el('tbody', {}, rows)));
 }
 const fmt = (v, unit) => v == null ? '–' : `${v}${unit}`;
 const slug = x => String(x).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -548,7 +550,7 @@ function renderList(tab, rows) {
   const left = new Set(['Site', 'Sensor', 'Time', 'Status', 'Levels', 'In CSDA', 'Acquisition ID']);
   const body = shown.map(a => el('tr', {}, el('td', {text: a.d}), el('td', {class: 't', text: tab.sites[a.s].name}), el('td', {class: 't', text: tab.sensors[a.n]}),
     night ? el('td', {class: 't', text: a.dn === 'night' ? 'Night' : 'Day'}) : null,
-    el('td', {class: 't'}, a.t.good ? el('span', {class: 'status ok', text: '✓ Good Quality'}) : a.t.check ? el('span', {class: 'status check', text: '? Check AOI'}) : el('span', {class: 'status none', text: 'Not Good Quality'})),
+    el('td', {class: 't'}, a.t.good ? el('span', {class: 'status ok'}, '✓ ', ...rich('Candidate Acquisition')) : a.t.check ? el('span', {class: 'status check', text: '? Check AOI'}) : el('span', {class: 'status none', text: 'Not a candidate'})),
     el('td', {text: fmt(a.cloud, '%')}), el('td', {text: fmt(a.off, '°')}), el('td', {text: fmt(a.cov, '%')}), el('td', {text: a.items}),
     el('td', {class: 't', text: a.lv.map(i => tab.levels[i].code).join(', ')}), checked ? el('td', {class: 't', text: a.csda ? 'Yes' : 'No'}) : null,
     el('td', {class: 't id', title: a.a, text: a.a})));
@@ -557,12 +559,12 @@ function renderList(tab, rows) {
   const where = s.site != null ? tab.sites[s.site].name : !terms().length ? 'all sites' : !n ? 'no sites'
     : n === 1 ? tab.sites.find(x => match(x.name)).name : `the ${n} matching sites`;
   $('listTitle').textContent = `Acquisitions at ${where}`;
-  // counts follow the limits set above: good, Check AOI, and the rest
+  // counts follow the limits set above: candidates, Check AOI, and the rest
   const nGood = rows.filter(a => a.t.good).length, nCheck = rows.filter(a => !a.t.good && a.t.check).length, N = x => x.toLocaleString();
-  const counts = `${N(nGood)} Good Quality, ${N(nCheck)} Check AOI and ${N(rows.length - nGood - nCheck)} not Good Quality under the limits above`;
-  $('listNote').textContent = sorted.length > 200
-    ? `${N(sorted.length)} acquisitions: ${counts}. Showing the first 200, Good Quality first, then newest. The download has all ${N(nGood + nCheck)} Good Quality and Check AOI acquisitions.`
-    : `${N(sorted.length)} acquisitions: ${counts}. Good Quality first, then newest.`;
+  const counts = `${N(nGood)} Candidate Acquisitions, ${N(nCheck)} Check AOI and ${N(rows.length - nGood - nCheck)} not candidates under the limits above`;
+  $('listNote').replaceChildren(...rich(sorted.length > 200
+    ? `${N(sorted.length)} acquisitions: ${counts}. Showing the first 200, Candidate Acquisitions first, then newest. The download has all ${N(nGood + nCheck)} Candidate Acquisitions and Check AOI acquisitions.`
+    : `${N(sorted.length)} acquisitions: ${counts}. Candidate Acquisitions first, then newest.`));
   $('csv').onclick = () => {
     const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
     const lines = [['date', 'site', 'sensor', 'status', 'cloud_pct', 'off_nadir_deg', 'site_covered_pct', 'catalog_items', 'levels', 'in_csda', 'time_of_day', 'acquisition_id'].join(',')];

@@ -19,7 +19,7 @@ exists at each site, what has been delivered, what is ready to use, and where ea
 | Page | What it answers |
 |---|---|
  [**Vendor Specs dashboard**](https://pahbs.github.io/csda_summaries/html/vendor_specs.html) | How do the satellites compare in detail, coverage, bands and revisit? |
-| [**Vendor archive first look**](https://pahbs.github.io/csda_summaries/html/archive_first_look.html) | How many good images does each vendor's archive hold at my site, from each satellite? |
+| [**Vendor Archive First Look**](https://pahbs.github.io/csda_summaries/html/archive_first_look.html) | Which Candidate Acquisitions does each vendor's archive hold at my site, from each satellite? |
 | [**Vendor Archive Density Dashboard**](https://pahbs.github.io/csda_summaries/html/archive_density.html) | Where and how often has each constellation collected, month by month since 2020? |
 | [**Evaluation timeline**](https://pahbs.github.io/csda_summaries/html/timeline.html) | Where does each vendor evaluation stand, and what is next? |
 |
@@ -30,20 +30,20 @@ exists at each site, what has been delivered, what is ready to use, and where ea
 
 ---
 
-## Vendor archive first look
+## Vendor Archive First Look
 
-**Start here when choosing data for a site.** For each vendor, the page counts the *good* acquisitions at every evaluation site, from
-each satellite. You decide what good means (cloud cover, viewing angle, how much of the site an image covers), or use each site's own
+**Start here when choosing data for a site.** For each vendor, the page counts the *Candidate Acquisitions* at every evaluation site, from
+each satellite. You decide what makes a candidate (cloud cover, viewing angle, how much of the site an image covers), or use each site's own
 requirements. A green check shows when a site has enough.
 
 - Type a site name in **Find sites** to see just your sites, across every vendor
 - See why images fall short: too cloudy, too oblique, or the site only partly covered
-- Download the good candidates as a CSV, then check their thumbnails before ordering
-- Select a site to see the footprints of its good acquisitions over imagery
+- Download the Candidate Acquisitions as a CSV, then check their thumbnails before ordering
+- Select a site to see the footprints of its Candidate Acquisitions over imagery
 - Updated every day. The sites are the CSDA evaluation sites for optical or thermal validation; a site added to the sites
   file (`sites/csda_sites_aoi.geojson`) is picked up the next day and searched over each vendor's whole archive
 
-<a href="https://pahbs.github.io/csda_summaries/html/archive_first_look.html"><img src="assets/readme/first_look.png" alt="Vendor archive first look: good acquisitions by site and sensor" width="100%"></a>
+<a href="https://pahbs.github.io/csda_summaries/html/archive_first_look.html"><img src="assets/readme/first_look.png" alt="Vendor Archive First Look: Candidate Acquisitions by site and sensor" width="100%"></a>
 
 ---
 
@@ -133,7 +133,7 @@ the interactive map.
 
 | To refresh | Run |
 |---|---|
-| Vendor archive first look | Automatic, every day at 3 am on ADAPT (`lib/first_look_daily.sh`, cron). By hand: `python lib/first_look_daily.py` |
+| Vendor Archive First Look | Automatic, every day at 3 am on ADAPT (`lib/first_look_daily.sh`, cron). By hand: `python lib/first_look_daily.py` |
 | Thumbnails of candidates | `notebooks/thumbnail_viewer.ipynb` (private page on ADAPT) |
 | Vendor Archive Density Dashboard | `python lib/archive_density.py fetch <vendor>`, then `python lib/archive_density.py build` |
 | Data tracking pages | `notebooks/airbus_order_tracking.ipynb`, `notebooks/vantor_legion_supp_tracking.ipynb` |
