@@ -59,8 +59,8 @@ button:hover { background: var(--surface-2); }
 .meta .nums { color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .meta .id { color: var(--ink-3); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pill { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 9px; margin-left: 4px; vertical-align: 1px; border: 1px solid; }
-.pill.good { border-color: var(--series); color: var(--ink); }
-.pill.good::before { content: "● "; color: var(--series); }
+/* a Candidate Acquisition: the same filled tag in the vendor's color as on the first-look page */
+.pill.good { border-color: transparent; background: color-mix(in oklab, var(--tag-bg) 65%, var(--surface)); color: var(--tag-ink); font-weight: 600; }
 .pill.check { border-color: var(--check); color: var(--ink); border-style: dashed; }
 .pill.check::before { content: "◌ "; color: var(--check); }
 .act { display: flex; gap: 6px; padding: 6px 10px 10px; margin-top: auto; }
@@ -88,7 +88,7 @@ button:hover { background: var(--surface-2); }
   <p class="note" id="placement"></p>
   <div class="filters">
     <label>Site <select id="site"></select></label>
-    <label>Status <select id="status"><option value="">All</option><option value="good">Good</option><option value="check AOI">Check AOI</option></select></label>
+    <label>Status <select id="status"><option value="">All</option><option value="good">Candidate</option><option value="check AOI">Check AOI</option></select></label>
     <label>Decision <select id="decision"><option value="">All</option><option value="none">Not decided</option><option value="keep">Keep</option><option value="drop">Drop</option></select></label>
     <label>Size <input id="size" type="range" min="180" max="420" value="250"></label>
     <span class="tally" id="tally"></span>
@@ -174,7 +174,7 @@ function card(c) {
   const box = el('div', {class: 'card', tabindex: '0', 'data-i': c.i},
     image,
     el('div', {class: 'meta'},
-      el('div', {class: 'when'}, `${r.date} · ${r.sensor}`, el('span', {class: `pill ${r.status === 'good' ? 'good' : 'check'}`, text: r.status === 'good' ? 'Good' : 'Check AOI'})),
+      el('div', {class: 'when'}, `${r.date} · ${r.sensor}`, el('span', {class: `pill ${r.status === 'good' ? 'good' : 'check'}`, text: r.status === 'good' ? 'Candidate' : 'Check AOI'})),
       el('div', {class: 'nums', text: `Cloud ${num(r.cloud_pct, '%')} · Off-nadir ${num(r.off_nadir_deg, '°')} · Site covered ${num(r.site_covered_pct, '%')}`}),
       el('div', {class: 'id', title: r.acquisition_id + (c.how === 'sensor and date' ? ' (matched by sensor and date)' : ''), text: r.acquisition_id})),
     el('div', {class: 'act'}, k, d));
@@ -194,7 +194,7 @@ function render() {
   shown.forEach(c => { if (!bySite.has(c.row.site)) bySite.set(c.row.site, []); bySite.get(c.row.site).push(c); });
   for (const [site, list] of bySite) {
     const good = list.filter(c => c.row.status === 'good').length;
-    out.push(el('h2', {}, site, el('span', {text: `${list.length} acquisitions, ${good} good`})), el('div', {class: 'grid'}, ...list.map(card)));
+    out.push(el('h2', {}, site, el('span', {text: `${list.length} acquisitions, ${good} candidate${good === 1 ? '' : 's'}`})), el('div', {class: 'grid'}, ...list.map(card)));
   }
   if (!shown.length) out.push(el('p', {class: 'sub', style: 'margin-top:20px', text: 'Nothing matches these filters.'}));
   $('cards').replaceChildren(...out); tally();
@@ -219,7 +219,7 @@ function openPanel(i) {
 function paintPanel(fit) {
   const c = shown[current]; if (!c) return;
   const r = c.row, v = decisions[uid(c)];
-  $('ptitle').textContent = `${r.site} · ${r.date} · ${r.sensor} · ${r.status === 'good' ? 'Good' : 'Check AOI'} · cloud ${num(r.cloud_pct, '%')}${c.whole && !c.exact ? ' · placement approximate' : ''}`;
+  $('ptitle').textContent = `${r.site} · ${r.date} · ${r.sensor} · ${r.status === 'good' ? 'Candidate' : 'Check AOI'} · cloud ${num(r.cloud_pct, '%')}${c.whole && !c.exact ? ' · placement approximate' : ''}`;
   $('pk').setAttribute('aria-pressed', String(v === 'keep')); $('pd').setAttribute('aria-pressed', String(v === 'drop'));
   $('pk').style.cssText = v === 'keep' ? 'background:var(--ok);color:#fff' : ''; $('pd').style.cssText = v === 'drop' ? 'background:var(--short);color:#fff' : '';
   if (!fit) return;
