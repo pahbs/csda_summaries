@@ -40,6 +40,8 @@ requirements. A green check shows when a site has enough.
 - See why images fall short: too cloudy, too oblique, or the site only partly covered
 - Download the good candidates as a CSV, then check their thumbnails before ordering
 - Select a site to see the footprints of its good acquisitions over imagery
+- Updated every day. The sites are the CSDA evaluation sites for optical or thermal validation; a site added to the sites
+  file (`sites/csda_sites_aoi.geojson`) is picked up the next day and searched over each vendor's whole archive
 
 <a href="https://pahbs.github.io/csda_summaries/html/archive_first_look.html"><img src="assets/readme/first_look.png" alt="Vendor archive first look: good acquisitions by site and sensor" width="100%"></a>
 
@@ -131,7 +133,7 @@ the interactive map.
 
 | To refresh | Run |
 |---|---|
-| Vendor archive first look | `notebooks/multistac_site_analysis_<vendor>.ipynb` (Hydrosat, Kuva, Planet, Satellogic, Legion and WorldView) |
+| Vendor archive first look | Automatic, every day at 3 am on ADAPT (`lib/first_look_daily.sh`, cron). By hand: `python lib/first_look_daily.py` |
 | Thumbnails of candidates | `notebooks/thumbnail_viewer.ipynb` (private page on ADAPT) |
 | Vendor Archive Density Dashboard | `python lib/archive_density.py fetch <vendor>`, then `python lib/archive_density.py build` |
 | Data tracking pages | `notebooks/airbus_order_tracking.ipynb`, `notebooks/vantor_legion_supp_tracking.ipynb` |

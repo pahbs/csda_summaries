@@ -173,7 +173,7 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
 </div><div id="tip"></div></div>
 <script type="application/json" id="data">/*DATA*/null</script>
 <script>
-const DATA = JSON.parse(document.getElementById('data').textContent);
+let DATA = JSON.parse(document.getElementById('data').textContent);   // {index: true, data_base}: the summaries are read from the data repository
 const $ = id => document.getElementById(id);
 const pal = () => DATA.tabs[state.tab].palette;
 const ramp = () => pal()[dark() ? 'dark' : 'light'];
@@ -607,12 +607,21 @@ function renderAll() {
   $('warn').replaceChildren(...warn.map(t => el('div', {class: 'warn', text: `▲ ${t}`})));
   $('foot').textContent = `${tab.vendor} ${tab.constellation}: searched ${tab.searched}, ${tab.start} to ${tab.end}, ${tab.items.toLocaleString()} catalog items, ${tab.sites.length} sites. Sites with a requirement use it in place of the sliders.`;
 }
-$('updated').textContent = `Last updated: ${DATA.updated}`;
 $('find').addEventListener('input', e => {   // a new search replaces any site picked in Look closer, on every tab
   state.find = e.target.value; Object.values(state.per).forEach(p => { p.site = null; }); renderData(DATA.tabs[state.tab]);
 });
-renderAll();
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderAll);
+function start() {
+  $('updated').textContent = `Last updated: ${DATA.updated}`;
+  renderAll();
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderAll);
+}
+if (DATA.index) {   // the tab summaries are refreshed daily in the data repository, so this page does not change
+  $('warn').replaceChildren(el('div', {class: 'warn', text: 'Loading the archive summaries…'}));
+  fetch(`${DATA.data_base}index.json`, {cache: 'no-cache'}).then(r => { if (!r.ok) throw r.status; return r.json(); })
+    .then(d => { DATA = {...d, data_base: DATA.data_base}; $('warn').replaceChildren(); start(); })
+    .catch(() => $('warn').replaceChildren(el('div', {class: 'warn',
+      text: 'The archive summaries load on the published page: https://pahbs.github.io/csda_summaries/html/archive_first_look.html'})));
+} else start();
 </script>
 </body>
 </html>

@@ -89,10 +89,13 @@ class OAuth2ClientCredentials(NoAuth):
             raise AuthError(f"No token_url configured for {self.profile['name']}")
         creds = _read_section(self.cfg["credentials_section"])
         payload = self._token_payload(creds)
+        auth = None
+        if self.cfg.get("client_auth") == "basic":   # client ID and secret as HTTP Basic, not in the body (RFC 6749 2.3.1)
+            auth = (payload.pop("client_id"), payload.pop("client_secret"))
         if self.cfg.get("token_request", "json") == "form":   # application/x-www-form-urlencoded (e.g. Hydrosat)
-            response = requests.post(token_url, data=payload, timeout=60)
+            response = requests.post(token_url, data=payload, auth=auth, timeout=60)
         else:
-            response = requests.post(token_url, json=payload, timeout=60)
+            response = requests.post(token_url, json=payload, auth=auth, timeout=60)
         if response.status_code != 200:
             raise AuthError(f"Token request failed ({_short(response)})")
         data = response.json()
@@ -211,6 +214,22 @@ class ApiKeyBasic(NoAuth):
         return {"Authorization": "Basic " + base64.b64encode(f"{key}:".encode()).decode()}
 
 
+class OAuth2ApiKey(OAuth2Password):
+    """An API key exchanged for a short-lived token (Airbus OneAtlas: grant_type=api_key, client_id=IDP, posted as a form to
+    its Keycloak token URL). INI key: `api_key` (another name via `key_name`). Profile: token_url, and `client_id` if not IDP."""
+
+    def _token_payload(self, creds: Dict[str, str]) -> Dict[str, str]:
+        key = self.cfg.get("key_name", "api_key")
+        if not creds.get(key):
+            raise AuthError(f"Section [{self.cfg['credentials_section']}] needs {key}")
+        return {"grant_type": "api_key", "apikey": creds[key], "client_id": self.cfg.get("client_id", "IDP")}
+
+    def _fetch_token(self) -> None:
+        if self.cfg.get("token_url") in (None, "", "TBD"):
+            raise AuthError(f"No token_url configured for {self.profile['name']}")
+        super()._fetch_token()
+
+
 AUTH_TYPES = {
     "none": NoAuth,
     "oauth2_client_credentials": OAuth2ClientCredentials,
@@ -219,6 +238,7 @@ AUTH_TYPES = {
     "bearer_env": BearerEnv,
     "api_key_header": ApiKeyHeader,
     "api_key_basic": ApiKeyBasic,
+    "oauth2_api_key": OAuth2ApiKey,
 }
 
 

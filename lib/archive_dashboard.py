@@ -39,6 +39,7 @@ DATA_DIR = data_repo.folder("archive_first_look")
 PAGE = REPO / "html" / "archive_first_look.html"
 TEMPLATE = Path(__file__).with_name("archive_dashboard_template.html")
 LAND = Path(__file__).with_name("archive_dashboard_land.txt")
+INDEX = "index.json"   # the tab summaries, in DATA_DIR
 
 # The sites every tab covers: CSDA evaluation sites for optical or thermal validation (Remote Sensing Domain contains
 # Optical or Thermal), as whole sites, not the corner-reflector points inside some of them.
@@ -113,6 +114,21 @@ VENDORS = {
         levels={}, csda_checked=False,
         scope="Vantor's own catalog (<code>wv02</code>, <code>wv03-vnir</code>): what has been collected. CSDA holds WorldView data in "
               "Earthdata CMR, which this tab does not check yet, so In CSDA is not shown. Added year by year, newest first."),
+    # Ready for when catalog access starts (stac_providers.yaml: airbus, earthdaily); check these descriptions against real items then
+    "airbus": dict(
+        vendor="Airbus", bands="Pleiades and Pleiades Neo (pan 0.3-0.5 m, MS 1.2-2 m), SPOT 6/7 (pan 1.5 m, MS 6 m)",
+        acquisition="One acquisition: its pan and multispectral products count once.",
+        footprint="One footprint per acquisition.",
+        cloud="For the whole scene, so a cloudy scene can still be clear over a small site.", cloud_scope="scene",
+        levels={"ORT": "Ortho (CSDA)", "PRJ": "Projected", "SEN": "Sensor geometry"},
+        scope="Airbus's own catalog (OneAtlas), with CSDA's <code>airbus-optical</code> holdings marked In CSDA."),
+    "earthdaily": dict(
+        vendor="EarthDaily", bands="EarthDaily constellation: multispectral, VNIR to thermal",
+        acquisition="One scene.",
+        footprint="One footprint per scene.",
+        cloud="For the whole scene, so a cloudy scene can still be clear over a small site.", cloud_scope="scene",
+        levels={}, csda_checked=False,
+        scope="EarthDaily's own catalog (EarthPlatform STAC)."),
 }
 
 
@@ -230,16 +246,17 @@ def tab_data(vendor: str, gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, sites_
 
 
 def build(page: Path = PAGE, data_base: str = data_repo.DATA_URL + "archive_first_look/") -> Path:
-    """The page, from the template and every tab's data file. `data_base`: where the page reads the large files."""
-    tabs = sorted((json.loads(p.read_text(encoding="utf-8")) for p in DATA_DIR.glob("*.json")),
+    """The tab summaries (<data repo>/archive_first_look/index.json, from every tab's data file) and the page, which reads
+    them from `data_base`. The page itself only changes with the template, so a daily refresh touches the data repo only."""
+    tabs = sorted((json.loads(p.read_text(encoding="utf-8")) for p in DATA_DIR.glob("*.json") if p.name != INDEX),
                   key=lambda t: (t["vendor"], t["constellation"]))   # a vendor's constellations side by side
     for t in tabs:
         t["palette"] = vendor_palette(t["vendor"])
         if len(t["acqs"]) > LAZY_ROWS:   # the page reads them from the tab's data file when the tab is opened
             t["rows"], t["acqs"], t["lazy"] = len(t["acqs"]), None, True
-    data = json.dumps({"tabs": tabs, "land": LAND.read_text(encoding="utf-8").strip(), "updated": f"{pd.Timestamp.today():%-d %b %Y}",
-                       "data_base": data_base}, separators=(",", ":"))
-    html = TEMPLATE.read_text(encoding="utf-8").replace("/*DATA*/null", data.replace("</", "<\\/"))
+    (DATA_DIR / INDEX).write_text(json.dumps({"tabs": tabs, "land": LAND.read_text(encoding="utf-8").strip(),
+                                              "updated": f"{pd.Timestamp.today():%-d %b %Y}"}, separators=(",", ":")), encoding="utf-8")
+    html = TEMPLATE.read_text(encoding="utf-8").replace("/*DATA*/null", json.dumps({"index": True, "data_base": data_base}))
     page.write_text(html, encoding="utf-8")
     return page
 
@@ -276,7 +293,8 @@ def publish(vendor: str, gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, sites_f
 
 # Vendor colors, shared with the Vendor Specs page (vendor_specs.AFFILIATION_COLORS). The exact color marks the vendor;
 # data marks use a light-to-dark ramp of its hue, so light colors such as Vantor's cyan still contrast with the page.
-AFFILIATION = {"Hydrosat": "HydroSat", "Kuva Space": "Kuva", "Satellogic": "Satellogic", "Vantor": "Vantor", "Planet": "Planet Labs"}
+AFFILIATION = {"Hydrosat": "HydroSat", "Kuva Space": "Kuva", "Satellogic": "Satellogic", "Vantor": "Vantor", "Planet": "Planet Labs",
+               "Airbus": "Airbus", "EarthDaily": "EarthDaily"}
 RAMP_L = {"light": [0.90, 0.82, 0.73, 0.64, 0.55, 0.46, 0.37], "dark": [0.40, 0.48, 0.56, 0.65, 0.74, 0.83, 0.91],
           # maps: the lightest step is one acquisition, so it starts darker and must stand out from the page
           "map_light": [0.73, 0.65, 0.57, 0.49, 0.41, 0.33], "map_dark": [0.52, 0.60, 0.68, 0.76, 0.84, 0.92]}

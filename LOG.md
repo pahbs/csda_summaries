@@ -31,6 +31,8 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-11 · [2] Archive first look refreshed daily (cron, `lib/first_look_daily.sh` -> `lib/first_look_daily.py`): per-vendor caches in `multistac/first_look_cache/`; each day the last 90 days are searched again at every site, and a site new to the sites file (or with a changed outline) is searched over the vendor's whole history. Tab summaries now live in the data repo (`archive_first_look/index.json`), so the page in this repo no longer changes on a refresh.
+- 2026-11-11 · [1][2] Thumbnail page renamed *Acquisition Request Check* (vendor tag in its affiliation color, less text). Airbus (OneAtlas) and EarthDaily (EarthPlatform STAC) prepared, off until access: profiles in `stac_providers.yaml` (`enabled: false`), new login type `oauth2_api_key` (Airbus) and `client_auth: basic`, first-look tabs, thumbnail sources, daily-job entries; `tests/smoke_provider.py <name>` checks a new provider. Timeline: Joint Activities entry for the daily search of all sites.
 - 2026-11-11 · [3] Tracking run (Airbus, Vantor Legion): nothing new in CSDA STAC since 10 Nov; everything in CSDA at the tracked sites is on ADAPT (Airbus 197 acquisitions, Legion 68). Vantor has collected 44 Legion images since 1 Sep not yet in CSDA (15 meet the site requirements).
 - 2026-11-10 · [2] Density dashboard at 0.5° (was 1.5°), each acquisition counted in every cell its outline touches (was: its center only). Outlines re-fetched for all catalogs since 2020 into `global_analysis/monthly_fp/` (now the default store); SuperDove recounted from Planet's statistics at 0.5°. Every constellation loads on demand from the data repo (~15 MB compressed in all).
 - 2026-11-10 · [2] Archive first look: every tab now covers the same 78 sites, the CSDA sites for optical or thermal validation (`csda_sites_aoi.geojson`, domain contains Optical or Thermal, whole sites only), defined once in `archive_dashboard.load_sites()`. Before: 58 optical sites (Hydrosat: its 29 request sites). All tabs re-searched; Satellogic's busy months retried in halves.
@@ -262,6 +264,11 @@ only if needed), never a separate search API.
 ---
 
 ## 2 · Archive analyses: site and global
+
+### 2026-11-11 · Daily first look, with new sites searched from the start
+- Cron on forest202 at 3 am: `lib/first_look_daily.sh` (lock, log per day in `first_look_cache/logs/`, kept 60 days). Per vendor: compare `archive_dashboard.load_sites()` with `first_look_cache/<vendor>/sites.json` (name -> outline hash); new or changed sites searched from 2020, removed ones dropped; the last 90 days searched again everywhere and replaced; failed windows retried in halves; a vendor still failing keeps its cache and tab. Tabs republished only when their rows change; then `index.json` is rebuilt and the data repo pushed.
+- First run 11 Nov: Kuva, Hydrosat, Legion, WorldView searched in full (minutes each); Satellogic and Planet seeded from the 10 Nov full searches. Planet's republish (SuperDove footprints) takes ~40 min, so a nightly run is ~50 min. Tested: a site removed from the Kuva cache was found and searched again, giving the same rows as the full cache.
+- The notebooks' publish cells still work, but the daily job now keeps the page current; a notebook publish is replaced at the next change.
 
 ### 2026-11-10 · Density dashboard: 0.5° cells from footprints
 - `archive_density.py` defaults: `STORE` = `global_analysis/monthly_fp/` (one simplified outline per item, WKB) and

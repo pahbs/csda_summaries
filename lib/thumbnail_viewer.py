@@ -39,13 +39,21 @@ OUT = Path("/explore/nobackup/people/pmontesa/multistac/thumbnails")
 TEMPLATE = Path(__file__).with_name("thumbnail_viewer_template.html")
 
 # First-look tab (the CSV name starts with it) -> where its previews are: provider, collections, preview assets by preference.
+# Airbus and EarthDaily: ready for when their catalog access starts (stac_providers.yaml, enabled: false until then); check the
+# collection and preview asset names against their catalogs then.
 SOURCES = {
-    "hydrosat": dict(vendor="Hydrosat", provider="hydrosat", collections=["vz-l1b", "vz-l1b-night"], assets=["THUMBNAIL", "PREVIEW"]),
-    "kuva": dict(vendor="Kuva Space", provider="kuva", collections=None, assets=[]),
-    "satellogic": dict(vendor="Satellogic", provider="satellogic", collections=["quickview-visual"], assets=["preview", "thumbnail"]),
-    "legion": dict(vendor="Vantor", provider="vantor", collections=["lg01", "lg02", "lg03", "lg04", "lg05", "lg06"], assets=["browse"]),
-    "worldview": dict(vendor="Vantor", provider="vantor", collections=["wv02", "wv03-vnir"], assets=["browse"]),
-    "planet": dict(vendor="Planet", provider="planet", collections=["PSScene", "TanagerScene"], assets=["thumbnail"]),
+    "hydrosat": dict(vendor="Hydrosat", constellation="VanZyl", provider="hydrosat", collections=["vz-l1b", "vz-l1b-night"],
+                     assets=["THUMBNAIL", "PREVIEW"]),
+    "kuva": dict(vendor="Kuva Space", constellation="Hyperfield", provider="kuva", collections=None, assets=[]),
+    "satellogic": dict(vendor="Satellogic", constellation="Aleph-1", provider="satellogic", collections=["quickview-visual"],
+                       assets=["preview", "thumbnail"]),
+    "legion": dict(vendor="Vantor", constellation="Legion", provider="vantor", collections=["lg01", "lg02", "lg03", "lg04", "lg05", "lg06"],
+                   assets=["browse"]),
+    "worldview": dict(vendor="Vantor", constellation="WorldView", provider="vantor", collections=["wv02", "wv03-vnir"], assets=["browse"]),
+    "planet": dict(vendor="Planet", constellation="SuperDove", provider="planet", collections=["PSScene", "TanagerScene"], assets=["thumbnail"]),
+    "airbus": dict(vendor="Airbus", constellation="Pleiades, Pleiades Neo, SPOT", provider="airbus", collections=None,
+                   assets=["quicklook", "thumbnail"]),
+    "earthdaily": dict(vendor="EarthDaily", constellation="EarthDaily", provider="earthdaily", collections=None, assets=["thumbnail"]),
 }
 MAX_ITEMS = 16      # scenes or tiles of one acquisition drawn at most, those covering most of the site first
 CROP_PX = 360       # longest side of the close-up of the site
@@ -231,7 +239,11 @@ def build(csv, out: Optional[Path] = None, tab: Optional[str] = None, limit: Opt
     tab = tab or tab_of(csv)
     if tab not in SOURCES:
         raise ValueError(f"Can't tell the vendor from {csv.name}; pass tab= one of {sorted(SOURCES)}")
-    source = SOURCES[tab]
+    source = dict(SOURCES[tab])
+    if not multistac.get_provider(source["provider"]).profile.get("enabled", True):
+        raise ValueError(f"{source['vendor']} catalog access is not set up yet: enable '{source['provider']}' in lib/stac_providers.yaml")
+    if tab == "planet" and "tanager" in csv.name.lower():
+        source["constellation"] = "Tanager"
     rows = pd.read_csv(csv, dtype=str).fillna("")
     if limit:
         rows = rows.head(limit)
@@ -267,7 +279,8 @@ def build(csv, out: Optional[Path] = None, tab: Optional[str] = None, limit: Opt
     outlines = {r.site_name: [[[round(y, 5), round(x, 5)] for x, y in p.exterior.coords] for p in getattr(r.geometry, "geoms", [r.geometry])]
                 for r in sites_used.itertuples()}
     cards = [dict(row=rows.loc[i].to_dict(), **results.get(i, {})) for i in rows.index]
-    data = {"title": csv.stem, "tab": tab, "vendor": source["vendor"], "palette": vendor_palette(source["vendor"]),
+    data = {"title": csv.stem, "tab": tab, "vendor": source["vendor"], "constellation": source["constellation"],
+            "palette": vendor_palette(source["vendor"]),
             "columns": list(rows.columns), "cards": cards, "sites": outlines, "has_previews": bool(source["assets"]),
             "made": f"{pd.Timestamp.today():%-d %b %Y}"}
     out = Path(out) if out else OUT / f"{csv.stem}_thumbnails.html"

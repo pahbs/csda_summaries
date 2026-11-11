@@ -404,3 +404,68 @@ kuva:
     platform: [platform]
     sensor: [platform, 'kuva:satellite_short_name']
     vendor_item_id: [kuva:product_id]
+
+# --- Ready for when catalog access starts (enabled: false until then) ----------------------------------------------------------
+# To switch one on: add its section to the credentials INI, fill in the TBDs, set enabled: true, then run
+# `python tests/smoke_multistac.py <name>` and check the collection names, `fields` and acquisition_id against real items.
+
+airbus:
+  label: Airbus OneAtlas
+  display_name: Airbus
+  # Login: an API key exchanged for a 1 h token at OneAtlas's Keycloak (form fields apikey, grant_type=api_key, client_id=IDP):
+  # https://api.oneatlas.airbus.com/guides/g-authentication/
+  # Search: OneAtlas Data's catalog is OpenSearch (https://search.foundation.api.oneatlas.airbus.com/api/v2/opensearch), not STAC.
+  # If our access comes with a STAC endpoint, put it in stac_url; if only OpenSearch, multistac needs a small backend for it.
+  enabled: false
+  stac_url: TBD
+  auth:
+    type: oauth2_api_key
+    credentials_section: Airbus_OneAtlas_API     # INI key: api_key
+    token_url: https://authenticate.foundation.api.oneatlas.airbus.com/auth/realms/IDP/protocol/openid-connect/token
+  default_collections: []                         # TBD: e.g. Pleiades, Pleiades Neo, SPOT
+  search: {page_size: 100, max_concurrency: 2, timeout: 120}
+  geometry: intersects
+  filter_mode: client
+  affiliation: {default: Airbus}
+  spectral_mode: {default: pan+ms}
+  fields:                                         # STAC common names; check against real items
+    cloud_cover: [eo:cloud_cover]
+    platform: [platform]
+    processing_level: [processing:level]
+    product_type: [product_type]
+    gsd: [gsd]
+    off_nadir: [view:off_nadir]
+    sun_elevation: [view:sun_elevation]
+    sun_azimuth: [view:sun_azimuth]
+    sat_azimuth: [view:azimuth]
+    vendor_item_id: [id]
+
+earthdaily:
+  label: EarthDaily EarthPlatform
+  display_name: EarthDaily
+  # STAC API with bearer tokens from the OAuth2 client-credentials flow (tokens last 1 h). Client ID, secret and the token URL are
+  # on the EarthPlatform Account Management page: https://docs.earthdaily.com/platform/earthplatform/getting-started/authentication/
+  enabled: false
+  stac_url: https://api.earthdaily.com/platform/v1/stac
+  auth:
+    type: oauth2_client_credentials
+    credentials_section: EarthDaily_API           # INI keys: client_id, client_secret
+    token_url: TBD                                # from the Account Management page
+    token_request: form
+    client_auth: basic                            # client ID and secret as HTTP Basic; switch to body if the server refuses it
+  default_collections: []                         # TBD: the EarthDaily constellation's collections in the catalog
+  search: {page_size: 250, max_concurrency: 2, timeout: 120}
+  geometry: intersects
+  filter_mode: client
+  affiliation: {default: EarthDaily}
+  spectral_mode: {default: ms}
+  fields:                                         # STAC common names; check against real items
+    cloud_cover: [eo:cloud_cover]
+    platform: [platform]
+    processing_level: [processing:level]
+    gsd: [gsd]
+    off_nadir: [view:off_nadir]
+    sun_elevation: [view:sun_elevation]
+    sun_azimuth: [view:sun_azimuth]
+    sat_azimuth: [view:azimuth]
+    vendor_item_id: [id]

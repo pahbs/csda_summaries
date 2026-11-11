@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Thumbnails</title>
+<title>Acquisition Request Check</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <style>
@@ -24,10 +24,18 @@ body { margin: 0; }
 .viz-root { background: var(--surface); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   min-height: 100vh; padding: 24px 20px 48px; }
 .wrap { max-width: 1400px; margin: 0 auto; }
-h1 { font-size: 22px; margin: 0 0 4px; font-weight: 650; }
+h1 { font-size: 22px; margin: 0; font-weight: 650; letter-spacing: -.01em; }
 h2 { font-size: 16px; margin: 22px 0 8px; font-weight: 620; }
 h2 span { color: var(--ink-3); font-weight: 400; font-size: 13px; margin-left: 6px; }
 .sub { color: var(--ink-2); margin: 0 0 4px; max-width: 980px; }
+.subhead { color: var(--ink-2); font-size: 15px; margin: 2px 0 12px; }
+.context { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 4px; font-size: 13px; color: var(--ink-2);
+  font-variant-numeric: tabular-nums; }
+/* the vendor, in its affiliation color: the same rounded tag as "Work in progress" on the Review pages */
+.tag { display: inline-block; white-space: nowrap; padding: 2px 10px; border-radius: 9999px; font-weight: 600; font-size: 12.5px;
+  background: var(--tag-bg); color: var(--tag-ink); }
+.tag.quiet { --tag-bg: var(--surface-2); --tag-ink: var(--ink-2); font-weight: 500; font-size: 11px; padding: 1px 8px; }
+.note { color: var(--ink-3); font-size: 12.5px; margin: 0 0 2px; max-width: 980px; }
 .filters { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--grid);
   position: sticky; top: 0; background: var(--surface); z-index: 5; margin-top: 14px; }
 .filters label { font-size: 13px; color: var(--ink-2); display: inline-flex; gap: 6px; align-items: center; }
@@ -74,9 +82,10 @@ button:hover { background: var(--surface-2); }
   <p id="noscript" style="background:#fff3cd;color:#3d2e00;padding:12px 14px;border-radius:8px;max-width:980px">
     <b>The thumbnails haven't loaded.</b> This page needs its script to run. In JupyterLab, click <b>Trust HTML</b> at the top of this
     viewer, or right-click the file and choose <b>Open in New Browser Tab</b>. Or copy the file to your computer and open it in a browser.</p>
-  <h1 id="title"></h1>
-  <p class="sub" id="lead"></p>
-  <p class="sub hint" id="placement"></p>
+  <h1>Acquisition Request Check</h1>
+  <p class="subhead">Review of image quality using thumbnails</p>
+  <p class="context"><span class="tag" id="who"></span><span id="counts"></span></p>
+  <p class="note" id="placement"></p>
   <div class="filters">
     <label>Site <select id="site"></select></label>
     <label>Status <select id="status"><option value="">All</option><option value="good">Good</option><option value="check AOI">Check AOI</option></select></label>
@@ -84,10 +93,10 @@ button:hover { background: var(--surface-2); }
     <label>Size <input id="size" type="range" min="180" max="420" value="250"></label>
     <span class="tally" id="tally"></span>
     <span class="spacer"></span>
-    <button id="exportKept" type="button">Download kept (CSV)</button>
-    <button id="exportAll" type="button">Download all with decisions</button>
+    <button id="exportKept" type="button" title="The acquisitions you kept, as a CSV">Download kept</button>
+    <button id="exportAll" type="button" title="Every acquisition with your decision, as a CSV">Download all</button>
   </div>
-  <p class="hint" style="margin:8px 0 0" id="keys">Keys: <b>K</b> keep, <b>D</b> drop, <b>U</b> undo, <b>←/→</b> move, <b>Enter</b> open on the map, <b>Esc</b> close. Decisions are kept in this browser.</p>
+  <p class="hint" style="margin:6px 0 0" id="keys">Keys: <b>K</b> keep, <b>D</b> drop, <b>U</b> undo, <b>←/→</b> move, <b>Enter</b> open on the map, <b>Esc</b> close. Decisions are kept in this browser.</p>
   <div id="cards"></div>
 </div>
 <div class="panel" id="panel" role="dialog" aria-modal="true" aria-label="Preview on the map">
@@ -113,6 +122,7 @@ const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag)
 const root = document.querySelector('.viz-root');
 const dark = matchMedia('(prefers-color-scheme: dark)').matches, ramp = DATA.palette[dark ? 'dark' : 'light'];
 root.style.setProperty('--series', ramp[2]); root.style.setProperty('--check', ramp[4]);
+root.style.setProperty('--tag-bg', ramp[0]); root.style.setProperty('--tag-ink', ramp[6]);   // lightest and darkest steps of the vendor's hue
 
 $('noscript').remove();
 // Browser storage keeps decisions between visits; viewers that block it (JupyterLab's) still work, for this visit only
@@ -123,14 +133,15 @@ const save = () => { try { localStorage.setItem(KEY, JSON.stringify(decisions));
 const uid = c => `${c.row.site}|${c.row.acquisition_id}`;
 DATA.cards.forEach((c, i) => c.i = i);
 
-$('title').textContent = `Thumbnails: ${DATA.vendor}, ${DATA.title.replace(/_/g, ' ')}`;
-const withImg = DATA.cards.filter(c => c.crop).length;
-$('lead').textContent = DATA.has_previews
-  ? `${withImg} of ${DATA.cards.length} acquisitions have a preview from ${DATA.vendor}'s catalog. Each card shows the site up close (white outline). Open a card for the whole preview on a map. Made ${DATA.made}; private: vendor previews may not be shared publicly.`
-  : `${DATA.vendor}'s catalog has no preview images, so the cards hold the details only. Made ${DATA.made}.`;
+const who = `${DATA.vendor} ${DATA.constellation || ''}`.trim();
+$('who').textContent = who; document.title = `Acquisition Request Check · ${who}`;
+const withImg = DATA.cards.filter(c => c.crop).length, nSites = new Set(DATA.cards.map(c => c.row.site)).size;
+$('counts').textContent = [`${DATA.cards.length} acquisitions`, `${nSites} site${nSites === 1 ? '' : 's'}`,
+  DATA.has_previews ? `${withImg} with a preview` : 'no previews in this catalog', `made ${DATA.made}`].join(' · ');
+$('counts').after(el('span', {class: 'tag quiet', title: 'Vendor previews need a login and may not be shared publicly', text: 'Private'}));
 const exact = DATA.cards.filter(c => c.crop).every(c => c.exact);
-$('placement').textContent = !withImg ? '' : exact ? 'Previews are georeferenced, so they sit exactly.'
-  : 'Previews are plain images placed on each scene\'s bounding box: close for north-up products, but check the site against the map before relying on it.';
+$('placement').textContent = !withImg ? '' : `Each card shows the site up close (white outline); open it to see the whole preview on a map. `
+  + (exact ? 'Previews are georeferenced and sit exactly.' : 'Previews sit on each scene\'s bounding box, so check the site against the map.');
 
 const sites = [...new Set(DATA.cards.map(c => c.row.site))].sort();
 $('site').append(el('option', {value: '', text: `All sites (${sites.length})`}), ...sites.map(s => el('option', {value: s, text: s})));
