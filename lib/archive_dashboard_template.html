@@ -134,6 +134,13 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
   padding: 7px 10px; font-size: 12.5px; max-width: 280px; display: none; box-shadow: 0 2px 8px rgba(0,0,0,.14); }
 #tip b { display: block; font-size: 15px; font-weight: 650; }
 @media (max-width: 860px) { .answer, .cols { grid-template-columns: 1fr; } .hist { grid-template-columns: 1fr 1fr; } }
+/* a vendor whose catalog access is not in place yet */
+#pending { display: none; } .is-pending #pending { display: block; }
+.vtag { display: inline-block; white-space: nowrap; padding: 1px 10px; border-radius: 9999px; font-weight: 650; }
+.is-pending #main { display: none; }
+.constpick { margin: 12px 0 0; font-size: 13px; color: var(--ink-2); display: flex; gap: 8px; align-items: center; }
+.constpick select { font: inherit; }
+.constpick[hidden] { display: none; }
 </style>
 </head>
 <body>
@@ -144,6 +151,9 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
   <a href="mailto:paul.m.montesano@nasa.gov">paul.m.montesano@nasa.gov</a> · <span id="updated"></span></p>
 <div class="warn" style="margin:12px 0 0;font-size:13.5px"><b>Suggested use:</b> filter to determine a set of <span class="gq">Candidate Acquisitions</span> that is evaluation-ready, download a CSV of them for manual thumbnail review before sending to CSDA Data Management Team for purchase recommendation. To see where and when each constellation collects worldwide, month by month, use the <a href="archive_density.html">Vendor Archive Density Dashboard</a> page.</div>
 <div class="tabs" id="tabs" role="tablist"></div>
+<div class="constpick" id="constWrap" hidden><label for="constellation">Constellation</label><select id="constellation"></select></div>
+<div class="card" id="pending" style="margin-top:18px"></div>
+<div id="main">
 <div class="filters" id="filters"></div>
 <div id="warn"></div>
 <div class="answer" id="answer"></div>
@@ -172,6 +182,7 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
 <div class="card" style="margin-top:18px">
   <div class="pick" style="margin-top:0"><h2 id="listTitle"></h2><button class="action" id="csv">Download <span class="gq">Candidate Acquisitions</span> and Check AOI acquisitions (CSV)</button></div>
   <div class="scroll" id="list"></div><p class="note" id="listNote" style="margin-top:8px"></p>
+</div>
 </div>
 <p class="note" id="foot"></p>
 </div><div id="tip"></div></div>
@@ -267,14 +278,24 @@ function color(v, max) {
   return {bg: steps[i], fg: (dark() ? i >= 4 : i >= 3) ? (dark() ? '#0b0b0b' : '#ffffff') : (dark() ? '#ffffff' : '#0b0b0b')};
 }
 
+// One tab per vendor, as on the density page; a vendor with several constellations gets a Constellation picker
+const vendorOf = i => DATA.tabs[i].vendor;
+const lastOf = {};   // the constellation last shown for each vendor
 function renderTabs() {
-  $('tabs').replaceChildren(...DATA.tabs.map((t, i) => {
-    const sw = el('i', {class: 'swatch'}); sw.style.background = t.palette.color;
-    const b = el('button', {role: 'tab', 'aria-selected': i === state.tab, onclick: () => { state.tab = i; renderAll(); }},
-      el('b', {}, sw, t.vendor), el('span', {text: t.constellation}));
-    if (i === state.tab) b.style.borderBottomColor = t.palette.color;
+  const cur = vendorOf(state.tab), vendors = [...new Set(DATA.tabs.map(t => t.vendor))];
+  lastOf[cur] = state.tab;
+  $('tabs').replaceChildren(...vendors.map(v => {
+    const mine = DATA.tabs.map((t, i) => [t, i]).filter(([t]) => t.vendor === v), first = mine[0][0];
+    const sw = el('i', {class: 'swatch'}); sw.style.background = first.palette.color;
+    const b = el('button', {role: 'tab', 'aria-selected': v === cur, onclick: () => { state.tab = lastOf[v] ?? mine[0][1]; renderAll(); }},
+      el('b', {}, sw, v), el('span', {text: mine.map(([t]) => t.constellation).join(', ') + (first.pending ? ' · pending' : '')}));
+    if (v === cur) b.style.borderBottomColor = first.palette.color;
     return b;
   }));
+  const same = DATA.tabs.map((t, i) => [t, i]).filter(([t]) => t.vendor === cur);
+  $('constWrap').hidden = same.length < 2;
+  $('constellation').replaceChildren(...same.map(([t, i]) => el('option', {value: i, text: t.constellation})));
+  $('constellation').value = state.tab;
 }
 function renderFilters(tab) {
   const s = S(), f = $('filters');
@@ -603,8 +624,17 @@ function loadTab(tab) {   // a large tab: its acquisitions load from its data fi
     .then(d => { tab.acqs = d.acqs; if (DATA.tabs[state.tab] === tab) renderAll(); })
     .catch(() => note(`This tab loads on the published page: https://pahbs.github.io/csda_summaries/html/archive_first_look.html`));
 }
+function showPending(tab) {   // a vendor whose catalog access is not in place yet
+  applyPalette(); renderTabs();
+  $('pending').replaceChildren(el('h2', {}, el('span', {class: 'gq', text: tab.vendor}), ' ', tab.constellation),
+    el('p', {class: 'note', style: 'font-size:14px;margin:8px 0 0'}, el('b', {text: 'Available pending API access. '}),
+      ...rich(`Candidate Acquisitions from ${tab.catalog} at every evaluation site will appear here once access is in place.`)));
+  $('warn').replaceChildren(); $('foot').textContent = '';
+}
 function renderAll() {
   const tab = DATA.tabs[state.tab];
+  document.querySelector('.viz-root').classList.toggle('is-pending', !!tab.pending);
+  if (tab.pending) return showPending(tab);
   if (tab.lazy && !tab.acqs) return loadTab(tab);
   tab.has = tab.has || {cloud: reported(tab, 'cloud'), off: reported(tab, 'off')};
   state.per[state.tab] = state.per[state.tab] || defaults(tab);
@@ -615,6 +645,7 @@ function renderAll() {
   $('warn').replaceChildren(...warn.map(t => el('div', {class: 'warn', text: `▲ ${t}`})));
   $('foot').textContent = `${tab.vendor} ${tab.constellation}: searched ${tab.searched}, ${tab.start} to ${tab.end}, ${tab.items.toLocaleString()} catalog items, ${tab.sites.length} sites. Sites with a requirement use it in place of the sliders.`;
 }
+$('constellation').addEventListener('change', e => { state.tab = +e.target.value; renderAll(); });
 $('find').addEventListener('input', e => {   // a new search replaces any site picked in Look closer, on every tab
   state.find = e.target.value; Object.values(state.per).forEach(p => { p.site = null; }); renderData(DATA.tabs[state.tab]);
 });

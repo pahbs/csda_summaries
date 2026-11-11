@@ -40,6 +40,18 @@ PAGE = REPO / "html" / "archive_first_look.html"
 TEMPLATE = Path(__file__).with_name("archive_dashboard_template.html")
 LAND = Path(__file__).with_name("archive_dashboard_land.txt")
 INDEX = "index.json"   # the tab summaries, in DATA_DIR
+# Vendors whose catalog access is not in place yet: a tab says so (here and on the density page) until their data arrive.
+PENDING_VENDORS = {
+    "airbus": dict(vendor="Airbus", constellations=["Pléiades", "Pléiades Neo", "SPOT 6/7"], catalog="Airbus OneAtlas"),
+    "earthdaily": dict(vendor="EarthDaily", constellations=["EarthDaily Constellation"], catalog="EarthDaily EarthPlatform"),
+}
+
+
+def pending_tabs(have_vendors) -> List[dict]:
+    """A placeholder tab for each pending vendor with no data yet."""
+    return [dict(key=f"{k}-pending", vendor=v["vendor"], constellation=", ".join(v["constellations"]),
+                 constellations=v["constellations"], catalog=v["catalog"], pending=True, palette=vendor_palette(v["vendor"]))
+            for k, v in PENDING_VENDORS.items() if v["vendor"] not in set(have_vendors)]
 
 # The sites every tab covers: CSDA evaluation sites for optical or thermal validation (Remote Sensing Domain contains
 # Optical or Thermal), as whole sites, not the corner-reflector points inside some of them.
@@ -254,6 +266,7 @@ def build(page: Path = PAGE, data_base: str = data_repo.DATA_URL + "archive_firs
         t["palette"] = vendor_palette(t["vendor"])
         if len(t["acqs"]) > LAZY_ROWS:   # the page reads them from the tab's data file when the tab is opened
             t["rows"], t["acqs"], t["lazy"] = len(t["acqs"]), None, True
+    tabs += pending_tabs(t["vendor"] for t in tabs)   # after the vendors with data, so the page opens on one of them
     (DATA_DIR / INDEX).write_text(json.dumps({"tabs": tabs, "land": LAND.read_text(encoding="utf-8").strip(),
                                               "updated": f"{pd.Timestamp.today():%-d %b %Y}"}, separators=(",", ":")), encoding="utf-8")
     html = TEMPLATE.read_text(encoding="utf-8").replace("/*DATA*/null", json.dumps({"index": True, "data_base": data_base}))

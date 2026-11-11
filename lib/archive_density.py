@@ -23,7 +23,7 @@ import shapely
 import shapely.wkb
 
 import multistac
-from archive_dashboard import LAND, vendor_palette
+from archive_dashboard import LAND, PENDING_VENDORS, vendor_palette
 import data_repo
 
 REPO = Path(__file__).resolve().parents[1]
@@ -357,6 +357,13 @@ def tab(key: str, groups, cell: float = CELL_DEG) -> Optional[dict]:
     return {"key": key, "vendor": vendor, "palette": palette, "groups": out}
 
 
+def pending_tabs(have_vendors) -> List[dict]:
+    """A placeholder tab for each vendor whose catalog access is not in place yet (archive_dashboard.PENDING_VENDORS)."""
+    return [dict(key=k, vendor=v["vendor"], palette=vendor_palette(v["vendor"]), pending=True, catalog=v["catalog"],
+                 groups=[dict(constellation=c) for c in v["constellations"]])
+            for k, v in PENDING_VENDORS.items() if v["vendor"] not in set(have_vendors)]
+
+
 def _delta(frame: List[int]) -> List[int]:
     """[cell, n, cell, n, ...] sorted by cell, each cell stored as the step from the one before: small numbers, a smaller file."""
     pairs, out, previous = sorted(zip(frame[::2], frame[1::2])), [], 0
@@ -370,6 +377,7 @@ def build(page: Path = PAGE, cell: float = CELL_DEG, data_dir: Optional[Path] = 
           data_base: str = data_repo.DATA_URL + "archive_density/") -> Path:
     """The page. Large frames go to `data_dir` (default: the data repository), read by the page from `data_base`."""
     tabs = [t for t in (tab(k, g, cell) for k, g in TABS) if t]
+    tabs += pending_tabs(t["vendor"] for t in tabs)
     lazy_dir = data_dir or data_repo.folder("archive_density")
     for t in tabs:
         for g in t["groups"]:

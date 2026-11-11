@@ -148,6 +148,10 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
 .monthtable tr.sel td { background: var(--surface-2); font-weight: 600; }
 .monthbox { max-height: 300px; overflow-y: auto; }
 .monthtable thead th { position: sticky; top: 0; background: var(--surface); }
+/* a vendor whose catalog access is not in place yet */
+#pending { display: none; } .is-pending #pending { display: block; }
+.vtag { display: inline-block; white-space: nowrap; padding: 1px 10px; border-radius: 9999px; font-weight: 650; }
+.is-pending .controls, .is-pending #answer, .is-pending .card:not(#pending), .is-pending .cols { display: none; }
 </style>
 </head>
 <body>
@@ -158,6 +162,7 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
   <a href="mailto:paul.m.montesano@nasa.gov">paul.m.montesano@nasa.gov</a> · <span id="updated"></span></p>
 <div class="warn" style="margin:12px 0 0;font-size:13.5px"><b>Suggested use:</b> use this page to see where and when a constellation has been collecting. For what is available at an evaluation site, use the <a href="archive_first_look.html">Vendor Archive First Look</a>. Drag along the timeline or press Play to watch collection change.</div>
 <div class="tabs" id="tabs" role="tablist"></div>
+<div class="card" id="pending" style="margin-top:18px"></div>
 <div class="filters controls">
   <button class="action play" id="play">▶ Play</button>
   <span class="month" id="month"></span>
@@ -374,7 +379,7 @@ function renderTabs() {
     const sw = el('i', {class: 'swatch'}); sw.style.background = t.palette.color;
     const plain = t.groups.filter(g => !g.parts);
     const b = el('button', {role: 'tab', 'aria-selected': i === state.tab, onclick: () => { stop(); state.tab = i; show(); }},
-      el('b', {}, sw, t.vendor), el('span', {text: plain.map(g => g.constellation).join(', ')}));
+      el('b', {}, sw, t.vendor), el('span', {text: plain.map(g => g.constellation).join(', ') + (t.pending ? ' · pending' : '')}));
     if (i === state.tab) b.style.borderBottomColor = t.palette.color;
     return b;
   }));
@@ -384,7 +389,19 @@ function undelta(f) {   // cells were stored as steps from the previous cell
   for (let k = 0; k < f.length; k += 2) { c += f[k]; out[k] = c; out[k + 1] = f[k + 1]; }
   return out;
 }
+// a vendor tag in its own color: the lightest and darkest steps of its ramp
+const vendorTag = (tab, text) => { const r = tab.palette[dark() ? 'dark' : 'light'], t = el('span', {class: 'vtag', text: text || tab.vendor});
+  t.style.background = `color-mix(in oklab, ${r[0]} 65%, var(--surface))`; t.style.color = r[6]; return t; };
+function showPending(tab) {   // a vendor whose catalog access is not in place yet
+  stop(); renderTabs();
+  $('pending').replaceChildren(el('h2', {}, vendorTag(tab), ' ', tab.groups.map(g => g.constellation).join(', ')),
+    el('p', {class: 'note', style: 'font-size:14px;margin:8px 0 0'}, el('b', {text: 'Available pending API access. '}),
+      `Monthly maps of where and when ${tab.vendor} collects will appear here once access to ${tab.catalog} is in place.`));
+  $('foot').textContent = '';
+}
 function show() {
+  document.querySelector('.viz-root').classList.toggle('is-pending', !!TAB().pending);
+  if (TAB().pending) return showPending(TAB());
   const groups = TAB().groups, sel = $('group');
   sel.replaceChildren(...groups.map((g, i) => el('option', {value: i, text: g.constellation})));
   sel.value = state.group[state.tab] || 0; $('groupWrap').hidden = groups.length < 2;
