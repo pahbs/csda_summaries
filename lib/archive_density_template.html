@@ -168,6 +168,8 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
   <span class="month" id="month"></span>
   <label id="groupWrap" hidden>Constellation <select id="group" aria-label="Constellation"></select></label>
   <label>Show <select id="view" aria-label="Show"><option value="month">This month</option><option value="total">Running total</option></select></label>
+  <label>Count <select id="metric" aria-label="Count"><option value="n">Acquisitions</option><option value="days">Days with an acquisition</option></select></label>
+  <label>Scale <select id="scale" aria-label="Scale"><option value="own">This constellation</option><option value="shared">Shared, all constellations (log)</option></select></label>
   <label>Speed <select id="speed" aria-label="Speed"><option value="1200">Slow</option><option value="600" selected>Medium</option><option value="250">Fast</option></select></label>
   <div class="timeline" id="timeline" role="slider" tabindex="0" aria-label="Month"></div>
 </div>
@@ -196,7 +198,7 @@ function applyPalette() {
 const TOP = 84, BOTTOM = -62;   // latitudes shown
 const dark = () => getComputedStyle(document.querySelector('.viz-root')).colorScheme === 'dark';
 const css = name => getComputedStyle(document.querySelector('.viz-root')).getPropertyValue(name).trim();
-const state = {tab: 0, view: 'month', timer: null, per: {}, group: {}};
+const state = {tab: 0, view: 'month', timer: null, per: {}, group: {}, metric: 'n', scale: 'own'};
 function el(tag, props = {}, ...kids) {
   const node = document.createElement(tag);
   for (const [k, v] of Object.entries(props)) {
@@ -218,7 +220,10 @@ function showTip(e, value, label) {
 }
 const hideTip = () => { $('tip').style.display = 'none'; };
 const TAB = () => DATA.tabs[state.tab];
-const T = () => TAB().groups[state.group[state.tab] || 0];   // the constellation shown
+const G = () => TAB().groups[state.group[state.tab] || 0];   // the constellation picked
+// the constellation shown: its acquisitions, or its days with an acquisition (a view over the same group, with its own scale)
+const T = () => { const g = G();
+  return state.metric === 'days' && g.dayFrames ? (g.dayView ||= {...g, frames: g.dayFrames, ck: undefined, last: undefined, days: true}) : g; };
 const name = m => new Date(`${m}-15`).toLocaleDateString('en-US', {month: 'short', year: 'numeric'});
 const units = t => t.unit === 'pass' ? 'passes' : `${t.unit}s`;
 const label = (t, i) => name(t.totals[i].month) + (t.totals[i].month === t.partial ? ' (so far)' : '');
@@ -266,6 +271,12 @@ function cumAt(t, i) {   // running total up to month i: the nearest earlier che
   t.last = {i, a};
   return a;
 }
+// Shared scale: one set of limits for every constellation and tab (logarithmic), so shades compare across them
+const SHARED = {n: {month: [1, 300], total: [1, 20000]}, days: {month: [1, 31], total: [1, 1000]}};
+function scaleOf(t) {
+  if (state.scale === 'shared') { const [min, max] = SHARED[t.days ? 'days' : 'n'][state.view]; return {min, max}; }
+  return state.view === 'month' ? {min: t.minMonth, max: t.maxMonth} : {min: t.minTotal, max: t.maxTotal};
+}
 function step(v, max, min = 1) { return Math.max(0, Math.min(5, Math.floor(Math.log(v / min) / Math.log((max + 1) / min) * 6))); }
 let land = null, landTheme = null;
 function drawLand(w, h) {
@@ -279,7 +290,7 @@ function drawLand(w, h) {
 function drawMap() {
   const t = T(), i = state.per[t.key], canvas = $('map'), c = canvas.getContext('2d'), w = canvas.width, h = canvas.height;
   const sx = w / 360, sy = h / (TOP - BOTTOM), ramp = mapRamp();
-  const max = state.view === 'month' ? t.maxMonth : t.maxTotal, min = state.view === 'month' ? t.minMonth : t.minTotal, size = t.cell;
+  const {min, max} = scaleOf(t), size = t.cell;
   c.clearRect(0, 0, w, h); c.drawImage(drawLand(w, h), 0, 0);
   // one pixel per cell in a small image, then scaled up without smoothing: fast even with 100,000+ cells
   const rows = Math.round(180 / size), img = new ImageData(t.columns, rows), px = img.data;
@@ -300,11 +311,15 @@ function cellAt(e) {
   return {v, lon, lat};
 }
 function renderLegend(t) {
-  const max = state.view === 'month' ? t.maxMonth : t.maxTotal, min = state.view === 'month' ? t.minMonth : t.minTotal, ramp = mapRamp();
+  const {min, max} = scaleOf(t), ramp = mapRamp();
   const edge = k => Math.max(1, Math.round(min * Math.exp(k / 6 * Math.log((max + 1) / min))));
-  $('legend').replaceChildren(el('span', {text: `${units(t)[0].toUpperCase() + units(t).slice(1)} in a ${t.cell}° cell:`}), el('span', {text: (min > 1 ? '≤ ' : '') + edge(0).toLocaleString()}),
-    el('span', {class: 'scale'}, ramp.map(c => { const i = el('i'); i.style.background = c; return i; })), el('span', {text: `${edge(6).toLocaleString()}+`}),
-    el('span', {text: 'The scale stays fixed for this constellation, so months compare directly.'}));
+  const what = t.days ? (state.view === 'month' ? 'Days with an acquisition' : 'Days with an acquisition, summed') : units(t)[0].toUpperCase() + units(t).slice(1);
+  $('legend').replaceChildren(el('span', {text: `${what} in a ${t.cell}° cell:`}), el('span', {text: (min > 1 ? '≤ ' : '') + edge(0).toLocaleString()}),
+    el('span', {class: 'scale'}, ramp.map(c => { const i = el('i'); i.style.background = c; return i; })), el('span', {text: t.days && state.view === 'month' ? `${Math.min(31, edge(6))}${edge(6) < 31 ? '+' : ''}` : `${edge(6).toLocaleString()}+`}),
+    el('span', {text: state.scale === 'shared'
+      ? (t.days ? 'One scale for every constellation: days in the month with at least one acquisition.'
+        : 'One scale for every constellation (logarithmic). Units differ: SuperDove counts single scenes, about 10–20 to a pass, so it reads denser.')
+      : 'The scale stays fixed for this constellation, so months compare directly.'}));
 }
 function renderTimeline(t) {
   const w = 1200, h = 86, top = 18, base = h - 20, n = t.totals.length, bw = w / n, i0 = state.per[t.key], view = state.view;
@@ -362,9 +377,14 @@ function render() {
   const tile = (v, k, cls = '') => el('div', {class: 'tile ' + cls}, el('div', {class: 'v', text: v}), el('div', {class: 'k', text: k}));
   $('answer').replaceChildren(tile(missing ? '–' : m.n.toLocaleString(), `${units(t)} in ${label(t, i)}`, 'hero'), tile(total.toLocaleString(), `${units(t)} from ${name(t.first)} to here`),
     tile(`${m.clear.toLocaleString()}`, 'of this month with cloud up to 20%'), tile(name(busiest.month), `busiest month, ${busiest.n.toLocaleString()} ${units(t)}`));
-  $('mapTitle').textContent = state.view === 'month' ? `${t.vendor} ${t.constellation}, ${label(t, i)}` : `${t.vendor} ${t.constellation}, all ${units(t)} up to ${label(t, i)}`;
+  $('mapTitle').textContent = t.days
+    ? (state.view === 'month' ? `${t.vendor} ${t.constellation}, days with an acquisition in ${label(t, i)}` : `${t.vendor} ${t.constellation}, days with an acquisition, summed up to ${label(t, i)}`)
+    : state.view === 'month' ? `${t.vendor} ${t.constellation}, ${label(t, i)}` : `${t.vendor} ${t.constellation}, all ${units(t)} up to ${label(t, i)}`;
   $('mapNote').textContent = missing ? (t.totals[i].pending ? 'This month has not been counted yet: it is being added.'
       : `This month has not been fetched yet: the catalog is being read newest first, back to ${name(t.fetched_from)} so far.`)
+    : state.metric === 'days' && !t.days ? 'Days with an acquisition are not available for this view yet, so it shows acquisitions.'
+    : t.days && !t.frames[i].length && G().frames[i].length ? 'Days with an acquisition are not counted for this month yet: switch Count to Acquisitions.'
+    : t.days ? 'Days in the month with at least one acquisition in the cell, whatever its cloud cover. Point at a cell for its count.'
     : 'Every acquisition in the catalog, whatever its cloud cover. Point at a cell for its count.';
   drawMap(); renderLegend(t); renderTimeline(t); renderTable(t);
 }
@@ -408,15 +428,16 @@ function show() {
   const groups = TAB().groups, sel = $('group');
   sel.replaceChildren(...groups.map((g, i) => el('option', {value: i, text: g.constellation})));
   sel.value = state.group[state.tab] || 0; $('groupWrap').hidden = groups.length < 2;
-  const t = T();
+  const t = T(), g0 = G();
   applyPalette(); renderTabs();
+  $('metric').querySelector('[value=days]').disabled = !!g0.parts;   // days cannot be added across constellations
   // large constellations load their monthly maps when first picked; a combined view needs all of its parts
   const need = (t.parts ? groups.filter(g => t.parts.includes(g.constellation)) : [t]).filter(g => g.lazy && !g.frames);
   if (need.length) {
     $('mapTitle').textContent = `${t.vendor} ${t.constellation}`; $('mapNote').textContent = 'Loading the monthly maps…';
     Promise.all(need.map(g => fetch(`${DATA.data_base}${g.key}.json`).then(r => { if (!r.ok) throw r.status; return r.json(); })
-      .then(d => { g.frames = d.delta ? d.frames.map(undelta) : d.frames; })))
-      .then(() => { if (T() === t) show(); })
+      .then(d => { g.frames = d.delta ? d.frames.map(undelta) : d.frames; if (d.days) g.dayFrames = d.days.map(undelta); })))
+      .then(() => { if (G() === g0) show(); })
       .catch(() => { $('mapNote').textContent = 'These maps load on the published page: https://pahbs.github.io/csda_summaries/html/archive_density.html'; });
     return;
   }
@@ -426,7 +447,11 @@ function show() {
       ? `${t.cell}° squares. Each acquisition counts once in every square its footprint touches, so a long strip lights up the whole line it covers.`
       : `${t.cell}° squares, placed by the center of each footprint. A wide scene counts only in the cell at its center.`],
     ['Recent months', 'These can still grow: vendors add acquisitions to their catalogs late. The current month is marked "so far".'],
-    ['Comparing', 'Each constellation has its own color scale, so compare patterns between them, not shades.'],
+    ['Comparing', state.scale === 'shared' ? 'Shared scale: every constellation uses the same limits, so shades compare across tabs. '
+      + 'Acquisition units still differ (scenes, strips, captures, passes); days with an acquisition compare most fairly.'
+      : 'Each constellation has its own color scale, so compare patterns between them, not shades. Pick Shared to compare shades.'],
+    ['Days with an acquisition', 'Count: Days shows how many days in the month had at least one acquisition in the cell (0 to 31). '
+      + 'It does not depend on what a vendor calls one acquisition, so it is the fairest way to compare revisit.'],
     ...(t.complete ? [] : [['Still being added', t.progress_note || `Fetched back to ${name(t.fetched_from)} so far. Earlier months are added newest first.`]])];
   $('guide').replaceChildren(...entries.flatMap(([k, v]) => [el('dt', {text: k}), el('dd', {text: v})]));
   $('foot').textContent = `${t.vendor} ${t.constellation}: catalog collections ${t.collections.join(', ')}.`;
@@ -451,6 +476,8 @@ tl.addEventListener('keydown', e => {
 $('play').addEventListener('click', () => state.timer ? stop() : start());
 $('view').addEventListener('change', e => { state.view = e.target.value; render(); });
 $('group').addEventListener('change', e => { stop(); state.group[state.tab] = +e.target.value; show(); });
+$('metric').addEventListener('change', e => { stop(); state.metric = e.target.value; show(); });
+$('scale').addEventListener('change', e => { state.scale = e.target.value; show(); });
 $('speed').addEventListener('change', () => { if (state.timer) { stop(); start(); } });
 $('map').addEventListener('pointermove', e => { const c = cellAt(e); if (c.v) showTip(e, c.v.toLocaleString(), `${units(T())} near ${Math.abs(c.lat).toFixed(0)}°${c.lat >= 0 ? 'N' : 'S'}, ${Math.abs(c.lon).toFixed(0)}°${c.lon >= 0 ? 'E' : 'W'}`); else hideTip(); });
 $('map').addEventListener('pointerleave', hideTip);
