@@ -31,6 +31,7 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-11 · [3] Tracking run (Airbus, Vantor Legion): nothing new in CSDA STAC since 10 Nov; everything in CSDA at the tracked sites is on ADAPT (Airbus 197 acquisitions, Legion 68). Vantor has collected 44 Legion images since 1 Sep not yet in CSDA (15 meet the site requirements).
 - 2026-11-10 · [2] Density dashboard at 0.5° (was 1.5°), each acquisition counted in every cell its outline touches (was: its center only). Outlines re-fetched for all catalogs since 2020 into `global_analysis/monthly_fp/` (now the default store); SuperDove recounted from Planet's statistics at 0.5°. Every constellation loads on demand from the data repo (~15 MB compressed in all).
 - 2026-11-10 · [2] Archive first look: every tab now covers the same 78 sites, the CSDA sites for optical or thermal validation (`csda_sites_aoi.geojson`, domain contains Optical or Thermal, whole sites only), defined once in `archive_dashboard.load_sites()`. Before: 58 optical sites (Hydrosat: its 29 request sites). All tabs re-searched; Satellogic's busy months retried in halves.
 - 2026-11-10 · [3] Hydrosat order 9265 (417 presigned links, L1b and L2 from VZ01 and VZ02) downloaded with the vendor's `download_presigned.sh` into `/explore/nobackup/projects/CSDA_eval/Data/Hydrosat/cac/` (named `cac` so it is clearly not from the CSDA STAC); links expire 13 Nov.
