@@ -115,6 +115,12 @@ h1 { font-size: 28px; line-height: 1.15; margin: 0; font-weight: 650; letter-spa
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-bottom: 20px; }
 .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; box-shadow: var(--shadow); }
 .card h2 { font-size: 15px; margin: 0 0 2px; font-weight: 650; }
+/* a vendor lane's name in its affiliation color: the rounded tag used across the CSDA pages */
+.vtag { display: inline-block; white-space: nowrap; padding: 1px 10px; border-radius: 9999px; font-weight: 650;
+  background: color-mix(in oklab, var(--tl) 65%, var(--surface-1)); color: var(--il); }
+@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .vtag {
+  background: color-mix(in oklab, var(--td) 65%, var(--surface-1)); color: var(--id); } }
+:root[data-theme="dark"] .vtag { background: color-mix(in oklab, var(--td) 65%, var(--surface-1)); color: var(--id); }
 .card .meta { color: var(--text-muted); font-size: 12px; margin-bottom: 12px; }
 .next { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .next li { display: grid; grid-template-columns: 10px 1fr auto; gap: 10px; align-items: baseline; }
@@ -287,6 +293,108 @@ const DATA = {
   "ImageSat",
   "Satlantis"
  ],
+ "colors": {
+  "Airbus": {
+   "light": [
+    "#fed2cc",
+    "#7c0105"
+   ],
+   "dark": [
+    "#8a0508",
+    "#fed7d1"
+   ]
+  },
+  "Vantor-Legion": {
+   "light": [
+    "#c3e3fe",
+    "#02436c"
+   ],
+   "dark": [
+    "#064c77",
+    "#c9e5fe"
+   ]
+  },
+  "HydroSat": {
+   "light": [
+    "#98f998",
+    "#004f0a"
+   ],
+   "dark": [
+    "#075811",
+    "#9cfd9b"
+   ]
+  },
+  "Satellogic": {
+   "light": [
+    "#8ef4e0",
+    "#044b41"
+   ],
+   "dark": [
+    "#065449",
+    "#92f8e3"
+   ]
+  },
+  "Kuva": {
+   "light": [
+    "#e3d7fe",
+    "#51138e"
+   ],
+   "dark": [
+    "#592098",
+    "#e6dbfe"
+   ]
+  },
+  "OroraTech": {
+   "light": [
+    "#fdd1d5",
+    "#662833"
+   ],
+   "dark": [
+    "#70303b",
+    "#fed6d9"
+   ]
+  },
+  "Planet-Tanager": {
+   "light": [
+    "#fecde9",
+    "#720353"
+   ],
+   "dark": [
+    "#7f015e",
+    "#fdd3ea"
+   ]
+  },
+  "Orbital Sidekick": {
+   "light": [
+    "#e6d5ff",
+    "#51247a"
+   ],
+   "dark": [
+    "#592d83",
+    "#e8dafd"
+   ]
+  },
+  "ImageSat": {
+   "light": [
+    "#fecfe4",
+    "#74014c"
+   ],
+   "dark": [
+    "#7f0b55",
+    "#fed3e7"
+   ]
+  },
+  "Satlantis": {
+   "light": [
+    "#d0ed6a",
+    "#3a4604"
+   ],
+   "dark": [
+    "#414f00",
+    "#d4f16e"
+   ]
+  }
+ },
  "types": [
   "Data Acq./Analysis",
   "Tech. Exchange Mtg. (TEM)",
@@ -813,6 +921,9 @@ const now = new Date();
 const TODAY = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
 
 const EV_LABEL = 'Joint Activities';
+// A vendor lane's name as a tag in its affiliation color (DATA.colors from the notebook); Joint Activities stays plain
+const tag = ev => { const c = (DATA.colors || {})[ev];
+  return c ? `<span class="vtag" style="--tl:${c.light[0]};--il:${c.light[1]};--td:${c.dark[0]};--id:${c.dark[1]}">${esc(ev)}</span>` : esc(ev); };
 const LANES = [EV_LABEL, ...DATA.evaluations];   // Joint Activities is a lane like each evaluation
 
 const typeIdx = Object.fromEntries(DATA.types.map((t, i) => [t, i]));
@@ -903,7 +1014,7 @@ function renderCards() {
     const next = hits.filter(t => t.status !== 'done').sort(byStart).slice(0, 3);
     const last = ts.reduce((m, t) => t.f > m.f ? t : m, ts[0]);
     return `<article class="card${hits.some(lit) ? '' : ' dim'}">
-      <h2>${esc(ev)}</h2>
+      <h2>${tag(ev)}</h2>
       <div class="meta">${done} of ${plural(ts.length, 'activity', 'activities')} complete · ${next.length ? `wraps up ${fmtY(last.f)}` : 'next steps not yet scheduled'}</div>
       <div class="progress" aria-hidden="true"><span style="width:${(done / ts.length) * 100}%"></span></div>
       <ul class="next">${next.map(t => `
@@ -943,7 +1054,7 @@ function renderChart() {
   lanes().forEach((ev, i) => {
     const ts = s.filter(t => t.evaluation === ev).sort(byStart);
     const n = tasks.filter(t => t.evaluation === ev).length;
-    rows += `${i ? '<div class="lane-sep"></div>' : ''}<div class="lane-head"><div class="cell-label"><h3>${esc(ev)}</h3>
+    rows += `${i ? '<div class="lane-sep"></div>' : ''}<div class="lane-head"><div class="cell-label"><h3>${tag(ev)}</h3>
       <div class="meta">${ts.length < n ? `${ts.length} of ` : ''}${plural(n, 'activity', 'activities')}</div></div><div class="track"></div></div>`;
     ts.forEach(t => {
       rows += `<div class="row ${t.status}${dim(t)}"><div class="cell-label"><span class="swatch" style="--c:${typeColor(t.type)}"></span>
@@ -967,7 +1078,7 @@ function renderTable() {
   document.getElementById('tableView').innerHTML = `<table>
     <thead><tr><th>Evaluation</th><th>Activity</th><th>Type</th><th>Start</th><th>Finish</th><th>Status</th><th>Notes</th></tr></thead>
     <tbody>${rowsAll.map(t => `<tr class="${t.status}${dim(t)}" id="row-${t.id}">
-      <td>${esc(t.evaluation)}</td><td>${esc(t.task)}</td>
+      <td>${tag(t.evaluation)}</td><td>${esc(t.task)}</td>
       <td><span class="tp"><i style="--c:${typeColor(t.type)}"></i>${esc(t.type)}</span></td>
       <td class="date">${fmtY(t.s)}</td><td class="date">${fmtY(t.f)}</td>
       <td class="date">${statusLabel[t.status]}</td>

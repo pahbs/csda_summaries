@@ -306,6 +306,32 @@ def _download_section(products: pd.DataFrame, plan: Optional[pd.DataFrame], chec
     return text + _html_table(table)
 
 
+TAG_VENDORS = ["Airbus", "Vantor", "Planet", "Hydrosat", "Satellogic", "Kuva Space", "EarthDaily"]   # names a page may lead with
+
+
+def tag_affiliations(page: str) -> str:
+    """The vendor in the page title, and the "Affiliation <b>...</b>" note, as tags in the affiliation color (the rounded
+    tag used across the CSDA pages). Applied once: a page that already has tags is returned as it is."""
+    import archive_dashboard as ad
+    if 'class="vtag"' in page:
+        return page
+    css = ad.TAG_CSS.format(surface="var(--bg)") + "\n@media (prefers-color-scheme:dark){" + ad.TAG_CSS_DARK.format(surface="var(--bg)") + "}"
+    page = page.replace("</style></head>", css + "\n</style></head>", 1)
+
+    def h1(m):
+        text = m.group(1)
+        for v in TAG_VENDORS:
+            if v in text:
+                return "<h1>" + text.replace(v, ad.tag_html(v), 1) + "</h1>"
+        return m.group(0)
+    page = re.sub(r"<h1>(.*?)</h1>", h1, page, count=1)
+
+    def note(m):
+        vendor = next((v for v in TAG_VENDORS if v in m.group(1)), None)
+        return f"Affiliation {ad.tag_html(vendor, html.unescape(m.group(1)))}" if vendor else m.group(0)
+    return re.sub(r"Affiliation <b>(.*?)</b>", note, page, count=1)
+
+
 def write_summary_page(products: pd.DataFrame, path: Union[str, Path], title: str, intro: str, notes: Iterable[str],
                        last_run: Optional[pd.Timestamp] = None, labels: Optional[Dict[str, str]] = None,
                        sites: Iterable[str] = (), coming: Optional[Tuple[str, pd.DataFrame]] = None,
@@ -371,6 +397,7 @@ Vantor pixels still need converting.</p>
 </ul>
 {link}</body></html>
 """
+    page = tag_affiliations(page)
     Path(path).write_text(page, encoding="utf-8")
     return Path(path)
 

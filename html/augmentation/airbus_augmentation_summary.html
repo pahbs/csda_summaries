@@ -8,8 +8,10 @@ h1{font-size:1.35rem;margin:0 0 .25rem} p,li{color:var(--mut)} .meta{margin:0 0 
 table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums} th,td{padding:.45rem .6rem;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 th{font-weight:600;font-size:.85rem;color:var(--mut)} td.n,th.n{text-align:right} tr.tot td{font-weight:600;background:var(--tot)}
 h2{font-size:1.05rem;margin:2rem 0 .35rem} .wrap{overflow-x:auto} code{font-size:.9em} .lead{color:var(--fg)}
+.vtag{display:inline-block;white-space:nowrap;padding:1px 10px;border-radius:9999px;font-weight:650;background:color-mix(in oklab,var(--tl) 65%,var(--bg));color:var(--il)}
+@media (prefers-color-scheme:dark){.vtag{background:color-mix(in oklab,var(--td) 65%,var(--bg));color:var(--id)}}
 </style></head><body>
-<h1>Airbus data in CSDA STAC and on ADAPT</h1>
+<h1><span class="vtag" style="--tl:#fed2cc;--il:#7c0105;--td:#8a0508;--id:#fed7d1">Airbus</span> data in CSDA STAC and on ADAPT</h1>
 <p class="meta">As of 11 Nov 2026. Every Airbus acquisition in CSDA STAC at the 8 tracked sites, and what is on ADAPT (<code>CSDA_eval/Data/Airbus</code>).</p>
 <h2>1. What is new</h2>
 <p class="lead">Nothing new since the last run (10 Nov 2026).</p>

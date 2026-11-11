@@ -324,6 +324,26 @@ def _from_oklch(L: float, C: float, h: float):
     return "#" + "".join(f"{round(min(max(c, 0), 1) * 255):02x}" for c in rgb)
 
 
+# A vendor's name as a rounded tag in its affiliation color (pages with light and dark modes pick --tl/--il or --td/--id).
+# Pages add TAG_CSS once; `surface` is the page background the tag's color is mixed with.
+TAG_CSS = (".vtag{{display:inline-block;white-space:nowrap;padding:1px 10px;border-radius:9999px;font-weight:650;"
+           "background:color-mix(in oklab,var(--tl) 65%,{surface});color:var(--il)}}")
+TAG_CSS_DARK = ".vtag{{background:color-mix(in oklab,var(--td) 65%,{surface});color:var(--id)}}"
+
+
+def tag_colors(vendor: str) -> dict:
+    """The tag's colors: the lightest and darkest steps of the vendor's ramp, for light and dark pages."""
+    p = vendor_palette(vendor)
+    return {"light": [p["light"][0], p["light"][6]], "dark": [p["dark"][0], p["dark"][6]]}
+
+
+def tag_html(vendor: str, text: Optional[str] = None) -> str:
+    import html as _html
+    c = tag_colors(vendor)
+    return (f'<span class="vtag" style="--tl:{c["light"][0]};--il:{c["light"][1]};--td:{c["dark"][0]};--id:{c["dark"][1]}">'
+            f'{_html.escape(text or vendor)}</span>')
+
+
 def vendor_palette(vendor: str) -> dict:
     """The vendor's color and its ramps for light and dark pages: its hue, with the chroma lowered where it leaves sRGB."""
     from vendor_specs import AFFILIATION_COLORS
