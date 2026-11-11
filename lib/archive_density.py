@@ -55,6 +55,16 @@ VENDORS = {
                       guide="PlanetScope SuperDove scenes (instrument PSB.SD), counted by Planet's catalog statistics rather than "
                             "fetched one by one: about 7 million a month. A scene counts in every cell it touches, not only the cell "
                             "at its center, so busy cells read a little higher than on the other tabs."),
+    # Public missions, from Earth Search (no login). Too many items to keep (Sentinel-2: ~450,000 tiles a month), so each month is
+    # counted as it is fetched (fetch_counted) and only the counts per cell are kept.
+    "sentinel2": dict(provider="earth-search", collections=["sentinel-2-l2a"], vendor="ESA", constellation="Sentinel-2", unit="pass",
+                      stats=True, count_on_fetch=True, window_days=1,
+                      guide="One datatake counts once: a satellite's continuous acquisition along an orbit, cut into 110 km tiles. "
+                            "Sentinel-2A, 2B and 2C, Level-2A, from Earth Search (Element84)."),
+    "landsat": dict(provider="earth-search", collections=["landsat-c2-l2"], vendor="USGS / NASA", constellation="Landsat 8 and 9",
+                    unit="pass", stats=True, count_on_fetch=True, window_days=7, platforms=["landsat-8", "landsat-9"],
+                    guide="One pass counts once: the scenes one satellite takes in a row, less than 2 minutes apart. Landsat 8 and 9, "
+                          "Collection 2 Level-2, from Earth Search (Element84); Landsat 7 is left out."),
     "satellogic": dict(collections=["quickview-visual-thumb"], vendor="Satellogic", constellation="Aleph-1", unit="capture",
                        window_days=3, full_records=True,
                        guide="One capture counts once, from its thumbnail item rather than its 2 km tiles. "
@@ -87,6 +97,8 @@ def _points(frames: List[pd.DataFrame], vendor: str) -> pd.DataFrame:
     if not frames:
         return pd.DataFrame(columns=columns)
     g = pd.concat(frames, ignore_index=True).drop_duplicates("id")
+    if VENDORS[vendor].get("platforms"):
+        g = g[g.platform.isin(VENDORS[vendor]["platforms"])]
     if "satl:product_version" in g:
         g = g[g["satl:product_version"].astype(str).str.split(".").str[0].astype(float) >= 1]
     points = g.geometry.representative_point()
@@ -128,6 +140,42 @@ def fetch(vendor: str, refresh: int = REFRESH_MONTHS, only: Optional[List[str]] 
         if table is not None:
             table.to_pickle(path)
             print(f"{vendor} {month}: {len(table)} items, {time.time() - started:.0f} s", flush=True)
+    print(f"{vendor} done", flush=True)
+
+
+def fetch_counted(vendor: str, refresh: int = REFRESH_MONTHS, only: Optional[List[str]] = None, cell: float = CELL_DEG) -> None:
+    """A public mission too large to keep item by item: each month is fetched in windows of `window_days`, counted per cell
+    (each pass once per cell) and saved as STORE/<vendor>/counts/YYYY-MM.pkl (cell, n) and .json (totals). Newest month first;
+    one file per month, so several runs can fetch different years at the same time (`only`)."""
+    info = VENDORS[vendor]
+    folder = STORE / vendor / "counts"
+    folder.mkdir(parents=True, exist_ok=True)
+    every = months(info.get("start", START))
+    for month in reversed(only or every):
+        path = folder / f"{month}.pkl"
+        if path.exists() and month not in every[-refresh:]:
+            continue
+        started, failed, pairs, clouds = time.time(), [], [], []
+        first = pd.Timestamp(f"{month}-01")
+        last = min(first + pd.offsets.MonthEnd(0), pd.Timestamp.today().normalize())
+        day, step = first, info.get("window_days", 7)
+        while day <= last:
+            frames = _search(vendor, day, min(day + pd.Timedelta(days=step - 1), last), failed)
+            if frames:
+                table = _points(frames, vendor)
+                pairs.append(_footprint_pairs(table, cell))
+                clouds.append(table[["acquisition_id", "cloud_cover"]])
+            day += pd.Timedelta(days=step)
+        if failed:
+            print(f"{vendor} {month}: failed on {failed}; not saved", flush=True)
+            continue
+        p = pd.concat(pairs).drop_duplicates() if pairs else pd.DataFrame({"acquisition_id": [], "cell": []})
+        counts = p.groupby("cell").size().rename("n").reset_index()
+        cloud = (pd.concat(clouds).assign(cloud_cover=lambda x: pd.to_numeric(x.cloud_cover, errors="coerce"))
+                 .groupby("acquisition_id").cloud_cover.mean()) if clouds else pd.Series(dtype=float)
+        counts.to_pickle(path)
+        (folder / f"{month}.json").write_text(json.dumps({"n": int(len(cloud)), "clear": int((cloud <= 20).sum())}))
+        print(f"{vendor} {month}: {len(cloud)} passes, {len(counts)} cells, {time.time() - started:.0f} s", flush=True)
     print(f"{vendor} done", flush=True)
 
 
@@ -227,7 +275,9 @@ TABS = [("hydrosat", [("VanZyl", "hydrosat", None)]),
         ("kuva", [("Hyperfield", "kuva", None)]),
         ("planet", [("SuperDove", "superdove", None), ("Tanager", "tanager", None)]),
         ("satellogic", [("Aleph-1", "satellogic", None)]),
-        ("vantor", [("Legion", "vantor", None), ("WorldView-2", "worldview", {"wv02"}), ("WorldView-3", "worldview", {"wv03-vnir"})])]
+        ("vantor", [("Legion", "vantor", None), ("WorldView-2", "worldview", {"wv02"}), ("WorldView-3", "worldview", {"wv03-vnir"})]),
+        ("landsat", [("Landsat 8 and 9", "landsat", None)]),
+        ("sentinel2", [("Sentinel-2", "sentinel2", None)])]
 COMBINED = {"vantor": [("WorldView-2 and 3", ["WorldView-2", "WorldView-3"]), ("All constellations", None)]}
 
 
@@ -244,23 +294,24 @@ def _tables(store: str, collections) -> Dict[str, pd.DataFrame]:
     return out
 
 
-def _footprint_counts(table: pd.DataFrame, cell: float) -> pd.Series:
-    """How many acquisitions cover each cell: each acquisition's outline (its items joined) counts once in every cell it touches.
+def _footprint_pairs(table: pd.DataFrame, cell: float) -> pd.DataFrame:
+    """Every (acquisition, cell) pair where one of the acquisition's items touches the cell, once each.
 
-    Each outline is tested against the cells of its bounding box. (Rasterizing with all_touched and an adding merge, as
-    before, counts a cell along a polygon's edge several times for one polygon: up to 15 for a long diagonal strip.)
+    Each item outline is tested against the cells of its bounding box. An acquisition's items are not joined first: a cell is
+    touched by the joined outline exactly when one of its items touches it, and joining a long orbit's tiles is slow.
+    (Rasterizing with all_touched and an adding merge, as at first, counted a cell along a polygon's edge several times.)
     """
     t = table[table.wkb.notna()]
-    geoms = pd.Series(shapely.from_wkb(t.wkb.values), index=t.acquisition_id.astype(str).values)
-    geoms = geoms[~shapely.is_empty(geoms.values)]
-    repeated = geoms.index.duplicated(keep=False)
-    joined = geoms[repeated].groupby(level=0).agg(lambda s: shapely.union_all(shapely.make_valid(s.values)))
-    shapes = np.concatenate([geoms[~repeated].values, joined.values])
+    shapes = shapely.from_wkb(t.wkb.values)
+    acq = t.acquisition_id.astype(str).values
+    keep = ~(pd.isna(shapes) | shapely.is_empty(shapes))
+    shapes, acq = shapes[keep], acq[keep]
+    if not len(shapes):
+        return pd.DataFrame({"acquisition_id": [], "cell": []})
     bounds = shapely.bounds(shapes)
     wraps = (bounds[:, 2] - bounds[:, 0]) > 180   # across the antimeridian: move the western part east by 360°
     if wraps.any():
         shapes[wraps] = [shapely.transform(g, lambda xy: np.where(xy[:, :1] < 0, xy + [360, 0], xy)) for g in shapes[wraps]]
-    shapes = shapes[~(pd.isna(shapes) | shapely.is_empty(shapes))]
     columns, rows = int(round(360 / cell)), int(round(180 / cell))
     b = shapely.bounds(shapes)
     c0, c1 = [np.floor((b[:, k] + 180) / cell).astype(int).clip(0, 2 * columns - 1) for k in (0, 2)]   # up to 540° east
@@ -272,9 +323,13 @@ def _footprint_counts(table: pd.DataFrame, cell: float) -> pd.Series:
     shapely.prepare(shapes)
     hit = shapely.intersects(shapes[which], shapely.box(-180 + c * cell, 90 - (r + 1) * cell, -180 + (c + 1) * cell, 90 - r * cell))
     cells = r[hit] * columns + c[hit] % columns                   # fold the part east of 180° back
-    counts = np.bincount(cells, minlength=rows * columns)
-    found = np.nonzero(counts)[0]
-    return pd.Series(counts[found], index=found)
+    return pd.DataFrame({"acquisition_id": acq[which[hit]], "cell": cells}).drop_duplicates()
+
+
+def _footprint_counts(table: pd.DataFrame, cell: float) -> pd.Series:
+    """How many acquisitions cover each cell: each acquisition counts once in every cell any of its items touches."""
+    pairs = _footprint_pairs(table, cell)
+    return pairs.groupby("cell").size().sort_index() if len(pairs) else pd.Series(dtype=int)
 
 
 def _group(name: str, tables: Dict[str, pd.DataFrame], every: List[str], cell: float) -> dict:
@@ -302,6 +357,10 @@ def _group(name: str, tables: Dict[str, pd.DataFrame], every: List[str], cell: f
 def _stats_tables(store: str) -> Optional[dict]:
     """A counted store (SuperDove): cell counts by month and the monthly totals, once the counting has finished."""
     folder = STORE / store
+    counted = sorted((folder / "counts").glob("*.pkl")) if (folder / "counts").exists() else []
+    if counted:   # fetch_counted: a file per month
+        cells = pd.concat([pd.read_pickle(f).assign(month=f.stem) for f in counted], ignore_index=True)
+        return {"cells": cells[["cell", "month", "n"]], "totals": {f.stem: json.loads(f.with_suffix(".json").read_text()) for f in counted}}
     if not (folder / "totals.json").exists() or not (folder / "cells.pkl").exists():
         return None
     return {"cells": pd.read_pickle(folder / "cells.pkl"), "totals": json.loads((folder / "totals.json").read_text())}
@@ -329,8 +388,18 @@ def tab(key: str, groups, cell: float = CELL_DEG) -> Optional[dict]:
     for name, store, tables in loaded:
         info = VENDORS[store]
         if info.get("stats"):
-            g, start = _stats_group(name, tables, every), info.get("start", START)   # counted over the whole period at once
+            g = _stats_group(name, tables, every)
+            start = info.get("start", START)
+            if info.get("count_on_fetch"):   # counted a month at a time, several years at once: mark the months not counted yet
+                wanted = [m for m in every if m >= start]
+                for m in g["totals"]:
+                    m["pending"] = m["month"] >= start and m["month"] not in tables["totals"]
+                done = sum(m in tables["totals"] for m in wanted)
+                if done < len(wanted):
+                    g["progress_note"] = f"{done} of {len(wanted)} months counted so far; the rest are being added."
             g["lazy"] = g["counted"] = True   # large: the page loads its frames only when it is picked
+            g["count_note"] = ("Each pass counts once in every square its footprint touches." if info.get("count_on_fetch")
+                               else "Each scene counts in every square it touches, from Planet's catalog statistics.")
         elif not any(len(x) for x in tables.values()):
             continue
         else:
@@ -338,7 +407,8 @@ def tab(key: str, groups, cell: float = CELL_DEG) -> Optional[dict]:
             g["footprints"] = any("wkb" in x and x.wkb.notna().any() for x in tables.values() if len(x))
             g["lazy"] = cell < 1.5   # fine grids are large: each constellation loads when it is picked
         g.update(key=f"{key}-{name}".lower().replace(" ", "-"), unit=info["unit"], guide=info["guide"], collections=info["collections"],
-                 first=next(m["month"] for m in g["totals"] if m["n"]), fetched_from=start, complete=start <= info.get("start", START))
+                 first=next(m["month"] for m in g["totals"] if m["n"]), fetched_from=start,
+                 complete=start <= info.get("start", START) and not g.get("progress_note"))
         out.append(g)
     base = list(out)   # combinations are summed in the page from the constellations, so the data are not stored twice
     for name, members in COMBINED.get(key, []):
@@ -394,7 +464,11 @@ def build(page: Path = PAGE, cell: float = CELL_DEG, data_dir: Optional[Path] = 
 
 
 if __name__ == "__main__":
-    if sys.argv[1] == "fetch":
-        fetch_stats(sys.argv[2]) if VENDORS[sys.argv[2]].get("stats") else fetch(sys.argv[2])
+    if sys.argv[1] == "fetch":   # fetch <vendor> [year ...]: those years only (counted stores; one run per year in parallel)
+        v, years = sys.argv[2], sys.argv[3:]
+        if VENDORS[v].get("count_on_fetch"):
+            fetch_counted(v, only=[m for m in months(VENDORS[v].get("start", START)) if not years or m[:4] in years])
+        else:
+            fetch_stats(v) if VENDORS[v].get("stats") else fetch(v)
     else:
         build()

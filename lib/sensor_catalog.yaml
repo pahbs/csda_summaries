@@ -37,6 +37,12 @@ rules:
   - {pattern: '(?P<id>[0-9a-f]{4})',                    affiliation: Planet, constellation: PlanetScope, sensor: 'PS-{id}', when_affiliation: Planet}
   - {pattern: 'PlanetScope|PS2(?:\.SD)?|PSB\.SD',       affiliation: Planet, constellation: PlanetScope, sensor: PlanetScope}
 
+  # --- Public missions (Earth Search platform names: sentinel-2a, landsat-9) ---
+  - {pattern: 'sentinel-?2a', affiliation: ESA, constellation: Sentinel-2, sensor: S2A}
+  - {pattern: 'sentinel-?2b', affiliation: ESA, constellation: Sentinel-2, sensor: S2B}
+  - {pattern: 'sentinel-?2c', affiliation: ESA, constellation: Sentinel-2, sensor: S2C}
+  - {pattern: 'landsat-?0*(?P<n>\d)', affiliation: USGS / NASA, constellation: Landsat, sensor: 'Landsat-{n}'}
+
   # --- Kuva Space (Kuva Sense satellite_name Hyperfield-1B, short name HF-1B) ---
   - {pattern: '(?:Hyperfield|HF)-?(?P<n>\d+)(?P<s>[A-Z])', affiliation: Kuva Space, constellation: Hyperfield, sensor: 'HF-{n}{s}'}
 

@@ -307,7 +307,7 @@ def publish(vendor: str, gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, sites_f
 # Vendor colors, shared with the Vendor Specs page (vendor_specs.AFFILIATION_COLORS). The exact color marks the vendor;
 # data marks use a light-to-dark ramp of its hue, so light colors such as Vantor's cyan still contrast with the page.
 AFFILIATION = {"Hydrosat": "HydroSat", "Kuva Space": "Kuva", "Satellogic": "Satellogic", "Vantor": "Vantor", "Planet": "Planet Labs",
-               "Airbus": "Airbus", "EarthDaily": "EarthDaily"}
+               "Airbus": "Airbus", "EarthDaily": "EarthDaily", "USGS / NASA": "US Agency", "ESA": "ESA"}
 RAMP_L = {"light": [0.90, 0.82, 0.73, 0.64, 0.55, 0.46, 0.37], "dark": [0.40, 0.48, 0.56, 0.65, 0.74, 0.83, 0.91],
           # maps: the lightest step is one acquisition, so it starts darker and must stand out from the page
           "map_light": [0.73, 0.65, 0.57, 0.49, 0.41, 0.33], "map_dark": [0.52, 0.60, 0.68, 0.76, 0.84, 0.92]}

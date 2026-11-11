@@ -405,6 +405,32 @@ kuva:
     sensor: [platform, 'kuva:satellite_short_name']
     vendor_item_id: [kuva:product_id]
 
+earth-search:
+  label: Earth Search (Element84) - public Sentinel-2 and Landsat
+  display_name: Earth Search
+  # Public STAC API, no login: https://earth-search.aws.element84.com/v1. Used for the density page's Sentinel-2 and Landsat tabs.
+  enabled: true
+  stac_url: https://earth-search.aws.element84.com/v1
+  auth: {type: none}
+  default_collections: [sentinel-2-l2a]
+  search: {page_size: 200, max_concurrency: 4, timeout: 180}   # 1000 a page is refused (HTTP 502: response too large)
+  geometry: intersects
+  filter_mode: client
+  affiliation: {default: ESA, landsat-c2-l2: USGS / NASA}
+  spectral_mode: {default: ms, landsat-c2-l2: ms+tir}
+  # One acquisition = one pass: Sentinel-2's datatake (its tiles along one orbit), Landsat scenes of one satellite < 2 min apart
+  acquisition_id:
+    default: {from: 's2:datatake_id'}
+    landsat-c2-l2: {pass_seconds: 120}
+  fields:
+    cloud_cover: [eo:cloud_cover]
+    platform: [platform]
+    sensor: [platform]
+    off_nadir: [view:off_nadir]
+    sun_elevation: [view:sun_elevation]
+    sun_azimuth: [view:sun_azimuth]
+    vendor_item_id: [id]
+
 # --- Ready for when catalog access starts (enabled: false until then) ----------------------------------------------------------
 # To switch one on: add its section to the credentials INI, fill in the TBDs, set enabled: true, then run
 # `python tests/smoke_multistac.py <name>` and check the collection names, `fields` and acquisition_id against real items.
