@@ -165,7 +165,7 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
 <div class="tabs" id="tabs" role="tablist"></div>
 <div class="constpick" id="constWrap" hidden><label for="constellation">Constellation</label><select id="constellation"></select></div>
 <div class="card" id="pending" style="margin-top:18px"></div>
-<div class="selbar" id="selbar"><button class="action" id="loadSel">Load a saved selection…</button><input type="file" id="selFile" accept=".zip,.json" hidden><span class="note">A selection saved below (.zip or its .json) restores its tab, limits and sites.</span></div>
+<div class="selbar" id="selbar"><button class="action" id="loadSel">Load a saved selection…</button><input type="file" id="selFile" accept=".zip,.json" hidden><span class="note">A selection saved below (.zip or its .json), or a thumbnail review made from one, restores its tab, limits and sites.</span></div>
 <div id="loaded"></div>
 <div id="main">
 <div class="filters" id="filters"></div>
@@ -719,8 +719,10 @@ function applyRestore(tab, r) {
 function loadSelection(file) {
   const fail = e => $('loaded').replaceChildren(el('div', {class: 'warn', text: `Could not read ${file.name} as a saved selection: ${e.message || e}`}));
   file.arrayBuffer().then(buf => /\.zip$/i.test(file.name) ? unzipJson(buf) : new TextDecoder().decode(buf)).then(text => {
-    const r = JSON.parse(text), i = DATA.tabs.findIndex(t => t.key === r.catalog.tab);
+    let r = JSON.parse(text);
+    if (r.review) { if (!r.selection) throw new Error('that review was made from a CSV with no selection record'); r = r.selection; }   // a thumbnail review: its selection
     if (!r.settings || !r.acquisitions) throw new Error('it is not a selection file');
+    const i = DATA.tabs.findIndex(t => t.key === r.catalog.tab);
     if (i < 0) throw new Error(`its tab (${r.catalog.tab}) is not on this page`);
     restore = r; state.tab = i; renderAll();
   }).catch(fail);

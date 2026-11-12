@@ -1,8 +1,14 @@
-"""Thumbnail viewer for acquisitions picked on the Vendor Archive First Look page.
+"""Thumbnail viewer for a selection saved on the Archive First Look page: the next step in choosing Candidate Acquisitions.
 
-Download a CSV from a first-look tab, then run:
+Save a selection on a first-look tab (a .zip with its CSV and its JSON record), then run:
 
-    python lib/thumbnail_viewer.py vantor-legion_good_acquisitions.csv
+    python lib/thumbnail_viewer.py satellogic-aleph-1_2026-01to2026-11_cloud30_offnadir30_cover50_sitereq_6sites_2026-11-12_1e9862.zip
+
+(a CSV on its own, as the page downloaded before selections, still works). The page shows the selection it came from (its ID,
+note and limits), a running count of what is kept at each site against the site's minimum, and a reason for each drop. "Save
+review" downloads the next record in the chain: a .zip with the kept acquisitions (CSV) and a JSON holding every decision plus
+the whole selection record, so a purchase list can be traced back to the thumbnails and the limits behind it. "Load review"
+restores the decisions of a saved review, to carry on later or on another computer.
 
 Each acquisition is looked up in its vendor's catalog at its site and date, and the vendor's preview image is fetched with your
 credentials. The result is ONE private HTML file (images inside it, so it opens anywhere, JupyterLab included): a card per
@@ -18,6 +24,7 @@ import base64
 import io
 import json
 import sys
+import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -31,10 +38,9 @@ from tqdm import tqdm   # plain text bar, as in multistac: widget bars fail wher
 sys.path.insert(0, str(Path(__file__).parent))
 import multistac  # noqa: E402
 import stac_auth  # noqa: E402
-from archive_dashboard import vendor_palette  # noqa: E402
+from archive_dashboard import load_sites, vendor_palette  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[1]
-SITES = REPO / "sites" / "csda_sites_aoi.geojson"
 OUT = Path("/explore/nobackup/people/pmontesa/multistac/thumbnails")
 TEMPLATE = Path(__file__).with_name("thumbnail_viewer_template.html")
 
@@ -221,33 +227,55 @@ def _png(image: Image.Image) -> bytes:
 
 # --- the page ---------------------------------------------------------------------------------------------------------------
 
-def tab_of(csv: Path) -> str:
-    """The vendor of a first-look download, from its name: vantor-worldview_..., planet-superdove_... (older: worldview-worldview_...)."""
-    name = csv.name.lower()
+def tab_of(name: str) -> str:
+    """The SOURCES key of a first-look tab key or download name: satellogic-aleph-1, legion-legion, vantor-worldview_..."""
+    name = Path(name).name.lower()
     if name.startswith("vantor"):
         return "worldview" if "worldview" in name else "legion"
     return name.split("-")[0].split("_")[0]
 
 
-def build(csv, out: Optional[Path] = None, tab: Optional[str] = None, limit: Optional[int] = None,
-          sites=SITES, site_name_field: str = "Site Name", workers: int = 1) -> Path:
-    """Look up every acquisition in `csv` (a first-look download) and write the viewer page. Returns its path.
+def read_selection(path) -> tuple:
+    """(rows, selection record or None, name) from a saved selection: its .zip, its .csv or its .json (the other file beside it),
+    or an older first-look CSV with no record."""
+    path = Path(path)
+    if path.suffix.lower() == ".zip":
+        with zipfile.ZipFile(path) as z:
+            names = z.namelist()
+            csvs, jsons = [n for n in names if n.endswith(".csv")], [n for n in names if n.endswith(".json")]
+            if not csvs:
+                raise ValueError(f"{path.name} has no CSV: is it a selection saved on the Archive First Look page?")
+            rows = pd.read_csv(io.BytesIO(z.read(csvs[0])), dtype=str).fillna("")
+            record = json.loads(z.read(jsons[0])) if jsons else None
+        return rows, record, Path(csvs[0]).stem
+    csv, js = path.with_suffix(".csv"), path.with_suffix(".json")
+    if not csv.exists():
+        raise ValueError(f"No CSV next to {path.name}: give the selection's .zip or .csv")
+    return pd.read_csv(csv, dtype=str).fillna(""), json.loads(js.read_text()) if js.exists() else None, csv.stem
+
+
+def build(selection, out: Optional[Path] = None, tab: Optional[str] = None, limit: Optional[int] = None,
+          sites=None, site_name_field: str = "Site Name", workers: int = 1) -> Path:
+    """Look up every acquisition in `selection` (a first-look selection .zip, or its CSV) and write the viewer page. Returns its path.
+    The sites are the first-look page's (archive_dashboard.load_sites) unless `sites` names a sites file.
 
     One acquisition at a time by default: the vendor APIs slow down sharply when asked in parallel (Hydrosat: 7 s for 5 one at a
     time, over 3 minutes four at a time)."""
-    csv = Path(csv)
-    tab = tab or tab_of(csv)
+    rows, record, name = read_selection(selection)
+    catalog = (record or {}).get("catalog", {})
+    tab = tab or tab_of(catalog.get("tab") or name)
     if tab not in SOURCES:
-        raise ValueError(f"Can't tell the vendor from {csv.name}; pass tab= one of {sorted(SOURCES)}")
+        raise ValueError(f"Can't tell the vendor from {name}; pass tab= one of {sorted(SOURCES)}")
     source = dict(SOURCES[tab])
     if not multistac.get_provider(source["provider"]).profile.get("enabled", True):
         raise ValueError(f"{source['vendor']} catalog access is not set up yet: enable '{source['provider']}' in lib/stac_providers.yaml")
-    if tab == "planet" and "tanager" in csv.name.lower():
+    if catalog.get("constellation"):
+        source["constellation"] = catalog["constellation"]
+    elif tab == "planet" and "tanager" in name.lower():
         source["constellation"] = "Tanager"
-    rows = pd.read_csv(csv, dtype=str).fillna("")
     if limit:
         rows = rows.head(limit)
-    site_table = multistac.load_sites(str(sites), site_name_field=site_name_field)
+    site_table = load_sites() if sites is None else multistac.load_sites(str(sites), site_name_field=site_name_field)
     missing = sorted(set(rows.site) - set(site_table.site_name))
     if missing:
         print("Sites not in the sites file, skipped:", ", ".join(missing))
@@ -279,11 +307,11 @@ def build(csv, out: Optional[Path] = None, tab: Optional[str] = None, limit: Opt
     outlines = {r.site_name: [[[round(y, 5), round(x, 5)] for x, y in p.exterior.coords] for p in getattr(r.geometry, "geoms", [r.geometry])]
                 for r in sites_used.itertuples()}
     cards = [dict(row=rows.loc[i].to_dict(), **results.get(i, {})) for i in rows.index]
-    data = {"title": csv.stem, "tab": tab, "vendor": source["vendor"], "constellation": source["constellation"],
+    data = {"title": name, "tab": tab, "selection": record, "limited": bool(limit), "vendor": source["vendor"], "constellation": source["constellation"],
             "palette": vendor_palette(source["vendor"]),
             "columns": list(rows.columns), "cards": cards, "sites": outlines, "has_previews": bool(source["assets"]),
             "made": f"{pd.Timestamp.today():%-d %b %Y}"}
-    out = Path(out) if out else OUT / f"{csv.stem}_thumbnails.html"
+    out = Path(out) if out else OUT / f"{name}_thumbnails.html"
     out.parent.mkdir(parents=True, exist_ok=True)
     page = TEMPLATE.read_text(encoding="utf-8").replace("/*DATA*/null", json.dumps(data, separators=(",", ":")).replace("</", "<\\/"))
     out.write_text(page, encoding="utf-8")
@@ -295,9 +323,9 @@ def build(csv, out: Optional[Path] = None, tab: Optional[str] = None, limit: Opt
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("csv", help="a CSV downloaded from the Vendor Archive First Look page")
-    parser.add_argument("--out", help=f"output HTML (default: {OUT}/<csv name>_thumbnails.html)")
-    parser.add_argument("--tab", choices=sorted(SOURCES), help="vendor, if the CSV was renamed")
-    parser.add_argument("--limit", type=int, help="only the first N acquisitions (the CSV lists good ones first)")
+    parser.add_argument("selection", help="a selection saved on the Archive First Look page (.zip), or its CSV")
+    parser.add_argument("--out", help=f"output HTML (default: {OUT}/<selection name>_thumbnails.html)")
+    parser.add_argument("--tab", choices=sorted(SOURCES), help="vendor, if it can't be told from the selection")
+    parser.add_argument("--limit", type=int, help="only the first N acquisitions (candidates come first), e.g. for a quick look")
     args = parser.parse_args()
-    build(args.csv, args.out, args.tab, args.limit)
+    build(args.selection, args.out, args.tab, args.limit)

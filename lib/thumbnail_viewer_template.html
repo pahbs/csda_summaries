@@ -75,6 +75,18 @@ button:hover { background: var(--surface-2); }
 #map { flex: 1; }
 .hint { color: var(--ink-3); font-size: 12px; }
 .leaflet-container { font: inherit; }
+/* the selection this page was made from, and the review record */
+.selinfo { font-size: 13px; color: var(--ink-2); margin: 4px 0 0; max-width: 1100px; }
+.selinfo b { color: var(--ink); font-weight: 620; }
+.selinfo .lim { font-variant-numeric: tabular-nums; }
+.banner { margin: 10px 0 0; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--axis); font-size: 13px; max-width: 1100px; }
+.banner.warn { border-color: var(--short); }
+.filters input[type=text] { font: inherit; font-size: 13px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--axis); background: var(--surface); color: var(--ink); width: 150px; }
+button.primary { background: var(--ink); color: var(--surface); border-color: var(--ink); font-weight: 600; }
+button.primary:hover { background: var(--ink-2); }
+.why { margin: -4px 10px 10px; font-size: 12px; }
+.why[hidden], #preason[hidden] { display: none; }
+.met { color: var(--ok); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -85,6 +97,7 @@ button:hover { background: var(--surface-2); }
   <h1>CSDA Acquisition Request Check</h1>
   <p class="subhead">A tool supporting manual SME thumbnail review of image quality & final request compilation prior to sending to Data Management Team for vendor data purchase.</p>
   <p class="context"><span class="tag" id="who"></span><span id="counts"></span></p>
+  <p class="selinfo" id="selinfo"></p>
   <p class="note" id="placement"></p>
   <div class="filters">
     <label>Site <select id="site"></select></label>
@@ -93,10 +106,13 @@ button:hover { background: var(--surface-2); }
     <label>Size <input id="size" type="range" min="180" max="420" value="250"></label>
     <span class="tally" id="tally"></span>
     <span class="spacer"></span>
-    <button id="exportKept" type="button" title="The acquisitions you kept, as a CSV">Download kept</button>
-    <button id="exportAll" type="button" title="Every acquisition with your decision, as a CSV">Download all</button>
+    <label>Reviewer <input type="text" id="reviewer" placeholder="Your name" autocomplete="name"></label>
+    <button id="loadReview" type="button" title="Restore the decisions of a review saved earlier (.zip or its .json)">Load review…</button>
+    <input type="file" id="reviewFile" accept=".zip,.json" hidden>
+    <button id="saveReview" class="primary" type="button" title="A .zip: the kept acquisitions (CSV) and a record of every decision with the selection behind it (JSON)">Save review (.zip)</button>
   </div>
-  <p class="hint" style="margin:6px 0 0" id="keys">Keys: <b>K</b> keep, <b>D</b> drop, <b>U</b> undo, <b>←/→</b> move, <b>Enter</b> open on the map, <b>Esc</b> close. Decisions are kept in this browser.</p>
+  <div id="restored"></div>
+  <p class="hint" style="margin:6px 0 0" id="keys">Keys: <b>K</b> keep, <b>D</b> drop, <b>U</b> undo, <b>←/→</b> move, <b>1–6</b> drop with a reason, <b>Enter</b> open on the map, <b>Esc</b> close. Decisions are kept in this browser; <b>Save review</b> keeps them for good.</p>
   <div id="cards"></div>
 </div>
 <div class="panel" id="panel" role="dialog" aria-modal="true" aria-label="Preview on the map">
@@ -107,6 +123,7 @@ button:hover { background: var(--surface-2); }
       <label class="hint">Opacity <input id="opacity" type="range" min="0" max="100" value="90"></label>
       <span class="spacer"></span>
       <span class="act" style="padding:0"><button class="k" id="pk" type="button">✓ Keep</button><button class="d" id="pd" type="button">✕ Drop</button></span>
+      <select id="preason" aria-label="Why dropped" hidden></select>
       <button id="close" type="button" aria-label="Close">Close</button>
     </div>
     <div id="map"></div>
@@ -129,8 +146,18 @@ $('noscript').remove();
 const KEY = `thumbs:${DATA.title}`;
 let stored = true, decisions = {};
 try { decisions = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { stored = false; }
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(decisions)); } catch (e) { stored = false; } };
-const uid = c => `${c.row.site}|${c.row.acquisition_id}`;
+let reasons = {};   // why each dropped acquisition was dropped (REASONS)
+try { reasons = JSON.parse(localStorage.getItem(KEY + ':why') || '{}'); } catch (e) { stored = false; }
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(decisions)); localStorage.setItem(KEY + ':why', JSON.stringify(reasons)); } catch (e) { stored = false; } };
+const uidOf = (site, id) => `${site}|${id}`, uid = c => uidOf(c.row.site, c.row.acquisition_id);
+const isGood = r => r.status === 'good' || r.status === 'candidate';   // 'good' in CSVs saved before selections
+const REASONS = [['cloud', 'Cloud or haze over the site'], ['coverage', 'Site not (fully) covered'], ['artifacts', 'Artifacts, striping or saturation'],
+  ['light', 'Too dark, shadow or glint'], ['duplicate', 'A better acquisition covers it'], ['other', 'Other']];
+const reasonText = Object.fromEntries(REASONS);
+const SEL = DATA.selection;   // the first-look selection this page was made from (null for an older CSV)
+const need = Object.fromEntries((SEL?.sites || []).filter(x => x.required_candidates != null).map(x => [x.site, x.required_candidates]));
+try { $('reviewer').value = localStorage.getItem('thumbs:reviewer') || ''; } catch (e) {}
+$('reviewer').oninput = () => { try { localStorage.setItem('thumbs:reviewer', $('reviewer').value); } catch (e) {} };
 DATA.cards.forEach((c, i) => c.i = i);
 
 const who = `${DATA.vendor} ${DATA.constellation || ''}`.trim();
@@ -143,24 +170,58 @@ const exact = DATA.cards.filter(c => c.crop).every(c => c.exact);
 $('placement').textContent = !withImg ? '' : `Each card shows the site up close (white outline); open it to see the whole preview on a map. `
   + (exact ? 'Previews are georeferenced and sit exactly.' : 'Previews sit on each scene\'s bounding box, so check the site against the map.');
 
+if (SEL) {
+  const g = SEL.settings, x = SEL.selection, lim = [g.cloud_max_pct != null ? `cloud up to ${g.cloud_max_pct}%` : null,
+    g.off_nadir_max_deg != null ? `off-nadir up to ${g.off_nadir_max_deg}°` : null, `site covered at least ${g.site_covered_min_pct}%`,
+    g.use_site_requirements ? 'site requirements used where set' : null, `${g.from_month} to ${g.to_month}`,
+    g.level !== 'any' ? `level ${g.level}` : null, g.time_of_day !== 'any' ? g.time_of_day : null, g.source === 'csda' ? 'in CSDA only' : null].filter(Boolean);
+  const total = SEL.counts.candidates + SEL.counts.check_aoi;
+  $('selinfo').append('From selection ', el('b', {text: x.id}), ` saved ${x.saved.slice(0, 10)}`, x.note ? ` (“${x.note}”)` : '', ': ',
+    el('span', {class: 'lim', text: lim.join(' · ')}), `; catalog searched ${SEL.catalog.searched}; rule ${x.rule}.`,
+    DATA.limited ? ` This page has the first ${DATA.cards.length} of its ${total} acquisitions.` : '');
+} else $('selinfo').textContent = 'Made from a first-look CSV saved before selections, so its limits and note are not recorded.';
+
 const sites = [...new Set(DATA.cards.map(c => c.row.site))].sort();
 $('site').append(el('option', {value: '', text: `All sites (${sites.length})`}), ...sites.map(s => el('option', {value: s, text: s})));
 
 let shown = [], focus = -1;
 function visible() {
   const site = $('site').value, status = $('status').value, decision = $('decision').value;
-  return DATA.cards.filter(c => (!site || c.row.site === site) && (!status || c.row.status === status)
+  return DATA.cards.filter(c => (!site || c.row.site === site) && (!status || (isGood(c.row) ? 'good' : 'check AOI') === status)
     && (!decision || (decisions[uid(c)] || 'none') === decision));
 }
+const decisionOf = c => decisions[uid(c)] || '';
+const keptAt = site => DATA.cards.filter(c => c.row.site === site && decisionOf(c) === 'keep').length;
+const siteHeads = new Map();
+function siteNote(site) {   // "12 acquisitions, 9 candidates · 3 kept of 4 needed"
+  const list = DATA.cards.filter(c => c.row.site === site), good = list.filter(c => isGood(c.row)).length, kept = keptAt(site), n = need[site];
+  return [`${list.length} acquisitions, ${good} candidate${good === 1 ? '' : 's'} · `, n != null && kept >= n ? el('span', {class: 'met', text: `${kept} kept of ${n} needed ✓`})
+    : `${kept} kept` + (n != null ? ` of ${n} needed` : '')];
+}
 function tally() {
-  const v = Object.values(decisions), keep = v.filter(x => x === 'keep').length, drop = v.filter(x => x === 'drop').length;
-  $('tally').innerHTML = `<b>${keep}</b> kept · <b>${drop}</b> dropped · <b>${DATA.cards.length - keep - drop}</b> not decided`;
+  const keep = DATA.cards.filter(c => decisionOf(c) === 'keep'), drop = DATA.cards.filter(c => decisionOf(c) === 'drop').length;
+  const unique = new Set(keep.map(c => c.row.acquisition_id)).size, withNeed = sites.filter(x => need[x] != null);
+  const met = withNeed.filter(x => keptAt(x) >= need[x]).length;
+  $('tally').innerHTML = `<b>${keep.length}</b> kept${unique < keep.length ? ` (${unique} unique)` : ''} · <b>${drop}</b> dropped · <b>${DATA.cards.length - keep.length - drop}</b> not decided`
+    + (withNeed.length ? ` · <b>${met}</b> of ${withNeed.length} sites at their minimum` : '');
+  for (const [site, span] of siteHeads) span.replaceChildren(...siteNote(site));
 }
 function decide(c, value) {
   if (!value || decisions[uid(c)] === value) delete decisions[uid(c)]; else decisions[uid(c)] = value;
+  if (decisions[uid(c)] !== 'drop') delete reasons[uid(c)];
   save(); tally(); paint(c);
   if (panelOpen()) paintPanel();
 }
+function dropFor(c, code) {   // drop with a reason (choosing a reason drops it)
+  if (!code) { delete reasons[uid(c)]; } else { decisions[uid(c)] = 'drop'; reasons[uid(c)] = code; }
+  save(); tally(); paint(c);
+  if (panelOpen()) paintPanel();
+}
+const reasonPick = (onpick) => {
+  const sel = el('select', {'aria-label': 'Why dropped'}, el('option', {value: '', text: 'Why dropped?'}),
+    ...REASONS.map(([v, t], i) => el('option', {value: v, text: `${i + 1} · ${t}`})));
+  sel.onchange = () => onpick(sel.value); return sel;
+};
 const num = (v, unit) => v === '' || v == null ? '–' : `${v}${unit}`;
 function card(c) {
   const r = c.row, why = !DATA.has_previews ? 'No preview in this catalog' : !c.found ? 'Not found in the catalog at this site and date'
@@ -174,10 +235,11 @@ function card(c) {
   const box = el('div', {class: 'card', tabindex: '0', 'data-i': c.i},
     image,
     el('div', {class: 'meta'},
-      el('div', {class: 'when'}, `${r.date} · ${r.sensor}`, el('span', {class: `pill ${r.status === 'good' ? 'good' : 'check'}`, text: r.status === 'good' ? 'Candidate' : 'Check AOI'})),
+      el('div', {class: 'when'}, `${r.date} · ${r.sensor}`, el('span', {class: `pill ${isGood(r) ? 'good' : 'check'}`, text: isGood(r) ? 'Candidate' : 'Check AOI'})),
       el('div', {class: 'nums', text: `Cloud ${num(r.cloud_pct, '%')} · Off-nadir ${num(r.off_nadir_deg, '°')} · Site covered ${num(r.site_covered_pct, '%')}`}),
       el('div', {class: 'id', title: r.acquisition_id + (c.how === 'sensor and date' ? ' (matched by sensor and date)' : ''), text: r.acquisition_id})),
     el('div', {class: 'act'}, k, d));
+  const pickWhy = reasonPick(code => dropFor(c, code)); pickWhy.classList.add('why'); box.append(pickWhy);
   box.onfocus = () => { focus = shown.indexOf(c); };
   c.node = box; paint(c); return box;
 }
@@ -187,14 +249,16 @@ function paint(c) {
   c.node.classList.toggle('keep', v === 'keep'); c.node.classList.toggle('drop', v === 'drop');
   c.node.querySelector('.k').setAttribute('aria-pressed', String(v === 'keep'));
   c.node.querySelector('.d').setAttribute('aria-pressed', String(v === 'drop'));
+  const why = c.node.querySelector('.why'); why.hidden = v !== 'drop'; why.value = reasons[uid(c)] || '';
 }
 function render() {
   shown = visible(); focus = -1;
   const out = [], bySite = new Map();
   shown.forEach(c => { if (!bySite.has(c.row.site)) bySite.set(c.row.site, []); bySite.get(c.row.site).push(c); });
+  siteHeads.clear();
   for (const [site, list] of bySite) {
-    const good = list.filter(c => c.row.status === 'good').length;
-    out.push(el('h2', {}, site, el('span', {text: `${list.length} acquisitions, ${good} candidate${good === 1 ? '' : 's'}`})), el('div', {class: 'grid'}, ...list.map(card)));
+    const span = el('span'); siteHeads.set(site, span);
+    out.push(el('h2', {}, site, span), el('div', {class: 'grid'}, ...list.map(card)));
   }
   if (!shown.length) out.push(el('p', {class: 'sub', style: 'margin-top:20px', text: 'Nothing matches these filters.'}));
   $('cards').replaceChildren(...out); tally();
@@ -219,9 +283,10 @@ function openPanel(i) {
 function paintPanel(fit) {
   const c = shown[current]; if (!c) return;
   const r = c.row, v = decisions[uid(c)];
-  $('ptitle').textContent = `${r.site} · ${r.date} · ${r.sensor} · ${r.status === 'good' ? 'Candidate' : 'Check AOI'} · cloud ${num(r.cloud_pct, '%')}${c.whole && !c.exact ? ' · placement approximate' : ''}`;
+  $('ptitle').textContent = `${r.site} · ${r.date} · ${r.sensor} · ${isGood(r) ? 'Candidate' : 'Check AOI'} · cloud ${num(r.cloud_pct, '%')}${c.whole && !c.exact ? ' · placement approximate' : ''}`;
   $('pk').setAttribute('aria-pressed', String(v === 'keep')); $('pd').setAttribute('aria-pressed', String(v === 'drop'));
   $('pk').style.cssText = v === 'keep' ? 'background:var(--ok);color:#fff' : ''; $('pd').style.cssText = v === 'drop' ? 'background:var(--short);color:#fff' : '';
+  $('preason').hidden = v !== 'drop'; $('preason').value = reasons[uid(c)] || '';
   if (!fit) return;
   overlay?.remove(); outline?.remove();
   if (c.whole) overlay = L.imageOverlay(c.whole, c.bounds, {opacity: $('opacity').value / 100}).addTo(lmap);
@@ -239,6 +304,7 @@ $('close').onclick = () => $('panel').classList.remove('open');
 $('panel').onclick = e => { if (e.target === $('panel')) $('panel').classList.remove('open'); };
 $('opacity').oninput = () => overlay?.setOpacity($('opacity').value / 100);
 $('pk').onclick = () => decide(shown[current], 'keep'); $('pd').onclick = () => decide(shown[current], 'drop');
+$('preason').replaceWith(Object.assign(reasonPick(code => dropFor(shown[current], code)), {id: 'preason', hidden: true}));
 
 document.addEventListener('keydown', e => {
   if (e.target.matches('select, input')) return;
@@ -252,17 +318,100 @@ document.addEventListener('keydown', e => {
   }
   if (!c) return;
   if (k === 'k') decide(c, 'keep'); else if (k === 'd') decide(c, 'drop');
-  else if (k === 'u') { delete decisions[uid(c)]; save(); tally(); paint(c); if (inPanel) paintPanel(); }
+  else if (/^[1-6]$/.test(k)) dropFor(c, REASONS[+k - 1][0]);
+  else if (k === 'u') { delete decisions[uid(c)]; delete reasons[uid(c)]; save(); tally(); paint(c); if (inPanel) paintPanel(); }
   else if (k === 'enter' && !inPanel && c.crop) openPanel(c.i);
 });
 
-function download(rows, name) {
-  const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
-  const cols = [...DATA.columns, 'decision'];
-  const lines = [cols.join(','), ...rows.map(c => cols.map(k => q(k === 'decision' ? decisions[uid(c)] || '' : c.row[k])).join(','))];
-  const a = el('a', {href: URL.createObjectURL(new Blob([lines.join('\n')], {type: 'text/csv'})), download: name});
-  document.body.append(a); a.click(); a.remove();
-  if (window.origin === 'null') showText(name, lines.join('\n'));   // sandboxed (JupyterLab): downloads may be blocked, so show it to copy
+function fnv(text) {   // a short fingerprint: the same decisions on the same selection get the same ID
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return (h >>> 0).toString(16).padStart(8, '0').slice(0, 6);
+}
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c; } return t; })();
+const crc32 = b => { let c = 0xffffffff; for (const x of b) c = CRC[(c ^ x) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+function zip(files) {   // files: [[name, text]] -> a Blob, stored (not compressed), as the first-look page writes its selections
+  const enc = new TextEncoder(), parts = [], dir = []; let off = 0;
+  const d = new Date(), time = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1), date = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+  for (const [name, text] of files) {
+    const nm = enc.encode(name), data = enc.encode(text), crc = crc32(data);
+    const l = new DataView(new ArrayBuffer(30)); l.setUint32(0, 0x04034b50, true);
+    [[4, 20], [6, 0x800], [8, 0], [10, time], [12, date]].forEach(([o, v]) => l.setUint16(o, v, true));
+    l.setUint32(14, crc, true); l.setUint32(18, data.length, true); l.setUint32(22, data.length, true); l.setUint16(26, nm.length, true);
+    const c = new DataView(new ArrayBuffer(46)); c.setUint32(0, 0x02014b50, true);
+    [[4, 20], [6, 20], [8, 0x800], [10, 0], [12, time], [14, date]].forEach(([o, v]) => c.setUint16(o, v, true));
+    c.setUint32(16, crc, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true); c.setUint16(28, nm.length, true); c.setUint32(42, off, true);
+    parts.push(l, nm, data); dir.push(c, nm); off += 30 + nm.length + data.length;
+  }
+  const size = dir.reduce((n, x) => n + x.byteLength, 0), e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, size, true); e.setUint32(16, off, true);
+  return new Blob([...parts, ...dir, e], {type: 'application/zip'});
+}
+async function unzipJson(buf) {   // the .json in a saved .zip (also one re-zipped with compression)
+  const v = new DataView(buf); let e = buf.byteLength - 22;
+  while (e >= 0 && v.getUint32(e, true) !== 0x06054b50) e--;
+  if (e < 0) throw new Error('not a zip file');
+  let p = v.getUint32(e + 16, true);
+  for (let i = 0; i < v.getUint16(e + 10, true); i++) {
+    const method = v.getUint16(p + 10, true), size = v.getUint32(p + 20, true), nlen = v.getUint16(p + 28, true), xlen = v.getUint16(p + 30, true), clen = v.getUint16(p + 32, true);
+    const name = new TextDecoder().decode(new Uint8Array(buf, p + 46, nlen)), lh = v.getUint32(p + 42, true);
+    if (name.endsWith('.json')) {
+      const data = new Uint8Array(buf, lh + 30 + v.getUint16(lh + 26, true) + v.getUint16(lh + 28, true), size);
+      if (method === 0) return new TextDecoder().decode(data);
+      return await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
+    }
+    p += 46 + nlen + xlen + clen;
+  }
+  throw new Error('no .json in the zip');
+}
+function saveReview() {
+  const all = DATA.cards.map(c => ({c, d: decisionOf(c), why: decisionOf(c) === 'drop' ? reasons[uid(c)] || '' : ''}));
+  const kept = all.filter(x => x.d === 'keep').map(x => x.c), dropped = all.filter(x => x.d === 'drop');
+  const id = fnv(JSON.stringify([SEL?.selection.id || DATA.title, all.map(x => [uid(x.c), x.d, x.why])]));
+  const today = new Date().toISOString().slice(0, 10), base = `${DATA.title}_review_${today}_${id}`;
+  const months = {}; kept.forEach(c => { const m = c.row.date.slice(0, 7); months[m] = (months[m] || 0) + 1; });
+  const why = {}; dropped.forEach(x => { const k = x.why || 'not given'; why[k] = (why[k] || 0) + 1; });
+  const record = {
+    review: {id, reviewer: $('reviewer').value.trim(), saved: new Date().toISOString(), files: [`${base}_kept.csv`, `${base}.json`],
+      viewer_page: `${DATA.title}_thumbnails.html`, viewer_made: DATA.made, viewer_has_all_acquisitions: !DATA.limited,
+      drop_reasons: Object.fromEntries(REASONS)},
+    counts: {acquisitions: all.length, kept: kept.length, kept_unique: new Set(kept.map(c => c.row.acquisition_id)).size, dropped: dropped.length,
+      not_decided: all.length - kept.length - dropped.length, drop_reasons: why,
+      sites_with_kept: sites.filter(x => keptAt(x)).length, sites_with_minimum: sites.filter(x => need[x] != null).length,
+      sites_at_minimum: sites.filter(x => need[x] != null && keptAt(x) >= need[x]).length,
+      kept_by_site: sites.map(x => ({site: x, kept: keptAt(x), required: need[x] ?? null})), kept_by_month: Object.fromEntries(Object.entries(months).sort())},
+    decisions: all.map(({c, d, why}) => ({acquisition_id: c.row.acquisition_id, site: c.row.site, date: c.row.date, sensor: c.row.sensor,
+      status: isGood(c.row) ? 'candidate' : 'check AOI', decision: d || 'not decided', drop_reason: why || null, preview_found: !!c.crop})),
+    selection: SEL || null,
+  };
+  const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`, cols = [...DATA.columns.filter(k => k !== 'review_id'), 'review_id'];
+  const csv = [cols.join(','), ...kept.map(c => cols.map(k => q(k === 'review_id' ? id : k === 'status' ? (isGood(c.row) ? 'candidate' : 'check AOI') : c.row[k])).join(','))].join('\n') + '\n';
+  const json = JSON.stringify(record, null, 1) + '\n';
+  const a = el('a', {href: URL.createObjectURL(zip([[`${base}_kept.csv`, csv], [`${base}.json`, json]])), download: `${base}.zip`});
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  if (window.origin === 'null') showText(`${base}.json`, json);   // sandboxed (JupyterLab): downloads may be blocked; the .json alone loads back
+}
+function loadReview(file) {
+  const say = (text, warn) => $('restored').replaceChildren(el('div', {class: 'banner' + (warn ? ' warn' : ''), text}));
+  file.arrayBuffer().then(buf => /\.zip$/i.test(file.name) ? unzipJson(buf) : new TextDecoder().decode(buf)).then(text => {
+    const r = JSON.parse(text);
+    if (!r.review || !r.decisions) throw new Error(r.settings ? 'that is a first-look selection, not a review: build a viewer page from it instead' : 'it is not a saved review');
+    const here = new Map(DATA.cards.map(c => [uid(c), c]));
+    let n = 0, keep = 0, drop = 0, away = 0;
+    for (const d of r.decisions) {
+      const key = uidOf(d.site, d.acquisition_id);
+      if (!here.has(key)) { if (d.decision === 'keep' || d.decision === 'drop') away++; continue; }
+      if (d.decision === 'keep' || d.decision === 'drop') { decisions[key] = d.decision; n++; d.decision === 'keep' ? keep++ : drop++; }
+      else delete decisions[key];
+      if (d.decision === 'drop' && d.drop_reason) reasons[key] = d.drop_reason; else delete reasons[key];
+    }
+    if (!$('reviewer').value && r.review.reviewer) { $('reviewer').value = r.review.reviewer; $('reviewer').oninput(); }
+    save(); render();
+    const other = SEL && r.selection && r.selection.selection.id !== SEL.selection.id;
+    say(`Loaded review ${r.review.id}${r.review.reviewer ? ` by ${r.review.reviewer}` : ''}, saved ${r.review.saved.slice(0, 10)}: ${n} decisions restored (${keep} kept, ${drop} dropped).`
+      + (away ? ` ${away} of its decisions are for acquisitions not on this page.` : '')
+      + (other ? ` It was made from a different selection (${r.selection.selection.id}; this page is ${SEL.selection.id}), so only acquisitions on both are restored.` : ''), other || away > 0);
+  }).catch(e => say(`Could not read ${file.name} as a saved review: ${e.message || e}`, true));
 }
 function showText(name, text) {
   const area = el('textarea', {readonly: '', style: 'width:100%;flex:1;font:12px ui-monospace,monospace;padding:8px'});
@@ -275,9 +424,10 @@ function showText(name, text) {
   const wrap = el('div', {class: 'panel open', role: 'dialog', 'aria-label': name}, box);
   document.body.querySelector('.viz-root').append(wrap); area.focus(); area.select();
 }
-$('exportKept').onclick = () => download(DATA.cards.filter(c => decisions[uid(c)] === 'keep'), `${DATA.title}_kept.csv`);
-$('exportAll').onclick = () => download(DATA.cards, `${DATA.title}_decisions.csv`);
-if (!stored) $('keys').lastChild.textContent = ' close. This viewer blocks browser storage, so decisions last for this visit only: download them before closing, or open the page in a browser tab.';
+$('saveReview').onclick = saveReview;
+$('loadReview').onclick = () => $('reviewFile').click();
+$('reviewFile').onchange = e => { if (e.target.files[0]) loadReview(e.target.files[0]); e.target.value = ''; };
+if (!stored) $('keys').lastChild.textContent = ' close. This viewer blocks browser storage, so decisions last for this visit only: save the review before closing, or open the page in a browser tab.';
 render();
 </script>
 </body>

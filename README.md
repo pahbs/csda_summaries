@@ -38,7 +38,8 @@ requirements. A green check shows when a site has enough.
 
 - Type a site name in **Find sites** to see just your sites, across every vendor
 - See why images fall short: too cloudy, too oblique, or the site only partly covered
-- Download the Candidate Acquisitions as a CSV, then check their thumbnails before ordering
+- Save a selection (a .zip: the Candidate Acquisitions as a CSV, and a record of the limits, sites and your note), then check
+  their thumbnails before ordering; load a saved selection to restore its settings and see what has changed since
 - Select a site to see the footprints of its Candidate Acquisitions over imagery
 - Updated every day. The sites are the CSDA evaluation sites for optical or thermal validation; a site added to the sites
   file (`sites/csda_sites_aoi.geojson`) is picked up the next day and searched over each vendor's whole archive
@@ -59,9 +60,12 @@ Planet's SuperDove and Tanager, can be viewed separately.
 
 ## Thumbnails of your candidates
 
-**Look before you order.** Give the CSV from the first-look page to `notebooks/thumbnail_viewer.ipynb`. It fetches each vendor's own
-preview image with your login and writes a private page on ADAPT: the site up close on every card, Keep and Drop buttons, the whole
-preview on a map, and a download of what you kept. Vantor's previews are georeferenced and sit exactly; Planet's, Satellogic's and
+**Look before you order.** Give the selection .zip saved on the first-look page to `notebooks/thumbnail_viewer.ipynb` (or
+`python lib/thumbnail_viewer.py <selection>.zip`). It fetches each vendor's own preview image with your login and writes a private
+page on ADAPT: the selection it came from (ID, note, limits), the site up close on every card, Keep and Drop buttons with a reason
+for each drop, kept against each site's minimum, and the whole preview on a map. **Save review** downloads a .zip with the kept
+acquisitions (CSV, the purchase list) and a record of every decision together with the whole selection, so the list can be traced
+back to the thumbnails and the limits behind it; **Load review** restores the decisions to carry on later. Vantor's previews are georeferenced and sit exactly; Planet's, Satellogic's and
 Hydrosat's are placed on each scene's outline. The page stays private because vendor previews need a login and may not be shared.
 
 ---
