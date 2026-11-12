@@ -4,11 +4,15 @@ Save a selection on a first-look tab (a .zip with its CSV and its JSON record), 
 
     python lib/thumbnail_viewer.py satellogic-aleph-1_2026-01to2026-11_cloud30_offnadir30_cover50_sitereq_6sites_2026-11-12_1e9862.zip
 
-(a CSV on its own, as the page downloaded before selections, still works). The page shows the selection it came from (its ID,
-note and limits), a running count of what is kept at each site against the site's minimum, and a reason for each drop. "Save
-review" downloads the next record in the chain: a .zip with the kept acquisitions (CSV) and a JSON holding every decision plus
-the whole selection record, so a purchase list can be traced back to the thumbnails and the limits behind it. "Load review"
-restores the decisions of a saved review, to carry on later or on another computer.
+(a CSV on its own, as the page downloaded before selections, still works). The page is written next to the selection and, in a
+notebook, shown right there in the output. It shows the selection it came from (its ID, note and limits), a running count of what
+is kept at each site against the site's minimum, and a reason for each drop.
+
+"Save review" writes the next record in the chain next to the selection .zip: <selection>_review_<date>_<id>_kept.csv (the kept
+acquisitions: the purchase list) and <selection>_review_<date>_<id>.json (every decision, with the whole selection record), so a
+purchase list can be traced back to the thumbnails and the limits behind it. Opening the page again restores the latest review
+saved there. Saving next to the selection needs the page shown in a notebook (build() does it, or show(page)): a page opened from
+JupyterLab's file browser is sandboxed by Jupyter and can only download the review as a .zip.
 
 Each acquisition is looked up in its vendor's catalog at its site and date, and the vendor's preview image is fetched with your
 credentials. The result is ONE private HTML file (images inside it, so it opens anywhere, JupyterLab included): a card per
@@ -36,6 +40,7 @@ from PIL import Image, ImageDraw
 from tqdm import tqdm   # plain text bar, as in multistac: widget bars fail where ipywidgets is missing
 
 sys.path.insert(0, str(Path(__file__).parent))
+import jupyter_page  # noqa: E402
 import multistac  # noqa: E402
 import stac_auth  # noqa: E402
 from archive_dashboard import load_sites, vendor_palette  # noqa: E402
@@ -235,6 +240,11 @@ def tab_of(name: str) -> str:
     return name.split("-")[0].split("_")[0]
 
 
+def show(page, height: str = "88vh"):
+    """Show a viewer page in the notebook output, where Save review can write next to the selection."""
+    jupyter_page.show(page, height)
+
+
 def read_selection(path) -> tuple:
     """(rows, selection record or None, name) from a saved selection: its .zip, its .csv or its .json (the other file beside it),
     or an older first-look CSV with no record."""
@@ -255,8 +265,10 @@ def read_selection(path) -> tuple:
 
 
 def build(selection, out: Optional[Path] = None, tab: Optional[str] = None, limit: Optional[int] = None,
-          sites=None, site_name_field: str = "Site Name", workers: int = 1) -> Path:
-    """Look up every acquisition in `selection` (a first-look selection .zip, or its CSV) and write the viewer page. Returns its path.
+          sites=None, site_name_field: str = "Site Name", workers: int = 1, display: Optional[bool] = None) -> Path:
+    """Look up every acquisition in `selection` (a first-look selection .zip, or its CSV) and write the viewer page next to it
+    (in OUT if the selection is inside the repository, which is public). Returns its path. In a notebook the page is also shown
+    in the output (display=False to skip), where Save review writes the review next to the selection.
     The sites are the first-look page's (archive_dashboard.load_sites) unless `sites` names a sites file.
 
     One acquisition at a time by default: the vendor APIs slow down sharply when asked in parallel (Hydrosat: 7 s for 5 one at a
@@ -307,16 +319,21 @@ def build(selection, out: Optional[Path] = None, tab: Optional[str] = None, limi
     outlines = {r.site_name: [[[round(y, 5), round(x, 5)] for x, y in p.exterior.coords] for p in getattr(r.geometry, "geoms", [r.geometry])]
                 for r in sites_used.itertuples()}
     cards = [dict(row=rows.loc[i].to_dict(), **results.get(i, {})) for i in rows.index]
-    data = {"title": name, "tab": tab, "selection": record, "limited": bool(limit), "vendor": source["vendor"], "constellation": source["constellation"],
+    folder = Path(selection).resolve().parent
+    data = {"title": name, "tab": tab, "selection": record, "limited": bool(limit),
+            "input": Path(selection).name, "input_dirs": jupyter_page.candidates(Path(selection).parent), "vendor": source["vendor"], "constellation": source["constellation"],
             "palette": vendor_palette(source["vendor"]),
             "columns": list(rows.columns), "cards": cards, "sites": outlines, "has_previews": bool(source["assets"]),
             "made": f"{pd.Timestamp.today():%-d %b %Y}"}
-    out = Path(out) if out else OUT / f"{name}_thumbnails.html"
+    public = folder == REPO or REPO in folder.parents
+    out = Path(out) if out else (OUT if public else Path(selection).parent) / f"{name}_thumbnails.html"
     out.parent.mkdir(parents=True, exist_ok=True)
     page = TEMPLATE.read_text(encoding="utf-8").replace("/*DATA*/null", json.dumps(data, separators=(",", ":")).replace("</", "<\\/"))
     out.write_text(page, encoding="utf-8")
     shown = sum(1 for c in cards if c.get("crop"))
     print(f"{out}  {out.stat().st_size / 1e6:.1f} MB  {shown} of {len(cards)} acquisitions with a preview")
+    if display if display is not None else jupyter_page.in_kernel():
+        show(out)
     return out
 
 
@@ -324,7 +341,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("selection", help="a selection saved on the Archive First Look page (.zip), or its CSV")
-    parser.add_argument("--out", help=f"output HTML (default: {OUT}/<selection name>_thumbnails.html)")
+    parser.add_argument("--out", help="output HTML (default: next to the selection, <selection name>_thumbnails.html)")
     parser.add_argument("--tab", choices=sorted(SOURCES), help="vendor, if it can't be told from the selection")
     parser.add_argument("--limit", type=int, help="only the first N acquisitions (candidates come first), e.g. for a quick look")
     args = parser.parse_args()

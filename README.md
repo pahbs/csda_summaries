@@ -63,9 +63,11 @@ Planet's SuperDove and Tanager, can be viewed separately.
 **Look before you order.** Give the selection .zip saved on the first-look page to `notebooks/thumbnail_viewer.ipynb` (or
 `python lib/thumbnail_viewer.py <selection>.zip`). It fetches each vendor's own preview image with your login and writes a private
 page on ADAPT: the selection it came from (ID, note, limits), the site up close on every card, Keep and Drop buttons with a reason
-for each drop, kept against each site's minimum, and the whole preview on a map. **Save review** downloads a .zip with the kept
-acquisitions (CSV, the purchase list) and a record of every decision together with the whole selection, so the list can be traced
-back to the thumbnails and the limits behind it; **Load review** restores the decisions to carry on later. Vantor's previews are georeferenced and sit exactly; Planet's, Satellogic's and
+for each drop, kept against each site's minimum, and the whole preview on a map. The page is written next to the selection and
+shown in the notebook's output. There, **Save review** writes two files next to the selection .zip: the kept acquisitions (CSV, the
+purchase list) and a record of every decision together with the whole selection (JSON), so the list can be traced back to the
+thumbnails and the limits behind it. Opening the page again restores the latest review saved there. (Opened from JupyterLab's file
+browser instead, Jupyter sandboxes the page: Save review can only download the two files as a .zip.) Vantor's previews are georeferenced and sit exactly; Planet's, Satellogic's and
 Hydrosat's are placed on each scene's outline. The page stays private because vendor previews need a login and may not be shared.
 
 ---

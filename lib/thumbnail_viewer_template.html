@@ -109,10 +109,11 @@ button.primary:hover { background: var(--ink-2); }
     <label>Reviewer <input type="text" id="reviewer" placeholder="Your name" autocomplete="name"></label>
     <button id="loadReview" type="button" title="Restore the decisions of a review saved earlier (.zip or its .json)">Load review…</button>
     <input type="file" id="reviewFile" accept=".zip,.json" hidden>
-    <button id="saveReview" class="primary" type="button" title="A .zip: the kept acquisitions (CSV) and a record of every decision with the selection behind it (JSON)">Save review (.zip)</button>
+    <button id="saveReview" class="primary" type="button" title="The kept acquisitions (CSV) and a record of every decision with the selection behind it (JSON)">Save review</button>
+    <button id="zipReview" type="button" title="The same two files in a .zip, downloaded: to send or keep elsewhere">Download .zip</button>
   </div>
   <div id="restored"></div>
-  <p class="hint" style="margin:6px 0 0" id="keys">Keys: <b>K</b> keep, <b>D</b> drop, <b>U</b> undo, <b>←/→</b> move, <b>1–6</b> drop with a reason, <b>Enter</b> open on the map, <b>Esc</b> close. Decisions are kept in this browser; <b>Save review</b> keeps them for good.</p>
+  <p class="hint" style="margin:6px 0 0" id="keys">Keys: <b>K</b> keep, <b>D</b> drop, <b>U</b> undo, <b>←/→</b> move, <b>1–6</b> drop with a reason, <b>Enter</b> open on the map, <b>Esc</b> close. <b>Save review</b> writes the kept acquisitions (CSV) and the review (JSON) next to the selection.</p>
   <div id="cards"></div>
 </div>
 <div class="panel" id="panel" role="dialog" aria-modal="true" aria-label="Preview on the map">
@@ -364,7 +365,18 @@ async function unzipJson(buf) {   // the .json in a saved .zip (also one re-zipp
   }
   throw new Error('no .json in the zip');
 }
-function saveReview() {
+// Shown in a notebook (jupyter_page.show), the page runs in JupyterLab's origin and saves through Jupyter's contents API
+const JUP = (() => { try { const f = window.frameElement; return f && f.dataset.jupyter ? JSON.parse(f.dataset.jupyter) : null; } catch (e) { return null; } })();
+const DIR = JUP ? (DATA.input_dirs || []).map(p => p === JUP.root ? '' : p.startsWith(JUP.root + '/') ? p.slice(JUP.root.length + 1) : null).find(p => p != null) : null;
+const where = () => `${JUP.root}/${DIR ? DIR + '/' : ''}`;
+function api(path, opts = {}) {
+  const headers = {'Content-Type': 'application/json'}; if (JUP.xsrf) headers['X-XSRFToken'] = JUP.xsrf; if (JUP.token) headers.Authorization = `token ${JUP.token}`;
+  return fetch(`${JUP.base}api/contents/${path.split('/').filter(Boolean).map(encodeURIComponent).join('/')}${opts.query || ''}`, {credentials: 'same-origin', ...opts, headers})
+    .then(r => { if (!r.ok) throw new Error(`${r.status} ${r.statusText}`); return r.json(); });
+}
+const put = (name, text) => api(`${DIR}/${name}`, {method: 'PUT', body: JSON.stringify({type: 'file', format: 'text', content: text})});
+const banner = (text, warn) => $('restored').replaceChildren(el('div', {class: 'banner' + (warn ? ' warn' : ''), text}));
+function makeReview() {
   const all = DATA.cards.map(c => ({c, d: decisionOf(c), why: decisionOf(c) === 'drop' ? reasons[uid(c)] || '' : ''}));
   const kept = all.filter(x => x.d === 'keep').map(x => x.c), dropped = all.filter(x => x.d === 'drop');
   const id = fnv(JSON.stringify([SEL?.selection.id || DATA.title, all.map(x => [uid(x.c), x.d, x.why])]));
@@ -386,15 +398,31 @@ function saveReview() {
   };
   const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`, cols = [...DATA.columns.filter(k => k !== 'review_id'), 'review_id'];
   const csv = [cols.join(','), ...kept.map(c => cols.map(k => q(k === 'review_id' ? id : k === 'status' ? (isGood(c.row) ? 'candidate' : 'check AOI') : c.row[k])).join(','))].join('\n') + '\n';
-  const json = JSON.stringify(record, null, 1) + '\n';
-  const a = el('a', {href: URL.createObjectURL(zip([[`${base}_kept.csv`, csv], [`${base}.json`, json]])), download: `${base}.zip`});
+  return {id, base, kept: kept.length, csv, json: JSON.stringify(record, null, 1) + '\n'};
+}
+function downloadReview(r) {
+  const a = el('a', {href: URL.createObjectURL(zip([[`${r.base}_kept.csv`, r.csv], [`${r.base}.json`, r.json]])), download: `${r.base}.zip`});
   document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-  if (window.origin === 'null') showText(`${base}.json`, json);   // sandboxed (JupyterLab): downloads may be blocked; the .json alone loads back
+  if (window.origin === 'null') showText(`${r.base}.json`, r.json);   // sandboxed (JupyterLab's file viewer): downloads may be blocked; the .json alone loads back
+}
+function saveReview() {
+  const r = makeReview();
+  if (DIR == null) {
+    downloadReview(r);
+    return banner(`Downloaded ${r.base}.zip. To save the CSV and JSON next to the selection on the server instead, show this page in a notebook: `
+      + `thumbnail_viewer.show(page) (the build does it). Opened from the file browser, Jupyter does not let a page save files.`, true);
+  }
+  Promise.all([put(`${r.base}_kept.csv`, r.csv), put(`${r.base}.json`, r.json)])
+    .then(() => banner(`Saved next to the selection, in ${where()}: ${r.base}_kept.csv (${r.kept} kept) and ${r.base}.json (every decision).`))
+    .catch(e => { downloadReview(r); banner(`Could not save next to the selection (${e.message}), so the review was downloaded as ${r.base}.zip instead.`, true); });
 }
 function loadReview(file) {
-  const say = (text, warn) => $('restored').replaceChildren(el('div', {class: 'banner' + (warn ? ' warn' : ''), text}));
-  file.arrayBuffer().then(buf => /\.zip$/i.test(file.name) ? unzipJson(buf) : new TextDecoder().decode(buf)).then(text => {
-    const r = JSON.parse(text);
+  file.arrayBuffer().then(buf => /\.zip$/i.test(file.name) ? unzipJson(buf) : new TextDecoder().decode(buf))
+    .then(text => applyReview(JSON.parse(text), 'Loaded'))
+    .catch(e => banner(`Could not read ${file.name} as a saved review: ${e.message || e}`, true));
+}
+function applyReview(r, verb) {
+    const say = banner;
     if (!r.review || !r.decisions) throw new Error(r.settings ? 'that is a first-look selection, not a review: build a viewer page from it instead' : 'it is not a saved review');
     const here = new Map(DATA.cards.map(c => [uid(c), c]));
     let n = 0, keep = 0, drop = 0, away = 0;
@@ -408,10 +436,23 @@ function loadReview(file) {
     if (!$('reviewer').value && r.review.reviewer) { $('reviewer').value = r.review.reviewer; $('reviewer').oninput(); }
     save(); render();
     const other = SEL && r.selection && r.selection.selection.id !== SEL.selection.id;
-    say(`Loaded review ${r.review.id}${r.review.reviewer ? ` by ${r.review.reviewer}` : ''}, saved ${r.review.saved.slice(0, 10)}: ${n} decisions restored (${keep} kept, ${drop} dropped).`
+    say(`${verb} review ${r.review.id}${r.review.reviewer ? ` by ${r.review.reviewer}` : ''}, saved ${r.review.saved.slice(0, 10)}: ${n} decisions restored (${keep} kept, ${drop} dropped).`
       + (away ? ` ${away} of its decisions are for acquisitions not on this page.` : '')
       + (other ? ` It was made from a different selection (${r.selection.selection.id}; this page is ${SEL.selection.id}), so only acquisitions on both are restored.` : ''), other || away > 0);
-  }).catch(e => say(`Could not read ${file.name} as a saved review: ${e.message || e}`, true));
+}
+function latestReview() {   // on open, in a notebook: the newest review of this selection saved next to it
+  if (DIR == null) return;
+  api(DIR, {query: '?content=1'}).then(d => {
+    const mine = (d.content || []).filter(f => f.name.startsWith(`${DATA.title}_review_`) && f.name.endsWith('.json'))
+      .sort((a, b) => String(b.last_modified).localeCompare(String(a.last_modified)));
+    if (!mine.length) return banner(`Save review will write the kept acquisitions (CSV) and the review (JSON) in ${where()}, next to the selection.`);
+    const restore = () => api(`${DIR}/${mine[0].name}`, {query: '?type=file&format=text&content=1'})
+      .then(f => applyReview(JSON.parse(f.content), mine.length > 1 ? `Restored the latest of ${mine.length} saved reviews:` : 'Restored the saved'))
+      .catch(e => banner(`Could not restore ${mine[0].name}: ${e.message || e}`, true));
+    if (!Object.keys(decisions).length) return restore();
+    $('restored').replaceChildren(el('div', {class: 'banner'}, `This browser has decisions of its own; the latest review saved next to the selection is ${mine[0].name}. `,
+      el('button', {type: 'button', text: 'Restore the saved review', onclick: restore})));
+  }).catch(e => banner(`Could not look for saved reviews next to the selection: ${e.message || e}`, true));
 }
 function showText(name, text) {
   const area = el('textarea', {readonly: '', style: 'width:100%;flex:1;font:12px ui-monospace,monospace;padding:8px'});
@@ -425,10 +466,14 @@ function showText(name, text) {
   document.body.querySelector('.viz-root').append(wrap); area.focus(); area.select();
 }
 $('saveReview').onclick = saveReview;
+$('zipReview').onclick = () => downloadReview(makeReview());
 $('loadReview').onclick = () => $('reviewFile').click();
 $('reviewFile').onchange = e => { if (e.target.files[0]) loadReview(e.target.files[0]); e.target.value = ''; };
-if (!stored) $('keys').lastChild.textContent = ' close. This viewer blocks browser storage, so decisions last for this visit only: save the review before closing, or open the page in a browser tab.';
+if (!stored) $('keys').lastChild.textContent = ' close. This viewer blocks browser storage, so decisions last for this visit only: save the review before closing.';
+if (DIR == null && JUP) $('keys').append(' This page is outside the folders JupyterLab can open, so Save review downloads a .zip.');
+else if (DIR == null) $('keys').append(' Opened outside a notebook, Save review downloads a .zip: show the page with thumbnail_viewer.show(page) to save next to the selection.');
 render();
+latestReview();
 </script>
 </body>
 </html>
