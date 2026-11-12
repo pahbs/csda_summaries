@@ -31,6 +31,7 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-12 · [7] Top-level clean-up: this log moved to `docs/LOG.md`; `MULTI_STAC_SEARCH_PLAN.md` and the two SPOT6 write-ups to `docs/notes/`; `run_distributed_global_search.sh` to `lib/` (it finds the repo one level up).
 - 2026-11-12 · [1][2] Airbus catalog access works: OneAtlas STAC at search.foundation.api.oneatlas.airbus.com/api/v1/stac (collections PLEIADES, PLEIADES-NEO, SPOT; ~65,000 items a month), API key in [Airbus_STAC_API]. Profile enabled; first look searching its history at the 78 sites (Airbus's own catalog only: CSDA's airbus-optical IDs do not match its acquisition IDs). Density: Landsat 8/9 complete; Sentinel-2 2020-21 refetched after finding every tile there twice (original and reprocessed baseline), datatake ID now without the baseline; SuperDove days complete.
 - 2026-11-11 · [2] Density dashboard: Count selector (Acquisitions, or Days with an acquisition: days in the month with at least one acquisition in the cell, 0-31, comparable across vendors whatever their unit) and Scale selector (this constellation, or one shared log scale for all). Days from stored dates for footprint vendors; Landsat and Sentinel-2 count them while fetching (backfills restarted to include them); SuperDove from Planet's stats by day (`archive_density.py days superdove`, shown once complete). Combined views stay on acquisitions.
 - 2026-11-11 · [2] Density dashboard: Landsat 8 and 9 (USGS / NASA) and Sentinel-2 (ESA) tabs from Earth Search (Element84, no login; new `earth-search` profile, page size 200). Too large to keep item by item, so `fetch_counted` counts each month per 0.5° cell as it is fetched (a pass once per cell: Sentinel-2 datatakes, Landsat scenes < 2 min apart) and keeps only the counts. Backfill running, one process per year on forest201/202/203 (`monthly_fp/{sentinel2,landsat}_*_run.log`); uncounted months show as not fetched yet. Footprint counting now works per item, deduplicated per acquisition and cell (same results, faster).
@@ -106,10 +107,10 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 - 2026-10-12 · [3] WorldView request notebook for DART simulations (CMR search, Cognito/MFA S3 download).
 - 2026-10-12 · [1] Multistac committed (`cbc5695`): CSDA STAC + CMR + Satellogic, plots, downloads, notebooks, tests.
 - 2026-10-11 · [1] Earthdata CMR backend (`csda-cmr`), catalog overview tables, timeline heatmap, display names, skyplots.
-- 2026-10-11 · [1] Multistac plan and phases 1–4 (`MULTI_STAC_SEARCH_PLAN.md`).
+- 2026-10-11 · [1] Multistac plan and phases 1–4 (`docs/notes/MULTI_STAC_SEARCH_PLAN.md`).
 - 2026-10-02 · [2] CSDA STAC search tutorial notebook.
 - 2026-09-30 · [4] Gobabeb TIR site size edited; HydroSat request AOIs (Kerry) through 2 Oct.
-- 2026-09-30 · [2] Distributed global CSDA search script (`run_distributed_global_search.sh`).
+- 2026-09-30 · [2] Distributed global CSDA search script (`lib/run_distributed_global_search.sh`).
 - 2026-09-25 · [4] HLS golden tiles GeoJSON.
 - 2026-09-24 · [6] Timeline notebook; [4] two ESA sites (Leo) added to AOI maps.
 - 2026-09-22 · [4] Request AOIs: Airbus, OroraTech, Vantor Legion, HydroSat OR2.
@@ -263,7 +264,7 @@ only if needed), never a separate search API.
 - Display names: `CSDA STAC`, `Earthdata CMR – CSDA`, `Satellogic`. Skyplots from sun / sensor geometry (vendor-specific
   angle mapping; azimuth convention per vendor still unverified).
 - Decision: **do not count items client-side** for CSDA STAC; CSDA asked to provide counts.
-- `MULTI_STAC_SEARCH_PLAN.md`: phases 1–4 for CSDA and Satellogic (`stac_providers.yaml`, `stac_auth.py`,
+- `docs/notes/MULTI_STAC_SEARCH_PLAN.md`: phases 1–4 for CSDA and Satellogic (`stac_providers.yaml`, `stac_auth.py`,
   `multistac.py`, smoke tests, tutorial).
 
 ---
@@ -325,7 +326,7 @@ only if needed), never a separate search API.
 ### 2026-10-02 · CSDA STAC search tutorial notebook (`6ad2d6f`)
 
 ### 2026-09-30 · Distributed global CSDA search
-- `run_distributed_global_search.sh`: splits the world into longitude bands across nodes, `searchlib` logic per band.
+- `lib/run_distributed_global_search.sh`: splits the world into longitude bands across nodes, `searchlib` logic per band.
 
 ### 2026-03 to 2026-07 · CSDA STAC searches (staclib)
 - `staclib.py` searches, seasonal search by months (Jul), Legion example (Mar–Jun), multiple-collection examples.
@@ -527,7 +528,7 @@ only if needed), never a separate search API.
 ### 2026-08-25 · SPOT6 duplicate acquisition ID fix
 - Two SPOT6 acquisitions were linked to both Albuquerque and Shadnagar: acquisition ID too coarse in the Airbus DIMAP
   profile, per-file footprints sharing one ID, and site links aggregated by acquisition ID after `dissolve()`.
-  Write-ups: `SPOT6_DUPLICATE_ACQUISITION_ID_FIX.md`, `SPOT6_DUPLICATE_ACQUISITION_ID_POSTDISSOLVE_FIX.md`.
+  Write-ups: `docs/notes/SPOT6_DUPLICATE_ACQUISITION_ID_FIX.md`, `docs/notes/SPOT6_DUPLICATE_ACQUISITION_ID_POSTDISSOLVE_FIX.md`.
 ### 2026-08-27 · Sensor profiles added (`f0fd64c`); 2026-08-25 · multi-site footprint bug fix
 ### 2026-07-01 · `csdalib` refactored for footprinting; HTML map of footprints
 ### 2026-02 to 2026-03 · First footprint and summary notebooks; R library for VHR metadata analysis

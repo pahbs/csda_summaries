@@ -148,7 +148,7 @@ the interactive map.
 | `notebooks/` | The notebooks that search, track, download and build the pages |
 | `lib/` | Shared code: catalog search, order tracking, page builders |
 | `sites/` | Evaluation site areas of interest (GeoJSON) |
-| `LOG.md` | What changed and when, newest first |
+| `docs/LOG.md` | What changed and when, newest first |
 
 ## Contact
 

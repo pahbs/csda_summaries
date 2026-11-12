@@ -6,10 +6,10 @@ set -euo pipefail
 # assigned bbox, using all CPUs on that node via max_workers=$(nproc).
 #
 # Example usage:
-#   ./run_distributed_global_search.sh
-#   NODE_LIST='node01 node02 node03' ./run_distributed_global_search.sh
+#   lib/run_distributed_global_search.sh
+#   NODE_LIST='node01 node02 node03' lib/run_distributed_global_search.sh
 #   COLLECTIONS='planet' START_DATE='2020-01-01' END_DATE='2020-12-31' TILE_SIZE_DEGREES=30 \
-#     ./run_distributed_global_search.sh
+#     lib/run_distributed_global_search.sh
 #
 # Notes:
 # - This does not run the notebook file directly; it uses the same searchlib logic
@@ -18,7 +18,7 @@ set -euo pipefail
 # - Each per-slice checkpoint remains GeoJSON for resumable work units.
 # - After workers finish, a merge step loads all checkpointed GeoJSON results and saves a final GeoParquet file with a .parquet extension.
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"   # this script is in lib/
 VENV_PATH="${VENV_PATH:-}"
 ANACONDA_MODULE="${ANACONDA_MODULE:-anaconda}"
 ENV_NAME="${ENV_NAME:-TF}"
