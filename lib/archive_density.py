@@ -55,6 +55,9 @@ VENDORS = {
                       guide="PlanetScope SuperDove scenes (instrument PSB.SD), counted by Planet's catalog statistics rather than "
                             "fetched one by one: about 7 million a month. A scene counts in every cell it touches, not only the cell "
                             "at its center, so busy cells read a little higher than on the other tabs."),
+    "airbus": dict(collections=["PLEIADES", "PLEIADES-NEO", "SPOT"], vendor="Airbus", constellation="Pleiades", unit="acquisition",
+                   guide="One acquisition (Airbus acquisition ID) counts once, from Airbus's own catalog (OneAtlas STAC API): "
+                         "what has been collected, not what CSDA holds."),
     # Public missions, from Earth Search (no login). Too many items to keep (Sentinel-2: ~450,000 tiles a month), so each month is
     # counted as it is fetched (fetch_counted) and only the counts per cell are kept.
     "sentinel2": dict(provider="earth-search", collections=["sentinel-2-l2a"], vendor="ESA", constellation="Sentinel-2", unit="pass",
@@ -317,9 +320,11 @@ TABS = [("hydrosat", [("VanZyl", "hydrosat", None)]),
         ("planet", [("SuperDove", "superdove", None), ("Tanager", "tanager", None)]),
         ("satellogic", [("Aleph-1", "satellogic", None)]),
         ("vantor", [("Legion", "vantor", None), ("WorldView-2", "worldview", {"wv02"}), ("WorldView-3", "worldview", {"wv03-vnir"})]),
+        ("airbus", [("Pleiades", "airbus", {"PLEIADES"}), ("Pleiades Neo", "airbus", {"PLEIADES-NEO"}), ("SPOT 6/7", "airbus", {"SPOT"})]),
         ("landsat", [("Landsat 8 and 9", "landsat", None)]),
         ("sentinel2", [("Sentinel-2", "sentinel2", None)])]
-COMBINED = {"vantor": [("WorldView-2 and 3", ["WorldView-2", "WorldView-3"]), ("All constellations", None)]}
+COMBINED = {"vantor": [("WorldView-2 and 3", ["WorldView-2", "WorldView-3"]), ("All constellations", None)],
+            "airbus": [("All constellations", None)]}
 
 
 def _tables(store: str, collections) -> Dict[str, pd.DataFrame]:
@@ -544,11 +549,13 @@ def build(page: Path = PAGE, cell: float = CELL_DEG, data_dir: Optional[Path] = 
 if __name__ == "__main__":
     if sys.argv[1] == "days":   # days superdove: days with a scene per cell, from Planet's stats by day
         fetch_stats_days(sys.argv[2])
-    elif sys.argv[1] == "fetch":   # fetch <vendor> [year ...]: those years only (counted stores; one run per year in parallel)
+    elif sys.argv[1] == "fetch":   # fetch <vendor> [year or YYYY-MM ...]: only those (counted stores; several runs in parallel)
         v, years = sys.argv[2], sys.argv[3:]
         if VENDORS[v].get("count_on_fetch"):
-            fetch_counted(v, only=[m for m in months(VENDORS[v].get("start", START)) if not years or m[:4] in years])
+            fetch_counted(v, only=[m for m in months(VENDORS[v].get("start", START)) if not years or m[:4] in years or m in years])
+        elif VENDORS[v].get("stats"):
+            fetch_stats(v)
         else:
-            fetch_stats(v) if VENDORS[v].get("stats") else fetch(v)
+            fetch(v, only=[m for m in months(VENDORS[v].get("start", START)) if m[:4] in years or m in years] if years else None)
     else:
         build()

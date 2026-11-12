@@ -58,7 +58,9 @@ VENDORS = {
     "planet": dict(providers=lambda: {"planet": ["PSScene", "TanagerScene"]}, split="month"),
     # Ready for when catalog access starts: skipped while the provider is enabled: false in stac_providers.yaml. Set the
     # collections when access arrives (None = the profile's default_collections).
-    "airbus": dict(providers=lambda: {"csda": _csda("airbus-optical"), "airbus": None}, needs="airbus"),
+    # Airbus's own catalog (OneAtlas STAC). CSDA's airbus-optical holdings are left out: their IDs do not match Airbus's
+    # acquisition IDs, so the same acquisition would count twice (CSDA holdings: html/augmentation/airbus_augmentation_summary.html)
+    "airbus": dict(providers=lambda: {"airbus": ["PLEIADES", "PLEIADES-NEO", "SPOT"]}, needs="airbus"),
     "earthdaily": dict(providers=lambda: {"earthdaily": None}, needs="earthdaily"),
 }
 START = "2020-01-01"

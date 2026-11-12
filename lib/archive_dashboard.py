@@ -128,12 +128,18 @@ VENDORS = {
               "Earthdata CMR, which this tab does not check yet, so In CSDA is not shown. Added year by year, newest first."),
     # Ready for when catalog access starts (stac_providers.yaml: airbus, earthdaily); check these descriptions against real items then
     "airbus": dict(
-        vendor="Airbus", bands="Pleiades and Pleiades Neo (pan 0.3-0.5 m, MS 1.2-2 m), SPOT 6/7 (pan 1.5 m, MS 6 m)",
-        acquisition="One acquisition: its pan and multispectral products count once.",
-        footprint="One footprint per acquisition.",
-        cloud="For the whole scene, so a cloudy scene can still be clear over a small site.", cloud_scope="scene",
-        levels={"ORT": "Ortho (CSDA)", "PRJ": "Projected", "SEN": "Sensor geometry"},
-        scope="Airbus's own catalog (OneAtlas), with CSDA's <code>airbus-optical</code> holdings marked In CSDA."),
+        vendor="Airbus", bands="", csda_checked=False,
+        acquisition="One acquisition (<code>acquisition_identifier</code>, e.g. ACQ_PNEO4_...).",
+        footprint="One footprint per acquisition in Airbus's catalog.",
+        cloud="For the whole acquisition, so a cloudy one can still be clear over a small site.", cloud_scope="scene",
+        levels={"ALBUM": "Archive catalog record (orderable as ortho, projected or sensor products)"},
+        scope="Airbus's own catalog (OneAtlas STAC API): what has been collected. Off-nadir is the incidence angle at the ground, a "
+              "little larger than the satellite's off-nadir angle. CSDA's own Airbus holdings are tracked on the Airbus augmentation "
+              "page, so In CSDA is not shown here.",
+        by_constellation={
+            "Pleiades": dict(bands="Pleiades 1A/1B: pan 0.5 m, 4-band MS 2 m"),
+            "Pleiades Neo": dict(bands="Pleiades Neo 3/4: pan 0.3 m, 6-band MS 1.2 m"),
+            "SPOT": dict(bands="SPOT 6/7: pan 1.5 m, 4-band MS 6 m")}),
     "earthdaily": dict(
         vendor="EarthDaily", bands="EarthDaily constellation: multispectral, VNIR to thermal",
         acquisition="One scene.",

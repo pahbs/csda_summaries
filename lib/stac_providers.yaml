@@ -420,7 +420,8 @@ earth-search:
   spectral_mode: {default: ms, landsat-c2-l2: ms+tir}
   # One acquisition = one pass: Sentinel-2's datatake (its tiles along one orbit), Landsat scenes of one satellite < 2 min apart
   acquisition_id:
-    default: {from: 's2:datatake_id'}
+    # the datatake ID without its processing baseline (_N05.00): 2020-21 tiles are there twice, original and reprocessed
+    default: {from: 's2:datatake_id', pattern: '^(\w+?_\d{8}T\d{6}_\d+)'}
     landsat-c2-l2: {pass_seconds: 120}
   fields:
     cloud_cover: [eo:cloud_cover]
@@ -436,34 +437,36 @@ earth-search:
 # `python tests/smoke_multistac.py <name>` and check the collection names, `fields` and acquisition_id against real items.
 
 airbus:
-  label: Airbus OneAtlas
+  label: Airbus OneAtlas (STAC API)
   display_name: Airbus
-  # Login: an API key exchanged for a 1 h token at OneAtlas's Keycloak (form fields apikey, grant_type=api_key, client_id=IDP):
-  # https://api.oneatlas.airbus.com/guides/g-authentication/
-  # Search: OneAtlas Data's catalog is OpenSearch (https://search.foundation.api.oneatlas.airbus.com/api/v2/opensearch), not STAC.
-  # If our access comes with a STAC endpoint, put it in stac_url; if only OpenSearch, multistac needs a small backend for it.
-  enabled: false
-  stac_url: TBD
+  # Airbus Imagery STAC 1.0 (cql2-json, standard next links), found 2026-11-12. Login: an OneAtlas API key exchanged for a 1 h
+  # token at OneAtlas's Keycloak (apikey, grant_type=api_key, client_id=IDP): https://api.oneatlas.airbus.com/guides/g-authentication/
+  # Collections PLEIADES (2012-), PLEIADES-NEO (2021-), SPOT (2012-): about 65,000 items a month in all.
+  enabled: true
+  stac_url: https://search.foundation.api.oneatlas.airbus.com/api/v1/stac
   auth:
     type: oauth2_api_key
-    credentials_section: Airbus_OneAtlas_API     # INI key: api_key
+    credentials_section: Airbus_STAC_API         # INI key: api_key
     token_url: https://authenticate.foundation.api.oneatlas.airbus.com/auth/realms/IDP/protocol/openid-connect/token
-  default_collections: []                         # TBD: e.g. Pleiades, Pleiades Neo, SPOT
-  search: {page_size: 100, max_concurrency: 2, timeout: 120}
+  default_collections: [PLEIADES, PLEIADES-NEO, SPOT]
+  acquisition_id:
+    default: {from: acquisition_identifier}      # ACQ_PNEO4_07400606681430: one acquisition, whatever products are made from it
+  search: {page_size: 1000, max_concurrency: 2, timeout: 180}
   geometry: intersects
   filter_mode: client
   affiliation: {default: Airbus}
   spectral_mode: {default: pan+ms}
-  fields:                                         # STAC common names; check against real items
+  fields:
     cloud_cover: [eo:cloud_cover]
     platform: [platform]
+    sensor: [platform]                           # PHR1A, PNEO4, SPOT6 -> sensor_catalog.yaml
     processing_level: [processing:level]
-    product_type: [product_type]
     gsd: [gsd]
-    off_nadir: [view:off_nadir]
+    # no off-nadir field: the incidence angle at the ground is a little larger, so off-nadir limits apply slightly strictly
+    off_nadir: [view:incidence_angle]
+    sat_azimuth: [view:azimuth]
     sun_elevation: [view:sun_elevation]
     sun_azimuth: [view:sun_azimuth]
-    sat_azimuth: [view:azimuth]
     vendor_item_id: [id]
 
 earthdaily:
