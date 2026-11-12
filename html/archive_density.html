@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Vendor Archive Density Dashboard</title>
-<meta name="description" content="Vendor Archive Density Dashboard: visualizing constellation acquisitions for each month">
-<meta property="og:title" content="Vendor Archive Density Dashboard">
+<title>Archive Density Dashboard</title>
+<meta name="description" content="Archive Density Dashboard: visualizing constellation acquisitions for each month">
+<meta property="og:title" content="Archive Density Dashboard">
 <meta property="og:description" content="Visualizing constellation acquisitions for each month">
 <style>
 .viz-root {
@@ -152,15 +152,19 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
 #pending { display: none; } .is-pending #pending { display: block; }
 .vtag { display: inline-block; white-space: nowrap; padding: 1px 10px; border-radius: 9999px; font-weight: 650; }
 .is-pending .controls, .is-pending #answer, .is-pending .card:not(#pending), .is-pending .cols { display: none; }
+/* the guide's heading: the affiliation as in its tab (a dot in its color, the name in bold), then the constellation */
+.readhead { font-weight: 400; }
+.readhead b { font-weight: 700; }
+.readhead .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 6px 0 2px; vertical-align: 1px; }
 </style>
 </head>
 <body>
 <div class="viz-root"><div class="wrap">
-<h1>Vendor Archive Density Dashboard</h1>
+<h1>Archive Density Dashboard</h1>
 <p class="sub">Visualizing constellation acquisitions for each month</p>
 <p class="note" style="margin:4px 0 0">Paul Montesano, PhD · NASA Goddard Space Flight Center; ESSIC · CSDA Multispectral Optical SME Group ·
   <a href="mailto:paul.m.montesano@nasa.gov">paul.m.montesano@nasa.gov</a> · <span id="updated"></span></p>
-<div class="warn" style="margin:12px 0 0;font-size:13.5px"><b>Suggested use:</b> use this page to see where and when a constellation has been collecting. For what is available at an evaluation site, use the <a href="archive_first_look.html">Vendor Archive First Look</a>. Drag along the timeline or press Play to watch collection change.</div>
+<div class="warn" style="margin:12px 0 0;font-size:13.5px"><b>Suggested use:</b> use this page to see where and when a constellation has been collecting. For what is available at an evaluation site, use the <a href="archive_first_look.html">Archive First Look</a>. Drag along the timeline or press Play to watch collection change.</div>
 <div class="tabs" id="tabs" role="tablist"></div>
 <div class="card" id="pending" style="margin-top:18px"></div>
 <div class="filters controls">
@@ -182,7 +186,7 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
 </div>
 <div class="cols">
   <div class="card"><h2>By month and sensor</h2><p class="note" id="tableNote"></p><div class="scroll monthbox" id="table"></div></div>
-  <div class="card"><h2>How to read this map</h2><dl class="guide" id="guide"></dl></div>
+  <div class="card"><h2 class="readhead" id="readTitle">How to read this map</h2><dl class="guide" id="guide"></dl></div>
 </div>
 <p class="note" id="foot" style="margin-top:18px"></p>
 </div><div id="tip"></div></div>
@@ -446,14 +450,16 @@ function show() {
     : t.footprints || (t.parts && groups.some(g => t.parts.includes(g.constellation) && g.footprints))
       ? `${t.cell}° squares. Each acquisition counts once in every square its footprint touches, so a long strip lights up the whole line it covers.`
       : `${t.cell}° squares, placed by the center of each footprint. A wide scene counts only in the cell at its center.`],
-    ['Recent months', 'These can still grow: vendors add acquisitions to their catalogs late. The current month is marked "so far".'],
+    ['Recent months', 'These can still grow: providers add acquisitions to their catalogs late. The current month is marked "so far".'],
     ['Comparing', state.scale === 'shared' ? 'Shared scale: every constellation uses the same limits, so shades compare across tabs. '
       + 'Acquisition units still differ (scenes, strips, captures, passes); days with an acquisition compare most fairly.'
       : 'Each constellation has its own color scale, so compare patterns between them, not shades. Pick Shared to compare shades.'],
     ['Days with an acquisition', 'Count: Days shows how many days in the month had at least one acquisition in the cell (0 to 31). '
-      + 'It does not depend on what a vendor calls one acquisition, so it is the fairest way to compare revisit.'],
+      + 'It does not depend on what each catalog calls one acquisition, so it is the fairest way to compare revisit.'],
     ...(t.complete ? [] : [['Still being added', t.progress_note || `Fetched back to ${name(t.fetched_from)} so far. Earlier months are added newest first.`]])];
   $('guide').replaceChildren(...entries.flatMap(([k, v]) => [el('dt', {text: k}), el('dd', {text: v})]));
+  const dot = el('i', {class: 'swatch'}); dot.style.background = t.palette.color;
+  $('readTitle').replaceChildren('How to read the ', dot, el('b', {text: t.vendor}), ` ${t.constellation} map:`);
   $('foot').textContent = `${t.vendor} ${t.constellation}: catalog collections ${t.collections.join(', ')}.`;
 }
 $('updated').textContent = `Last updated: ${DATA.updated}`;

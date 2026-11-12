@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Vendor Archive First Look</title>
+<title>Archive First Look</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<meta name="description" content="Vendor Archive First Look: identify Candidate Acquisitions for CSDA evaluation">
-<meta property="og:title" content="Vendor Archive First Look: identify Candidate Acquisitions for CSDA evaluation">
-<meta property="og:description" content="Vendor Archive First Look: identify Candidate Acquisitions for CSDA evaluation">
+<meta name="description" content="Archive First Look: identify Candidate Acquisitions for CSDA evaluation">
+<meta property="og:title" content="Archive First Look: identify Candidate Acquisitions for CSDA evaluation">
+<meta property="og:description" content="Archive First Look: identify Candidate Acquisitions for CSDA evaluation">
 <style>
 .viz-root {
   color-scheme: light;
@@ -141,18 +141,32 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
 .constpick { margin: 12px 0 0; font-size: 13px; color: var(--ink-2); display: flex; gap: 8px; align-items: center; }
 .constpick select { font: inherit; }
 .constpick[hidden] { display: none; }
+/* the guide's heading: the affiliation as in its tab (a dot in its color, the name in bold), then the constellation */
+.readhead { font-weight: 400; }
+.readhead b { font-weight: 700; }
+.readhead .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 6px 0 2px; vertical-align: 1px; }
+/* saved selections: the save row (a note, then the button) and the loaded-selection banner */
+.saverow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 12px; font-size: 13.5px; }
+.saverow input[type=text] { font: inherit; font-size: 13.5px; flex: 1 1 320px; max-width: 560px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--axis); background: var(--surface); color: var(--ink); }
+.selbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 12px 0 0; font-size: 13.5px; }
+.selbar .note { margin: 0; }
+.selbar[hidden] { display: none; }
+.loaded { margin: 10px 0 0; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--axis); font-size: 13.5px; }
+.loaded b { font-weight: 650; }
 </style>
 </head>
 <body>
 <div class="viz-root"><div class="wrap">
-<h1>Vendor Archive First Look: identify <span class="gq">Candidate Acquisitions</span> for CSDA evaluation</h1>
-<p class="subhead">A tool to explore vendor archive acquisitions available at sites in the Evaluation Sites Database.</p>
+<h1>Archive First Look: identify <span class="gq">Candidate Acquisitions</span> for CSDA evaluation</h1>
+<p class="subhead">A tool to explore archive acquisitions available at sites in the Evaluation Sites Database.</p>
 <p class="note" style="margin:4px 0 0">Paul Montesano, PhD · NASA Goddard Space Flight Center; ESSIC · CSDA Multispectral Optical SME Group ·
   <a href="mailto:paul.m.montesano@nasa.gov">paul.m.montesano@nasa.gov</a> · <span id="updated"></span></p>
-<div class="warn" style="margin:12px 0 0;font-size:13.5px"><b>Suggested use:</b> filter to determine a set of <span class="gq">Candidate Acquisitions</span> that is evaluation-ready, download a CSV of them for manual thumbnail review before sending to CSDA Data Management Team for purchase recommendation. To see where and when each constellation collects worldwide, month by month, use the <a href="archive_density.html">Vendor Archive Density Dashboard</a> page.</div>
+<div class="warn" style="margin:12px 0 0;font-size:13.5px"><b>Suggested use:</b> filter to determine a set of <span class="gq">Candidate Acquisitions</span> that is evaluation-ready, save them as a selection (a CSV of the acquisitions, with a file recording the limits, sites and your note) for manual thumbnail review before sending to CSDA Data Management Team for purchase recommendation. A saved selection can be loaded again to restore its settings and see what has changed since. To see where and when each constellation collects worldwide, month by month, use the <a href="archive_density.html">Archive Density Dashboard</a> page.</div>
 <div class="tabs" id="tabs" role="tablist"></div>
 <div class="constpick" id="constWrap" hidden><label for="constellation">Constellation</label><select id="constellation"></select></div>
 <div class="card" id="pending" style="margin-top:18px"></div>
+<div class="selbar" id="selbar"><button class="action" id="loadSel">Load a saved selection…</button><input type="file" id="selFile" accept=".zip,.json" hidden><span class="note">A selection saved below (.zip or its .json) restores its tab, limits and sites.</span></div>
+<div id="loaded"></div>
 <div id="main">
 <div class="filters" id="filters"></div>
 <div id="warn"></div>
@@ -170,7 +184,7 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
 <div class="pick"><h2 id="pickTitle"></h2><label class="sub">Site <select id="sitePick"></select></label></div>
 <div class="cols">
   <div class="card"><h2>Why acquisitions do not count</h2><p class="note">An acquisition can miss on more than one test.</p><div id="reasons"></div></div>
-  <div class="card"><h2>How to read this vendor</h2><dl class="guide" id="guide"></dl><div id="levels"></div></div>
+  <div class="card"><h2 class="readhead" id="readTitle">How to read</h2><dl class="guide" id="guide"></dl><div id="levels"></div></div>
 </div>
 <div class="card" style="margin-top:18px"><h2>How the acquisitions vary</h2><p class="note">Each panel counts acquisitions. The line marks the limit in use, where one limit applies to all the sites shown.</p><div class="hist" id="hist"></div>
   <div class="legend"><span><i class="sw" style="background:var(--series)"></i><span class="gq">Candidate Acquisition</span></span><span><i class="sw" style="background:var(--check)"></i>Check AOI</span><span><i class="sw" style="background:var(--muted-mark)"></i>Not a candidate</span></div></div>
@@ -180,7 +194,8 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
   <div class="card"><h2>Satellite and sun positions</h2><p class="note">As seen from the site: center is overhead, the edge is the horizon, north is up.</p><div id="sky"></div></div>
 </div>
 <div class="card" style="margin-top:18px">
-  <div class="pick" style="margin-top:0"><h2 id="listTitle"></h2><button class="action" id="csv">Download <span class="gq">Candidate Acquisitions</span> and Check AOI acquisitions (CSV)</button></div>
+  <div class="pick" style="margin-top:0"><h2 id="listTitle"></h2></div>
+  <div class="saverow"><input type="text" id="selNote" placeholder="Note for this selection, e.g. Satellogic 2026, first pass for budget review" aria-label="Note for this selection"><button class="action" id="csv">Save selection: <span class="gq">Candidate Acquisitions</span> and Check AOI (.zip: CSV + settings)</button></div>
   <div class="scroll" id="list"></div><p class="note" id="listNote" style="margin-top:8px"></p>
 </div>
 </div>
@@ -406,7 +421,7 @@ function renderReasons(tab, rows) {
     const bar = el('div', {class: 'bar'}); bar.style.width = n ? `${100 * v / n}%` : '0';
     return el('div', {class: 'reason ' + cls}, el('span', {}, ...rich(label)), el('div', {class: 'track'}, bar), el('span', {class: 'num', text: v.toLocaleString()}));
   };
-  const na = field => el('div', {class: 'reason'}, el('span', {text: field}), el('span', {class: 'note', style: 'margin:0', text: 'Not reported by this vendor'}), el('span'));
+  const na = field => el('div', {class: 'reason'}, el('span', {text: field}), el('span', {class: 'note', style: 'margin:0', text: 'Not reported in this catalog'}), el('span'));
   $('reasons').replaceChildren(...[line('Candidate Acquisitions', good, 'good'),
     tab.cloud_scope === 'scene' ? line('Check AOI: site may be clear', rows.filter(a => a.t.check).length, 'check') : null,
     tab.has.cloud ? line('Too cloudy', rows.filter(a => !a.t.cloud).length) : na('Too cloudy'),
@@ -501,7 +516,7 @@ function renderWorld(tab, all) {
 function histogram(title, rows, field, lo, hi, step, unit, limit) {
   const box = el('div', {}, el('h3', {text: title}));
   const known = rows.filter(a => a[field] != null);
-  if (!known.length) { box.append(el('div', {class: 'empty', text: 'Not reported by this vendor'})); return box; }
+  if (!known.length) { box.append(el('div', {class: 'empty', text: 'Not reported in this catalog'})); return box; }
   const n = Math.round((hi - lo) / step), bins = Array.from({length: n}, () => ({good: 0, check: 0, not: 0}));
   known.forEach(a => { const i = Math.max(0, Math.min(n - 1, Math.floor((a[field] - lo) / step))); bins[i][a.t.good ? 'good' : a.t.check ? 'check' : 'not']++; });
   const w = 260, h = 130, pad = 18, max = Math.max(1, ...bins.map(b => b.good + b.check + b.not)), bw = (w - 8) / n;
@@ -533,7 +548,7 @@ function renderHist(tab, rows) {
 }
 function renderSky(tab, rows) {
   const placed = rows.filter(a => a.az != null && a.el != null), suns = rows.filter(a => a.sunaz != null && a.sun != null);
-  if (!placed.length && !suns.length) { $('sky').replaceChildren(el('div', {class: 'empty', text: 'Angles not reported by this vendor'})); return; }
+  if (!placed.length && !suns.length) { $('sky').replaceChildren(el('div', {class: 'empty', text: 'Angles not reported in this catalog'})); return; }
   const c = 150, R = 130, xy = (az, elv) => { const r = R * (90 - elv) / 90, t = az * Math.PI / 180; return [c + r * Math.sin(t), c - r * Math.cos(t)]; };
   const root = svg('svg', {viewBox: '0 0 300 300', width: '100%', style: 'max-width:340px;margin:0 auto', role: 'img', 'aria-label': 'Satellite and sun positions'});
   [90, 60, 30, 0].forEach(e => root.append(svg('circle', {cx: c, cy: c, r: R * (90 - e) / 90, fill: 'none', stroke: 'var(--grid)'})));
@@ -586,14 +601,132 @@ function renderList(tab, rows) {
   $('listNote').replaceChildren(...rich(sorted.length > 200
     ? `${N(sorted.length)} acquisitions: ${counts}. Showing the first 200, Candidate Acquisitions first, then newest. The download has all ${N(nGood + nCheck)} Candidate Acquisitions and Check AOI acquisitions.`
     : `${N(sorted.length)} acquisitions: ${counts}. Candidate Acquisitions first, then newest.`));
-  $('csv').onclick = () => {
-    const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
-    const lines = [['date', 'site', 'sensor', 'status', 'cloud_pct', 'off_nadir_deg', 'site_covered_pct', 'catalog_items', 'levels', 'in_csda', 'time_of_day', 'acquisition_id'].join(',')];
-    sorted.filter(a => a.t.good || a.t.check).forEach(a => lines.push([a.d, tab.sites[a.s].name, tab.sensors[a.n], a.t.good ? 'good' : 'check AOI', a.cloud, a.off, a.cov, a.items, a.lv.map(i => tab.levels[i].code).join(' '), a.csda, a.dn, a.a].map(q).join(',')));
-    const link = el('a', {href: URL.createObjectURL(new Blob([lines.join('\n')], {type: 'text/csv'})), download: `${slug(tab.vendor)}-${slug(tab.constellation)}_good_acquisitions.csv`});   // vendor, then constellation: vantor-worldview
-    link.click(); URL.revokeObjectURL(link.href);
-  };
+  $('csv').onclick = () => saveSelection(tab, rows, sorted);
 }
+// ---- Saved selections: what was chosen, with which limits and sites, so a list can be explained and picked up again later
+const RULE = 'candidate-v1';
+const RULE_TEXT = 'Candidate Acquisition: cloud at or under the cloud limit (a night acquisition is not tested for cloud), off-nadir at or under '
+  + 'the off-nadir limit, and at least the minimum share of the site covered. Where "use site requirements" is on, a site\'s own cloud and '
+  + 'off-nadir limits replace the sliders there. Check AOI: the catalog reports cloud for the whole scene, the scene is over the site\'s limit '
+  + 'but at or under the scene limit, so the site itself may be clear: look at the thumbnail. A test on a value the catalog does not report passes.';
+function fnv(text) {   // a short fingerprint of the settings and the list: the same selection gets the same ID
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return (h >>> 0).toString(16).padStart(8, '0').slice(0, 6);
+}
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c; } return t; })();
+const crc32 = b => { let c = 0xffffffff; for (const x of b) c = CRC[(c ^ x) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+function zip(files) {   // files: [[name, text]] -> a Blob, stored (not compressed): a zip any system opens
+  const enc = new TextEncoder(), parts = [], dir = []; let off = 0;
+  const d = new Date(), time = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1), date = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+  for (const [name, text] of files) {
+    const nm = enc.encode(name), data = enc.encode(text), crc = crc32(data);
+    const head = (sig, extra) => { const b = new DataView(new ArrayBuffer(extra)); b.setUint32(0, sig, true); return b; };
+    const l = head(0x04034b50, 30);
+    [[4, 20], [6, 0x800], [8, 0], [10, time], [12, date]].forEach(([o, v]) => l.setUint16(o, v, true));
+    l.setUint32(14, crc, true); l.setUint32(18, data.length, true); l.setUint32(22, data.length, true); l.setUint16(26, nm.length, true);
+    const c = head(0x02014b50, 46);
+    [[4, 20], [6, 20], [8, 0x800], [10, 0], [12, time], [14, date]].forEach(([o, v]) => c.setUint16(o, v, true));
+    c.setUint32(16, crc, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true); c.setUint16(28, nm.length, true); c.setUint32(42, off, true);
+    parts.push(l, nm, data); dir.push(c, nm); off += 30 + nm.length + data.length;
+  }
+  const size = dir.reduce((n, x) => n + x.byteLength, 0), e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, size, true); e.setUint32(16, off, true);
+  return new Blob([...parts, ...dir, e], {type: 'application/zip'});
+}
+async function unzipJson(buf) {   // the selection's .json from a saved .zip (also one re-zipped with compression)
+  const v = new DataView(buf); let e = buf.byteLength - 22;
+  while (e >= 0 && v.getUint32(e, true) !== 0x06054b50) e--;
+  if (e < 0) throw new Error('not a zip file');
+  let p = v.getUint32(e + 16, true);
+  for (let i = 0; i < v.getUint16(e + 10, true); i++) {
+    const method = v.getUint16(p + 10, true), size = v.getUint32(p + 20, true), nlen = v.getUint16(p + 28, true), xlen = v.getUint16(p + 30, true), clen = v.getUint16(p + 32, true);
+    const name = new TextDecoder().decode(new Uint8Array(buf, p + 46, nlen)), lh = v.getUint32(p + 42, true);
+    if (name.endsWith('.json')) {
+      const data = new Uint8Array(buf, lh + 30 + v.getUint16(lh + 26, true) + v.getUint16(lh + 28, true), size);
+      if (method === 0) return new TextDecoder().decode(data);
+      return await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
+    }
+    p += 46 + nlen + xlen + clen;
+  }
+  throw new Error('no selection .json in the zip');
+}
+function saveSelection(tab, rows, sorted) {
+  const s = S(), picked = s.site != null ? tab.sites[s.site].name : null;
+  const scope = tab.sites.map((x, i) => ({x, i})).filter(({x, i}) => s.site != null ? i === s.site : match(x.name));
+  const kept = sorted.filter(a => a.t.good || a.t.check), status = a => a.t.good ? 'candidate' : 'check AOI';
+  const settings = {cloud_max_pct: tab.has.cloud ? s.cloud : null, off_nadir_max_deg: tab.has.off ? s.off : null, site_covered_min_pct: s.cov,
+    use_site_requirements: s.own, level: s.level === 'any' ? 'any' : tab.levels[+s.level].code, time_of_day: s.dn, source: s.source,
+    from_month: s.from, to_month: s.to, find_sites: state.find.trim(), look_closer_site: picked};
+  const id = fnv(JSON.stringify([tab.key, settings, scope.map(({x}) => x.name), kept.map(a => [a.a, a.s, status(a)])]));
+  const today = new Date().toISOString().slice(0, 10);
+  const where = scope.length === 1 ? slug(scope[0].x.name) : `${scope.length}sites`;
+  const dials = [tab.has.cloud ? `cloud${s.cloud}` : null, tab.has.off ? `offnadir${s.off}` : null, `cover${s.cov}`, s.own ? 'sitereq' : null].filter(Boolean).join('_');
+  const base = `${slug(tab.vendor)}-${slug(tab.constellation)}_${s.from}to${s.to}_${dials}_${where}_${today}_${id}`;
+  const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+  const lines = [['date', 'site', 'sensor', 'status', 'cloud_pct', 'cloud_limit_pct', 'off_nadir_deg', 'off_nadir_limit_deg', 'site_covered_pct', 'catalog_items', 'levels', 'in_csda', 'time_of_day', 'acquisition_id', 'selection_id'].join(',')];
+  kept.forEach(a => { const lim = limits(tab, tab.sites[a.s]);
+    lines.push([a.d, tab.sites[a.s].name, tab.sensors[a.n], status(a), a.cloud, tab.has.cloud ? lim.cloud : '', a.off, tab.has.off ? lim.off : '', a.cov, a.items,
+      a.lv.map(i => tab.levels[i].code).join(' '), tab.csda_checked === false ? '' : a.csda, a.dn, a.a, id].map(q).join(',')); });
+  const per = new Map(scope.map(({i}) => [i, {candidates: 0, check_aoi: 0, found: 0}])), months = {};
+  rows.forEach(a => { const c = per.get(a.s); if (c) c.found++; });
+  kept.forEach(a => { const c = per.get(a.s), k = a.d.slice(0, 7); months[k] = months[k] || {candidates: 0, check_aoi: 0};
+    if (a.t.good) { c.candidates++; months[k].candidates++; } else { c.check_aoi++; months[k].check_aoi++; } });
+  const good = kept.filter(a => a.t.good);
+  const record = {
+    selection: {id, note: $('selNote').value.trim(), saved: new Date().toISOString(), files: [`${base}.csv`, `${base}.json`],
+      page: location.origin + location.pathname, rule: RULE, rule_text: RULE_TEXT},
+    catalog: {tab: tab.key, affiliation: tab.vendor, constellation: tab.constellation, searched: tab.searched, search_window: [tab.start, tab.end],
+      catalog_items: tab.items, page_data_updated: DATA.updated, cloud_scope: tab.cloud_scope, cloud_reported: tab.has.cloud, off_nadir_reported: tab.has.off},
+    settings,
+    counts: {sites: scope.length, acquisitions_found: rows.length, candidates: good.length, unique_candidates: uniq(good), check_aoi: kept.length - good.length,
+      sites_with_a_candidate: [...per.values()].filter(c => c.candidates).length, by_month: Object.fromEntries(Object.entries(months).sort())},
+    sites: scope.map(({x, i}) => { const lim = limits(tab, x), c = per.get(i);
+      return {site: x.name, cloud_limit_pct: tab.has.cloud ? lim.cloud : null, off_nadir_limit_deg: tab.has.off ? lim.off : null,
+        scene_cloud_limit_pct: s.own && x.cloud != null && tab.cloud_scope === 'scene' ? (x.scene != null ? x.scene : s.cloud) : null,
+        required_candidates: x.need != null ? x.need : null, ...c}; }),
+    acquisitions: kept.map(a => ({acquisition_id: a.a, date: a.d, site: tab.sites[a.s].name, status: status(a)})),
+  };
+  const link = el('a', {href: URL.createObjectURL(zip([[`${base}.csv`, lines.join('\n') + '\n'], [`${base}.json`, JSON.stringify(record, null, 1) + '\n']])), download: `${base}.zip`});
+  document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(link.href), 4000);
+}
+let restore = null;   // a loaded selection, applied when its tab is shown
+function applyRestore(tab, r) {
+  const s = state.per[state.tab] = defaults(tab), g = r.settings, ms = months(tab);
+  if (g.cloud_max_pct != null) s.cloud = g.cloud_max_pct;
+  if (g.off_nadir_max_deg != null) s.off = g.off_nadir_max_deg;
+  s.cov = g.site_covered_min_pct; s.own = g.use_site_requirements; s.dn = g.time_of_day; s.source = g.source;
+  const lv = tab.levels.findIndex(l => l.code === g.level); s.level = lv >= 0 ? String(lv) : 'any';
+  s.from = ms.includes(g.from_month) ? g.from_month : ms[0]; s.to = ms.includes(g.to_month) ? g.to_month : ms[ms.length - 1];
+  state.find = g.find_sites || ''; $('find').value = state.find;
+  const pi = g.look_closer_site ? tab.sites.findIndex(x => x.name === g.look_closer_site) : -1; s.site = pi >= 0 ? pi : null;
+  $('selNote').value = r.selection.note || '';
+  // then: how today's list compares with the saved one
+  const all = slice(tab), found = all.filter(a => match(tab.sites[a.s].name)), rows = s.site == null ? found : found.filter(a => a.s === s.site);
+  const key = a => `${a.acquisition_id ?? a.a}|${a.site ?? tab.sites[a.s].name}`;
+  const was = new Set(r.acquisitions.filter(a => a.status === 'candidate').map(key)), now = new Set(rows.filter(a => a.t.good).map(key));
+  const added = [...now].filter(k => !was.has(k)).length, gone = [...was].filter(k => !now.has(k)).length;
+  const missing = r.sites.filter(x => !tab.sites.some(y => y.name === x.site)).map(x => x.site);
+  const N = n => n.toLocaleString();
+  $('loaded').replaceChildren(el('div', {class: 'loaded'}, el('b', {text: `Loaded selection ${r.selection.id}`}),
+    ` saved ${r.selection.saved.slice(0, 10)}${r.selection.note ? ` (“${r.selection.note}”)` : ''}: its limits and sites are restored. `,
+    ...rich(`It had ${N(was.size)} Candidate Acquisitions (catalog searched ${r.catalog.searched}); with today's catalog (searched ${tab.searched}) there are ${N(now.size)}: `
+      + `${N(added)} new and ${N(gone)} no longer listed.`),
+    r.selection.rule !== RULE ? ` The rule has changed since: ${r.selection.rule} then, ${RULE} now.` : '',
+    missing.length ? ` Not among today's sites: ${missing.join(', ')}.` : '',
+    s.from !== r.settings.from_month || s.to !== r.settings.to_month ? ` Its months (${r.settings.from_month} to ${r.settings.to_month}) are outside today's data, so the full range is shown.` : ''));
+}
+function loadSelection(file) {
+  const fail = e => $('loaded').replaceChildren(el('div', {class: 'warn', text: `Could not read ${file.name} as a saved selection: ${e.message || e}`}));
+  file.arrayBuffer().then(buf => /\.zip$/i.test(file.name) ? unzipJson(buf) : new TextDecoder().decode(buf)).then(text => {
+    const r = JSON.parse(text), i = DATA.tabs.findIndex(t => t.key === r.catalog.tab);
+    if (!r.settings || !r.acquisitions) throw new Error('it is not a selection file');
+    if (i < 0) throw new Error(`its tab (${r.catalog.tab}) is not on this page`);
+    restore = r; state.tab = i; renderAll();
+  }).catch(fail);
+}
+$('loadSel').addEventListener('click', () => $('selFile').click());
+$('selFile').addEventListener('change', e => { if (e.target.files[0]) loadSelection(e.target.files[0]); e.target.value = ''; });
 function renderData(tab) {
   const s = S(), all = slice(tab);
   if (s.site != null && !match(tab.sites[s.site].name)) s.site = null;   // a picked site the search no longer finds
@@ -634,12 +767,17 @@ function showPending(tab) {   // a vendor whose catalog access is not in place y
 function renderAll() {
   const tab = DATA.tabs[state.tab];
   document.querySelector('.viz-root').classList.toggle('is-pending', !!tab.pending);
+  $('selbar').hidden = !!tab.pending;
   if (tab.pending) return showPending(tab);
   if (tab.lazy && !tab.acqs) return loadTab(tab);
   tab.has = tab.has || {cloud: reported(tab, 'cloud'), off: reported(tab, 'off')};
   state.per[state.tab] = state.per[state.tab] || defaults(tab);
+  if (restore && restore.catalog.tab === tab.key) { const r = restore; restore = null; applyRestore(tab, r); }
+  else if (!restore) $('loaded').replaceChildren();
   applyPalette();
   renderTabs(); renderFilters(tab); renderData(tab);
+  const dot = el('i', {class: 'swatch'}); dot.style.background = tab.palette.color;
+  $('readTitle').replaceChildren('How to read ', dot, el('b', {text: tab.vendor}), ` ${tab.constellation} info:`);
   const warn = [];
   if (tab.failed.length) warn.push(`The search failed at ${tab.failed.join(', ')}, so those counts may be low. Re-run the notebook to fill them in.`);
   $('warn').replaceChildren(...warn.map(t => el('div', {class: 'warn', text: `▲ ${t}`})));
