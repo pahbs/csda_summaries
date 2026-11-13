@@ -37,9 +37,10 @@ h2 { font-size: 17px; margin: 0 0 4px; font-weight: 620; }
 .sub, .note { color: var(--ink-2); }
 .note { font-size: 12.5px; }
 a { color: var(--link); }
-.tiles { display: flex; flex-wrap: wrap; gap: 12px; margin: 18px 0 14px; }
-.tile { background: var(--surface-2); border-radius: 10px; padding: 10px 14px; min-width: 150px; }
-.tile .v { font-size: 22px; font-weight: 650; }
+.tiles { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0 12px; }
+/* compact tiles: the label beside the number, as on the archive pages */
+.tile { background: var(--surface-2); border-radius: 10px; padding: 6px 12px; min-width: 150px; display: flex; align-items: baseline; gap: 8px; }
+.tile .v { font-size: 18px; font-weight: 650; white-space: nowrap; }
 .tile .k { font-size: 12px; color: var(--ink-2); }
 .filters { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; padding: 10px 0 14px;
   border-bottom: 1px solid var(--grid); margin-bottom: 18px; position: sticky; top: 0; background: var(--surface); z-index: 5; }
@@ -896,7 +897,11 @@ function render() {
   drawScatter(G); drawLaunches(); drawStrips(G); drawFoot(G); drawFootMap(G); drawTable(G); drawRevisit(G); drawRsr(); drawEdits();
   const comm = G.filter(g => g.sector === 'Commercial').length;
   const tiles = a => a.map(([v, k]) => `<div class="tile"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join('');
-  $('#tiles').innerHTML = tiles([[G.length, `constellations shown (${comm} commercial)`], [D.n_sensors, 'sensors in database']]);
+  // A sheet row is one sensor on one platform, which can be a whole fleet (SuperDove: 200 satellites); the same instrument on
+  // several platforms is a row each (VIIRS: 5)
+  const sats = D.sensors.reduce((n, s) => n + (Number(s.n_satellites) || 0), 0);
+  $('#tiles').innerHTML = tiles([[G.length, `constellations shown (${comm} commercial)`],
+    [D.n_sensors, 'sensor entries in the database: a sensor on one platform or fleet'], ['~' + sats.toLocaleString(), 'satellites, past and present']]);
 }
 function init() {
   $('#subtitle').innerHTML = `<span class="wip">Work in progress</span> <span class="updated">Last updated: ${esc(D.asof)}</span>`;
