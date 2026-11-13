@@ -453,6 +453,14 @@ def _stats_group(name: str, counted: dict, every: List[str]) -> dict:
     return out
 
 
+def _slug(text: str) -> str:
+    """A data file name from a group name: lower case, letters and digits, "-" between (SPOT 6/7 -> spot-6-7)."""
+    import re
+    import unicodedata
+    ascii_text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-z0-9]+", "-", ascii_text.lower()).strip("-")
+
+
 def tab(key: str, groups, cell: float = CELL_DEG) -> Optional[dict]:
     """One vendor: its groups share a month axis, from the earliest month fetched for any of them."""
     loaded = [(name, store, _stats_tables(store) if VENDORS[store].get("stats") else _tables(store, collections))
@@ -485,7 +493,7 @@ def tab(key: str, groups, cell: float = CELL_DEG) -> Optional[dict]:
             g, start = _group(name, tables, every, cell), min(tables)
             g["footprints"] = any("wkb" in x and x.wkb.notna().any() for x in tables.values() if len(x))
             g["lazy"] = cell < 1.5   # fine grids are large: each constellation loads when it is picked
-        g.update(key=f"{key}-{name}".lower().replace(" ", "-"), unit=info["unit"], guide=info["guide"], collections=info["collections"],
+        g.update(key=_slug(f"{key}-{name}"), unit=info["unit"], guide=info["guide"], collections=info["collections"],
                  first=next(m["month"] for m in g["totals"] if m["n"]), fetched_from=start,
                  complete=start <= info.get("start", START) and not g.get("progress_note"))
         out.append(g)
@@ -494,7 +502,7 @@ def tab(key: str, groups, cell: float = CELL_DEG) -> Optional[dict]:
         parts = [g for g in base if members is None or g["constellation"] in members]
         if len(parts) < 2:
             continue
-        out.append({"constellation": name, "parts": [p["constellation"] for p in parts], "key": f"{key}-{name}".lower().replace(" ", "-"),
+        out.append({"constellation": name, "parts": [p["constellation"] for p in parts], "key": _slug(f"{key}-{name}"),
                     "unit": parts[0]["unit"], "guide": f"{', '.join(p['constellation'] for p in parts)} together, each strip counted once.",
                     "collections": [c for p in parts for c in p["collections"]], "first": min(p["first"] for p in parts),
                     "fetched_from": max(p["fetched_from"] for p in parts), "complete": all(p["complete"] for p in parts)})

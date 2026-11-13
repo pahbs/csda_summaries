@@ -703,10 +703,16 @@ def resolve_sensor(raw_values: Iterable, affiliation: Optional[str] = None,
             "sensor": values[0] if values else None}
 
 
+@lru_cache(maxsize=None)
+def _altitudes() -> Dict[str, Any]:
+    """sensor_catalog.yaml `altitude_km`, read once: it is asked for every item whose elevation comes from off-nadir."""
+    with open(SENSOR_CATALOG_PATH) as f:
+        return (yaml.safe_load(f) or {}).get("altitude_km", {})
+
+
 def constellation_altitude_km(constellation: Optional[str]) -> float:
     """Nominal orbit altitude (sensor_catalog.yaml `altitude_km`)."""
-    with open(SENSOR_CATALOG_PATH) as f:
-        alts = (yaml.safe_load(f) or {}).get("altitude_km", {})
+    alts = _altitudes()
     return float(alts.get(constellation, alts.get("default", 550)))
 
 
