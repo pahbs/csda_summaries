@@ -43,7 +43,7 @@ INDEX = "index.json"   # the tab summaries, in DATA_DIR
 # Vendors whose catalog access is not in place yet: a tab says so (here and on the density page) until their data arrive.
 PENDING_VENDORS = {
     "airbus": dict(vendor="Airbus", constellations=["Pléiades", "Pléiades Neo", "SPOT 6/7"], catalog="Airbus OneAtlas"),
-    "earthdaily": dict(vendor="EarthDaily", constellations=["EarthDaily Constellation"], catalog="EarthDaily EarthPlatform"),
+    "earthdaily": dict(vendor="EarthDaily", constellations=["EDC"], catalog="EarthDaily EarthPlatform"),
 }
 
 

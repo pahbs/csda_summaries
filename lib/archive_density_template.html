@@ -156,6 +156,15 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
 .readhead { font-weight: 400; }
 .readhead b { font-weight: 700; }
 .readhead .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 6px 0 2px; vertical-align: 1px; }
+/* compact summary tiles: the number, then its label beside it */
+.answer { gap: 10px; margin-bottom: 14px; }
+.tile { display: flex; align-items: baseline; gap: 4px 8px; padding: 8px 12px; }
+.tile .v { font-size: 18px; font-weight: 650; white-space: nowrap; line-height: 1.2; }
+.tile.hero .v { font-size: 26px; line-height: 1.1; }
+.tile .k { font-size: 12.5px; line-height: 1.35; }
+/* "Last updated": a neutral ink pill (no affiliation hue); the age is added when it is over a day, and flagged past a week */
+.updated { display: inline-block; padding: 1px 9px; border-radius: 9999px; background: var(--ink); color: var(--surface); font-weight: 600; font-size: 11.5px; white-space: nowrap; }
+.updated.stale { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
 </style>
 </head>
 <body>
@@ -194,6 +203,11 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
 <script>
 const DATA = JSON.parse(document.getElementById('data').textContent);
 const $ = id => document.getElementById(id);
+function showUpdated(text) {   // "Last updated: 13 Nov 2026", with the age once it is over a day; past a week it is flagged
+  const days = Math.floor((Date.now() - new Date(text).getTime()) / 864e5), node = $('updated');
+  node.className = 'updated' + (days > 7 ? ' stale' : '');
+  node.textContent = `Last updated: ${text}` + (days >= 2 && days < 1e4 ? ` · ${days} days ago` : '') + (days > 7 ? ' · due for an update' : '');
+}
 const mapRamp = () => TAB().palette[dark() ? 'map_dark' : 'map_light'];
 function applyPalette() {
   const root = document.querySelector('.viz-root'), r = TAB().palette[dark() ? 'dark' : 'light'];
@@ -462,7 +476,7 @@ function show() {
   $('readTitle').replaceChildren('How to read the ', dot, el('b', {text: t.vendor}), ` ${t.constellation} map:`);
   $('foot').textContent = `${t.vendor} ${t.constellation}: catalog collections ${t.collections.join(', ')}.`;
 }
-$('updated').textContent = `Last updated: ${DATA.updated}`;
+showUpdated(DATA.updated);
 const tl = $('timeline'); let dragging = false;
 const monthAt = e => { const r = tl.getBoundingClientRect(); return Math.max(0, Math.min(T().totals.length - 1, Math.floor((e.clientX - r.left) / r.width * T().totals.length))); };
 tl.addEventListener('pointerdown', e => { dragging = true; tl.setPointerCapture(e.pointerId); stop(); go(monthAt(e)); });

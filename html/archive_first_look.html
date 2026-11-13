@@ -153,6 +153,23 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
 .selbar[hidden] { display: none; }
 .loaded { margin: 10px 0 0; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--axis); font-size: 13.5px; }
 .loaded b { font-weight: 650; }
+/* compact summary tiles: the number, then its label beside it */
+.answer { gap: 10px; margin-bottom: 14px; }
+.tile { display: flex; align-items: baseline; gap: 4px 8px; padding: 8px 12px; }
+.tile .v { font-size: 18px; font-weight: 650; white-space: nowrap; line-height: 1.2; }
+.tile.hero .v { font-size: 26px; line-height: 1.1; }
+.tile .k { font-size: 12.5px; line-height: 1.35; }
+/* "Last updated": a neutral ink pill (no affiliation hue); the age is added when it is over a day, and flagged past a week */
+.updated { display: inline-block; padding: 1px 9px; border-radius: 9999px; background: var(--ink); color: var(--surface); font-weight: 600; font-size: 11.5px; white-space: nowrap; }
+.updated.stale { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
+/* the Candidate Acquisition filters: the same two rows and columns for every vendor; a control that does not apply stays in its
+   place, greyed, so the layout does not shift between tabs */
+.filters.fixed { display: grid; grid-template-columns: 240px 290px 290px auto; gap: 10px 22px; }
+.filters.fixed .lead { grid-column: 1 / -1; }
+.filters.fixed label { white-space: nowrap; }
+.filters.fixed select { max-width: 160px; }
+@media (max-width: 1150px) { .filters.fixed { display: flex; } }
+.cadence { color: var(--ink-2); font-size: 12px; margin-left: 4px; }
 </style>
 </head>
 <body>
@@ -160,7 +177,7 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
 <h1>Archive First Look: identify <span class="gq">Candidate Acquisitions</span> for CSDA evaluation</h1>
 <p class="subhead">A tool to explore archive acquisitions available at sites in the Evaluation Sites Database.</p>
 <p class="note" style="margin:4px 0 0">Paul Montesano, PhD · NASA Goddard Space Flight Center; ESSIC · CSDA Multispectral Optical SME Group ·
-  <a href="mailto:paul.m.montesano@nasa.gov">paul.m.montesano@nasa.gov</a> · <span id="updated"></span></p>
+  <a href="mailto:paul.m.montesano@nasa.gov">paul.m.montesano@nasa.gov</a> · <span id="updated"></span> <span class="cadence">refreshed daily, starting 3 am ET</span></p>
 <div class="warn" style="margin:12px 0 0;font-size:13.5px"><b>Suggested use:</b> filter to determine a set of <span class="gq">Candidate Acquisitions</span> that is evaluation-ready, save them as a selection (a CSV of the acquisitions, with a file recording the limits, sites and your note) for manual thumbnail review before sending to CSDA Data Management Team for purchase recommendation. A saved selection can be loaded again to restore its settings and see what has changed since. To see where and when each constellation collects worldwide, month by month, use the <a href="archive_density.html">Archive Density Dashboard</a> page.</div>
 <div class="tabs" id="tabs" role="tablist"></div>
 <div class="constpick" id="constWrap" hidden><label for="constellation">Constellation</label><select id="constellation"></select></div>
@@ -205,6 +222,11 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
 <script>
 let DATA = JSON.parse(document.getElementById('data').textContent);   // {index: true, data_base}: the summaries are read from the data repository
 const $ = id => document.getElementById(id);
+function showUpdated(text) {   // "Last updated: 13 Nov 2026", with the age once it is over a day; past a week it is flagged
+  const days = Math.floor((Date.now() - new Date(text).getTime()) / 864e5), node = $('updated');
+  node.className = 'updated' + (days > 7 ? ' stale' : '');
+  node.textContent = `Last updated: ${text}` + (days >= 2 && days < 1e4 ? ` · ${days} days ago` : '') + (days > 7 ? ' · due for an update' : '');
+}
 const pal = () => DATA.tabs[state.tab].palette;
 const ramp = () => pal()[dark() ? 'dark' : 'light'];
 function applyPalette() {   // the vendor's ramp for data marks: Candidate Acquisitions are a strong step, Check AOI a lighter one
@@ -338,12 +360,16 @@ function renderFilters(tab) {
     sel.value = s[key]; return el('label', {}, label, sel);
   };
   const hasNight = tab.acqs.some(a => a.dn === 'night');
-  f.replaceChildren(...[el('span', {class: 'lead'}, el('span', {class: 'gq', text: 'Candidate Acquisition'}), ' means'),
+  const blank = (label, text, why) => el('label', {class: 'off', title: why}, label, Object.assign(el('select', {'aria-label': label}, el('option', {text})), {disabled: true}));
+  f.classList.add('fixed');
+  f.replaceChildren(el('span', {class: 'lead'}, el('span', {class: 'gq', text: 'Candidate Acquisition'}), ' means'),
     slider('cloud', 'Cloud up to', 100, '%', tab.has.cloud), slider('off', 'Off-nadir up to', 60, '°', tab.has.off),
     slider('cov', 'Site covered at least', 100, '%', true),
     el('label', {}, own, 'Use site requirements where they exist'),
-    tab.levels.length ? el('label', {}, 'Level', level) : null, hasNight ? choice('dn', 'Time', [['day', 'Day'], ['night', 'Night'], ['any', 'Day and night']]) : null,
-    tab.csda_checked === false ? null : choice('source', 'Source', [['any', 'All found'], ['csda', 'In CSDA']]), el('label', {}, 'From', when('from'), 'to', when('to'))].filter(Boolean));
+    tab.levels.length ? el('label', {}, 'Level', level) : blank('Level', 'Not reported', 'This catalog does not report processing levels'),
+    hasNight ? choice('dn', 'Time', [['day', 'Day'], ['night', 'Night'], ['any', 'Day and night']]) : blank('Time', 'Day only', 'No night acquisitions in this catalog'),
+    tab.csda_checked === false ? blank('Source', 'All found', "CSDA's holdings are not matched for this vendor") : choice('source', 'Source', [['any', 'All found'], ['csda', 'In CSDA']]),
+    el('label', {}, 'From', when('from'), 'to', when('to')));
 }
 function renderAnswer(tab, rows) {
   const good = rows.filter(a => a.t.good), bySite = new Map();
@@ -404,7 +430,7 @@ function renderScore(tab, rows) {
   });
   $('score').replaceChildren(el('table', {class: 'score'}, el('thead', {}, head), el('tbody', {}, body)));
   const lights = ramp();
-  $('scoreNote').replaceChildren(...rich(`Sorted by Candidate Acquisitions. Columns are ${tab.sensors.length === 1 ? 'the sensor' : 'sensors, most productive first'}, then months. Select a row to look closer.`
+  $('scoreNote').replaceChildren(...rich(`Columns are ${tab.sensors.length === 1 ? 'the sensor' : 'sensors, most productive first'}, then months. Select a row to look closer.`
     + (scene ? ' Check AOI: the scene is over the site\'s cloud limit but within the scene limit, so the site itself may be clear. Look at the image.' : '')));
   $('nothing').textContent = nothing.length ? `Nothing found at ${plural(nothing.length, 'site')}: ${nothing.join(', ')}.` : '';
   const more = $('moreSensors');
@@ -790,7 +816,7 @@ $('find').addEventListener('input', e => {   // a new search replaces any site p
   state.find = e.target.value; Object.values(state.per).forEach(p => { p.site = null; }); renderData(DATA.tabs[state.tab]);
 });
 function start() {
-  $('updated').textContent = `Last updated: ${DATA.updated}`;
+  showUpdated(DATA.updated);
   renderAll();
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderAll);
 }

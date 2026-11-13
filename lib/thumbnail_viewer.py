@@ -64,7 +64,7 @@ SOURCES = {
     "planet": dict(vendor="Planet", constellation="SuperDove", provider="planet", collections=["PSScene", "TanagerScene"], assets=["thumbnail"]),
     "airbus": dict(vendor="Airbus", constellation="Pleiades, Pleiades Neo, SPOT", provider="airbus", collections=None,
                    assets=["quicklook", "thumbnail"]),
-    "earthdaily": dict(vendor="EarthDaily", constellation="EarthDaily", provider="earthdaily", collections=None, assets=["thumbnail"]),
+    "earthdaily": dict(vendor="EarthDaily", constellation="EDC", provider="earthdaily", collections=None, assets=["thumbnail"]),
 }
 MAX_ITEMS = 16      # scenes or tiles of one acquisition drawn at most, those covering most of the site first
 CROP_PX = 360       # longest side of the close-up of the site
