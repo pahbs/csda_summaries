@@ -245,6 +245,22 @@ def show(page, height: str = "88vh"):
     jupyter_page.show(page, height)
 
 
+def refresh(page) -> Path:
+    """Put the current page code (thumbnail_viewer_template.html) into an existing viewer page, keeping its previews: no catalog
+    searches or downloads. Reviews are saved next to its selection .zip when that sits beside the page, else next to the page."""
+    page = Path(page)
+    html = page.read_text(encoding="utf-8")
+    tag = "const DATA = "
+    start = html.index(tag) + len(tag)
+    data = json.loads(html[start:html.index(";\n", start)])
+    zipped = page.with_name(f"{data['title']}.zip")
+    data.setdefault("input", zipped.name if zipped.exists() else page.name)
+    data["input_dirs"] = jupyter_page.candidates(page.parent)
+    page.write_text(TEMPLATE.read_text(encoding="utf-8").replace("/*DATA*/null", json.dumps(data, separators=(",", ":")).replace("</", "<\\/")),
+                    encoding="utf-8")
+    return page
+
+
 def read_selection(path) -> tuple:
     """(rows, selection record or None, name) from a saved selection: its .zip, its .csv or its .json (the other file beside it),
     or an older first-look CSV with no record."""
