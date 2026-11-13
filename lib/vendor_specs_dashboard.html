@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CSDA Vendor Specification Database: optical constellation comparison</title>
+<title>Earth Observation Specifications Dashboard: Optical Imaging Constellations</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <style>
@@ -135,8 +135,8 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
 <div class="viz-root">
 <div class="wrap">
   <button class="chip theme" id="theme" title="Switch light / dark">◐ Theme</button>
-  <h1>CSDA Vendor Specification Database: optical constellation comparison</h1>
-  <div class="sub byline">Paul Montesano, PhD · NASA Goddard Space Flight Center; ESSIC · CSDA Multispectral Optical SME Group ·
+  <h1>Earth Observation Specifications Dashboard: Optical Imaging Constellations</h1>
+  <div class="sub byline">Paul Montesano, PhD · NASA Goddard Space Flight Center; Earth System Science Interdisciplinary Center, University of Maryland ·
     <a href="mailto:paul.m.montesano@nasa.gov">paul.m.montesano@nasa.gov</a></div>
   <div class="sub" id="subtitle"></div>
   <div class="tiles" id="tiles"></div>
@@ -306,6 +306,16 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
 
 <script>
 const D = /*__DATA__*/null;
+
+// Program-neutral wording: the sheet's labels and notes name CSDA; the page does not (source URLs are kept as they are)
+(function neutral(x) {
+  const fix = s => s.replace(/CSDA vendor pages?/g, m => m.replace('CSDA', 'NASA')).replace(/not on the CSDA page/g, 'not on the NASA vendor page')
+    .replace(/the CSDA tasking request form/g, "NASA's tasking request form").replace(/ · CSDA$/, '');
+  for (const [k, v] of Object.entries(x)) {
+    if (typeof v === 'string') { if (!/url$/i.test(k) && !/^https?:/.test(v)) x[k] = fix(v); }
+    else if (v && typeof v === 'object') neutral(v);
+  }
+})(D);
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt = v => v == null ? '–' : (+v).toLocaleString(undefined, {maximumFractionDigits: 2});
@@ -858,7 +868,7 @@ function drawEdits() {
   $('#edits-note').innerHTML = `Showing ${E.length} of ${D.edits.length}, following the filters. Every change made to the database, one row per cell (${st}). All views use the edited values. ` +
     `<i>Applied (not yet in sheet)</i> = the Google Sheet still has the old value; <i>in sheet</i> = copied into the sheet; ` +
     `<i>skipped</i> = the sheet changed since the edit was recorded, so the sheet value is used. Rule: <i>Total Bands (MS)</i> counts the pan band. ` +
-    `Sources: CSDA vendor pages on science.nasa.gov first, then vendor / agency pages; "computed" = derived from other fields. ` +
+    `Sources: NASA vendor pages on science.nasa.gov first, then vendor / agency pages; "computed" = derived from other fields. ` +
     `Record: <code>specs/edits_log.csv</code>.`;
   $('#edits').innerHTML = '<thead><tr><th>#</th><th>Date</th><th>Cell</th><th>Sensor</th><th>Field</th><th>Before</th><th>After</th><th>Status</th><th>Source</th><th>Note</th></tr></thead><tbody>' +
     E.map(e => `<tr><td class="n">${esc(e.edit_id)}</td><td>${esc(e.date)}</td><td>${esc(e.cell)}</td><td>${esc(e.label)}</td><td>${esc(e.field)}</td><td>${esc(e.before)}</td>` +
