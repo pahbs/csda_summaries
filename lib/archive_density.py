@@ -11,6 +11,8 @@ searched next time and never shows as empty. Failed windows are halved: busy cat
 from __future__ import annotations
 
 import json
+import subprocess
+import shutil
 import os
 import sys
 import time
@@ -549,12 +551,80 @@ def build(page: Path = PAGE, cell: float = CELL_DEG, data_dir: Optional[Path] = 
     data = json.dumps({"tabs": tabs, "land": LAND.read_text(encoding="utf-8").strip(), "updated": f"{pd.Timestamp.today():%-d %b %Y}",
                        "data_base": data_base}, separators=(",", ":"))
     page.write_text(TEMPLATE.read_text(encoding="utf-8").replace("/*DATA*/null", data.replace("</", "<\\/")), encoding="utf-8")
+    if (WITHHELD / "HIDDEN").exists():   # withheld: the rebuild stays withheld (the full page is kept again)
+        (WITHHELD / "HIDDEN").unlink()
+        hide_commercial(page)
     print(page, f"{page.stat().st_size / 1e6:.1f} MB",
           [f"{g['constellation']}: {sum(m['n'] for m in g['totals'])}" for t in tabs for g in t["groups"] if "totals" in g])
     return page
 
 
+PUBLIC = {"USGS / NASA", "ESA"}          # affiliations shown even while commercial data is withheld
+WITHHELD = STORE / "withheld"             # commercial data files and the full page, while withheld
+
+
+def _commercial(tab: dict) -> bool:
+    return tab["vendor"] not in PUBLIC and not tab.get("pending")
+
+
+def _page_data(page: Path):
+    html = page.read_text(encoding="utf-8")
+    tag = '<script type="application/json" id="data">'
+    i = html.index(tag) + len(tag)
+    j = html.index("</script>", i)
+    return html, i, j, json.loads(html[i:j].replace("<\\/", "</"))
+
+
+def hide_commercial(page: Path = PAGE) -> None:
+    """Withhold commercial data: their tabs become greyed placeholders in the page (the full page is kept in WITHHELD), and their
+    data files move out of the data repository into WITHHELD. Public tabs (Landsat, Sentinel-2) are unchanged."""
+    WITHHELD.mkdir(parents=True, exist_ok=True)
+    html, i, j, data = _page_data(page)
+    if not (WITHHELD / "HIDDEN").exists():
+        (WITHHELD / "archive_density_full.html").write_text(html, encoding="utf-8")
+    keys = set()
+    for k, t in enumerate(data["tabs"]):
+        if _commercial(t) and not t.get("hidden"):
+            keys |= {g["key"] for g in t["groups"] if g.get("key")}
+            data["tabs"][k] = {"vendor": t["vendor"], "palette": t["palette"], "hidden": True,
+                               "groups": [{"constellation": g["constellation"]} for g in t["groups"] if not g.get("parts")]}
+    page.write_text(html[:i] + json.dumps(data, separators=(",", ":")).replace("</", "<\\/") + html[j:], encoding="utf-8")
+    folder = data_repo.folder("archive_density")
+    for key in keys:
+        if (folder / f"{key}.json").exists():
+            shutil.move(str(folder / f"{key}.json"), str(WITHHELD / f"{key}.json"))
+    (WITHHELD / "HIDDEN").write_text(json.dumps(sorted(keys)))
+    print(f"commercial data withheld: {len(keys)} groups; page and data repository updated (not pushed)")
+
+
+def show_commercial(page: Path = PAGE) -> None:
+    """Undo hide_commercial: the full page and the commercial data files come back."""
+    if not (WITHHELD / "HIDDEN").exists():
+        print("nothing withheld"); return
+    folder = data_repo.folder("archive_density")
+    for f in WITHHELD.glob("*.json"):
+        shutil.move(str(f), str(folder / f.name))
+    shutil.move(str(WITHHELD / "archive_density_full.html"), str(page))
+    (WITHHELD / "HIDDEN").unlink()
+    print("commercial data shown again; page and data repository updated (not pushed)")
+
+
+def _publish(message: str) -> None:
+    """Push the data repository, then commit and push the page alone."""
+    data_repo.push(message)
+    repo = Path(__file__).resolve().parents[1]
+    subprocess.run(["git", "-C", str(repo), "add", str(PAGE)], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", f"Archive density page: {message}"], check=True)
+    subprocess.run(["git", "-C", str(repo), "push", "-q", "origin", "master"], check=True)
+    print("pushed")
+
+
 if __name__ == "__main__":
+    if sys.argv[1] == "commercial":   # commercial hide | show [--push]: withhold commercial tabs and data, or bring them back
+        hide_commercial() if sys.argv[2] == "hide" else show_commercial()
+        if "--push" in sys.argv:
+            _publish("commercial data " + ("withheld" if sys.argv[2] == "hide" else "shown again"))
+        sys.exit(0)
     if sys.argv[1] == "days":   # days superdove: days with a scene per cell, from Planet's stats by day
         fetch_stats_days(sys.argv[2])
     elif sys.argv[1] == "fetch":   # fetch <vendor> [year or YYYY-MM ...]: only those (counted stores; several runs in parallel)
