@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CSDA Acquisition Request Check</title>
+<title>Candidate Acquisition Thumbnail Viewer</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <style>
@@ -87,6 +87,8 @@ button.primary:hover { background: var(--ink-2); }
 .why { margin: -4px 10px 10px; font-size: 12px; }
 .why[hidden], #preason[hidden] { display: none; }
 .met { color: var(--ok); font-weight: 600; }
+/* the title's "Candidate Acquisition": the vendor-colored tag, at heading size (as in the first-look title) */
+.tag.gqh { font-size: inherit; font-weight: 650; padding: 1px 12px 2px; }
 </style>
 </head>
 <body>
@@ -94,7 +96,7 @@ button.primary:hover { background: var(--ink-2); }
   <p id="noscript" style="background:#fff3cd;color:#3d2e00;padding:12px 14px;border-radius:8px;max-width:980px">
     <b>The thumbnails haven't loaded.</b> This page needs its script to run. In JupyterLab, click <b>Trust HTML</b> at the top of this
     viewer, or right-click the file and choose <b>Open in New Browser Tab</b>. Or copy the file to your computer and open it in a browser.</p>
-  <h1>CSDA Acquisition Request Check</h1>
+  <h1><span class="tag gqh">Candidate Acquisition</span> Thumbnail Viewer</h1>
   <p class="subhead">A tool supporting manual SME thumbnail review of image quality & final request compilation prior to sending to Data Management Team for vendor data purchase.</p>
   <p class="context"><span class="tag" id="who"></span><span id="counts"></span></p>
   <p class="selinfo" id="selinfo"></p>

@@ -26,12 +26,13 @@ def candidates(path) -> List[str]:
     real = os.path.realpath(given)
     out = [given, real]
     home = Path.home()
+    homes = list(dict.fromkeys([str(home), os.path.realpath(home)]))   # JupyterLab may report either (/home/me, /panfs/.../home/me)
     try:
         for entry in home.iterdir():
             if entry.is_symlink():
                 target = os.path.realpath(entry)
                 if real == target or real.startswith(target + os.sep):
-                    out.append(str(entry) + real[len(target):])
+                    out += [f"{h}/{entry.name}{real[len(target):]}" for h in homes]
     except OSError:
         pass
     return list(dict.fromkeys(out))

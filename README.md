@@ -41,8 +41,9 @@ requirements. A green check shows when a site has enough.
 - Save a selection (a .zip: the Candidate Acquisitions as a CSV, and a record of the limits, sites and your note), then check
   their thumbnails before ordering; load a saved selection to restore its settings and see what has changed since
 - Select a site to see the footprints of its Candidate Acquisitions over imagery
-- Updated every day. The sites are the CSDA evaluation sites for optical or thermal validation; a site added to the sites
-  file (`sites/csda_sites_aoi.geojson`) is picked up the next day and searched over each vendor's whole archive
+- Updated every day. The sites come from the evaluation sites database (`sites/eval_sites_aoi.geojson`): the CSDA sites for
+  optical or thermal validation, and the Misc sites (SLI-FUSION and FireSense fire perimeters, surface water and bathymetry
+  areas). A site added there is picked up the next day and searched over each vendor's whole archive
 
 <a href="https://pahbs.github.io/csda_summaries/html/archive_first_look.html"><img src="assets/readme/first_look.png" alt="Vendor Archive First Look: Candidate Acquisitions by site and sensor" width="100%"></a>
 

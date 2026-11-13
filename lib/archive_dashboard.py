@@ -53,18 +53,26 @@ def pending_tabs(have_vendors) -> List[dict]:
                  constellations=v["constellations"], catalog=v["catalog"], pending=True, palette=vendor_palette(v["vendor"]))
             for k, v in PENDING_VENDORS.items() if v["vendor"] not in set(have_vendors)]
 
-# The sites every tab covers: CSDA evaluation sites for optical or thermal validation (Remote Sensing Domain contains
-# Optical or Thermal), as whole sites, not the corner-reflector points inside some of them.
-SITES = str(REPO / "sites" / "csda_sites_aoi.geojson")
+# The sites every tab covers, from the evaluation sites database: the CSDA sites for optical or thermal validation (Remote
+# Sensing Domain contains Optical or Thermal), and the Misc sites (SLI-FUSION and FireSense fire perimeters, surface water and
+# bathymetry areas) except the USGS ARD acquisition tiles, which are containers ~150 km across rather than sites.
+SITES = str(REPO / "sites" / "eval_sites_aoi.geojson")
 SITE_NAME_FIELD = "Site Name"
-SITE_FILTERS = {"Remote Sensing Domain": lambda s: s.str.contains("Optical|Thermal", case=False, na=False),
-                "feature_type": ["site"]}
+
+
+def site_rows(sites: gpd.GeoDataFrame) -> pd.Series:
+    """Which rows of the sites file are first-look sites."""
+    domain = sites["Remote Sensing Domain"].astype(str)
+    csda = sites["Program Use"].eq("CSDA") & domain.str.contains("Optical|Thermal", case=False)
+    misc = domain.str.contains("Misc", case=False) & ~sites["aoi_family"].fillna("").str.contains("ARD acquisition area")
+    return csda | misc
 
 
 def load_sites() -> gpd.GeoDataFrame:
-    """The first-look sites (SITES with SITE_FILTERS), named by SITE_NAME_FIELD."""
+    """The first-look sites (site_rows of SITES), named by SITE_NAME_FIELD."""
     import multistac
-    return multistac.load_sites(SITES, site_name_field=SITE_NAME_FIELD, filters=SITE_FILTERS)
+    sites = gpd.read_file(SITES)
+    return multistac.load_sites(sites[site_rows(sites)], site_name_field=SITE_NAME_FIELD)
 
 # What differs between vendors, for the SMEs. Levels are in processing order.
 VENDORS = {
@@ -296,8 +304,9 @@ LAZY_ROWS = 40000   # tabs bigger than this load their acquisitions when opened
 
 
 def publish(vendor: str, gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, sites_file: Union[str, Path], name_field: str,
-            start: str, end: str, log: pd.DataFrame, data_dir: Path = DATA_DIR, page: Path = PAGE) -> Path:
-    """Writes this vendor's tabs, one per constellation, and rebuilds the page."""
+            start: str, end: str, log: pd.DataFrame, data_dir: Path = DATA_DIR, page: Path = PAGE, rebuild: bool = True) -> Path:
+    """Writes this vendor's tabs, one per constellation, and (rebuild) the summaries and the page. Vendors refreshed side by
+    side pass rebuild=False and the summaries are rebuilt once after them all."""
     Path(data_dir).mkdir(parents=True, exist_ok=True)
     for constellation in sorted(gdf.constellation.dropna().unique()):
         tab, fp = tab_data(vendor, gdf, sites, sites_file, name_field, start, end, log, constellation)
@@ -305,6 +314,8 @@ def publish(vendor: str, gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, sites_f
         write_footprints(tab, fp, Path(data_dir) / "fp" / tab["key"])
         print(f"{tab['vendor']} {constellation}: {len(tab['acqs'])} acquisition-site rows, {tab['items']} catalog items, "
               f"{len(tab['sites'])} sites")
+    if not rebuild:
+        return Path(data_dir)
     built = build(page)
     print(built)
     return built

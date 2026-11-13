@@ -807,7 +807,7 @@ function renderAll() {
   const dot = el('i', {class: 'swatch'}); dot.style.background = tab.palette.color;
   $('readTitle').replaceChildren('How to read ', dot, el('b', {text: tab.vendor}), ` ${tab.constellation} info:`);
   const warn = [];
-  if (tab.failed.length) warn.push(`The search failed at ${tab.failed.join(', ')}, so those counts may be low. Re-run the notebook to fill them in.`);
+  if (tab.failed.length) warn.push(`The search failed at ${tab.failed.join(', ')}, so those counts may be low. They are searched again in the next daily refresh.`);
   $('warn').replaceChildren(...warn.map(t => el('div', {class: 'warn', text: `▲ ${t}`})));
   $('foot').textContent = `${tab.vendor} ${tab.constellation}: searched ${tab.searched}, ${tab.start} to ${tab.end}, ${tab.items.toLocaleString()} catalog items, ${tab.sites.length} sites. Sites with a requirement use it in place of the sliders.`;
 }

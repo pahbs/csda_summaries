@@ -50,6 +50,7 @@ import geopandas as gpd
 import pandas as pd
 import requests
 import yaml
+import shapely
 from shapely.geometry import MultiPolygon, Point, Polygon, box, mapping, shape
 from shapely.geometry.polygon import orient
 from shapely.ops import unary_union
@@ -1116,13 +1117,29 @@ def _write_json(path: Path, data: dict) -> None:
     os.replace(tmp, path)
 
 
+QUERY_MAX_VERTICES = 500   # a site outline with more vertices is sent as its convex hull (fire perimeters: thousands)
+
+
+def _query_geometry(geom):
+    """What is sent to a catalog for a site: the outline itself, or its convex hull when it has more than QUERY_MAX_VERTICES
+    vertices. Long outlines make requests too large for some catalogs (Kuva: HTTP 413) or slow; the hull covers the whole
+    site, and results are re-checked against the real outline afterwards (search: "bbox overshoot")."""
+    if geom is None:
+        return None
+    try:
+        n = len(shapely.get_coordinates(geom))
+    except Exception:
+        return geom
+    return geom.convex_hull if n > QUERY_MAX_VERTICES else geom
+
+
 def _build_payload(prov: Provider, task: dict, cloud_cover_max, extra: dict):
     payload: Dict[str, Any] = {
         "collections": [task["collection"]],
         "datetime": _iso_interval(task["interval"]),
         "limit": prov.search_cfg.get("page_size", 100),
     }
-    geom = task["geometry"]
+    geom = _query_geometry(task["geometry"])
     if geom is None:
         pass  # global search: no spatial filter
     elif prov.profile.get("geometry", "intersects") == "intersects":
