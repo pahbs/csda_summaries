@@ -174,6 +174,16 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
 @media (max-width: 860px) { .maphead .legend { justify-content: flex-start; max-width: none; } }
 /* a commercial tab while commercial data is withheld (archive_density.py commercial hide) */
 .tabs button.off { opacity: .4; cursor: not-allowed; }
+/* the interactive globe (MapLibre GL, loaded when first asked for): same cells and colors as the static map */
+.mapmode { display: inline-flex; margin-top: 8px; }
+.mapmode button, .globebar button { font: inherit; font-size: 12.5px; padding: 3px 10px; border: 1px solid var(--axis); background: var(--surface); color: var(--ink-2); cursor: pointer; }
+.mapmode button:first-child, .globebar span button:first-child { border-radius: 6px 0 0 6px; }
+.mapmode button:last-child, .globebar span button:last-child { border-radius: 0 6px 6px 0; border-left: 0; }
+.mapmode button.on, .globebar button.on { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+#globe { position: relative; height: 560px; border-radius: 8px; overflow: hidden; background: var(--surface); }
+#globe[hidden] { display: none; }
+.globebar { position: absolute; z-index: 2; left: 10px; top: 10px; display: flex; gap: 8px; }
+.globebar button { background: color-mix(in oklab, var(--surface) 88%, transparent); }
 </style>
 </head>
 <body>
@@ -197,8 +207,8 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
 </div>
 <div class="answer" id="answer"></div>
 <div class="card">
-  <div class="maphead"><div><h2 id="mapTitle"></h2><p class="note" id="mapNote"></p></div><div class="legend" id="legend"></div></div>
-  <div class="mapwrap"><canvas id="map" width="1208" height="520" role="img" aria-label="World map of acquisition density"></canvas></div>
+  <div class="maphead"><div><h2 id="mapTitle"></h2><p class="note" id="mapNote"></p><div class="mapmode" role="group" aria-label="Map view"><button type="button" id="mStatic" class="on">Static map</button><button type="button" id="mGlobe">Interactive globe</button></div></div><div class="legend" id="legend"></div></div>
+  <div class="mapwrap"><canvas id="map" width="1208" height="520" role="img" aria-label="World map of acquisition density"></canvas><div id="globe" hidden><div class="globebar"><span role="group" aria-label="Projection"><button type="button" id="gGlobe" class="on">Globe</button><button type="button" id="gFlat">Flat</button></span><span role="group" aria-label="Basemap"><button type="button" id="gGray" class="on">Gray land</button><button type="button" id="gImagery">Imagery</button></span></div></div></div>
 </div>
 <div class="cols">
   <div class="card"><h2>By month and sensor</h2><p class="note" id="tableNote"></p><div class="scroll monthbox" id="table"></div></div>
@@ -312,24 +322,30 @@ function drawLand(w, h) {
   c.fillStyle = css('--land'); c.setTransform(sx, 0, 0, sy, 0, -(90 - TOP) * sy); c.fill(new Path2D(DATA.land));
   return land;
 }
+function cellImage(t, i) {   // one pixel per cell (whole globe, 90N at the top), in the map's colors: fast even with 100,000+ cells
+  const {min, max} = scaleOf(t), ramp = mapRamp(), rows = Math.round(180 / t.cell), img = new ImageData(t.columns, rows), px = img.data;
+  const rgb = ramp.map(hex => [1, 3, 5].map(j => parseInt(hex.slice(j, j + 2), 16)));
+  const paint = (cell, v) => { const [r, g, b] = rgb[step(v, max, min)], o = cell * 4; px[o] = r; px[o + 1] = g; px[o + 2] = b; px[o + 3] = 255; };
+  if (state.view === 'month') { const f = t.frames[i] || []; for (let k = 0; k < f.length; k += 2) paint(f[k], f[k + 1]); }
+  else cumAt(t, i).forEach((v, cell) => { if (v) paint(cell, v); });
+  const cells = document.createElement('canvas'); cells.width = t.columns; cells.height = rows; cells.getContext('2d').putImageData(img, 0, 0);
+  return cells;
+}
 function drawMap() {
   const t = T(), i = state.per[t.key], canvas = $('map'), c = canvas.getContext('2d'), w = canvas.width, h = canvas.height;
   const sx = w / 360, sy = h / (TOP - BOTTOM), ramp = mapRamp();
   const {min, max} = scaleOf(t), size = t.cell;
   c.clearRect(0, 0, w, h); c.drawImage(drawLand(w, h), 0, 0);
-  // one pixel per cell in a small image, then scaled up without smoothing: fast even with 100,000+ cells
-  const rows = Math.round(180 / size), img = new ImageData(t.columns, rows), px = img.data;
-  const rgb = ramp.map(hex => [1, 3, 5].map(j => parseInt(hex.slice(j, j + 2), 16)));
-  const paint = (cell, v) => { const [r, g, b] = rgb[step(v, max, min)], o = cell * 4; px[o] = r; px[o + 1] = g; px[o + 2] = b; px[o + 3] = 255; };
-  if (state.view === 'month') { const f = t.frames[i]; for (let k = 0; k < f.length; k += 2) paint(f[k], f[k + 1]); }
-  else cumAt(t, i).forEach((v, cell) => { if (v) paint(cell, v); });
-  const cells = document.createElement('canvas'); cells.width = t.columns; cells.height = rows; cells.getContext('2d').putImageData(img, 0, 0);
+  const cells = cellImage(t, i), rows = cells.height;
   c.imageSmoothingEnabled = false;
   c.drawImage(cells, 0, (90 - TOP) / size, t.columns, (TOP - BOTTOM) / size, 0, 0, w, h);
 }
 function cellAt(e) {
-  const t = T(), r = $('map').getBoundingClientRect(), lon = (e.clientX - r.left) / r.width * 360 - 180, lat = TOP - (e.clientY - r.top) / r.height * (TOP - BOTTOM);
-  const col = Math.floor((lon + 180) / t.cell), row = Math.floor((90 - lat) / t.cell), cell = row * t.columns + col, i = state.per[t.key];
+  const r = $('map').getBoundingClientRect();
+  return valueAt((e.clientX - r.left) / r.width * 360 - 180, TOP - (e.clientY - r.top) / r.height * (TOP - BOTTOM));
+}
+function valueAt(lon, lat) {
+  const t = T(), col = Math.floor((lon + 180) / t.cell), row = Math.floor((90 - lat) / t.cell), cell = row * t.columns + col, i = state.per[t.key];
   let v = 0;
   if (state.view === 'total') v = cumAt(t, i)[cell];
   else { const f = t.frames[i]; for (let k = 0; k < f.length; k += 2) if (f[k] === cell) { v = f[k + 1]; break; } }
@@ -393,6 +409,76 @@ function renderTable(t) {
     fold ? el('th', {text: 'Sensors'}) : shown.map(s => el('th', {text: s})))), el('tbody', {}, rows)));
   $('tableNote').textContent = 'Newest first. Select a month to show it on the map.';
 }
+// ---- Interactive globe: MapLibre GL (loaded on first use), the same cells drawn into a Web Mercator image, gray land or imagery
+const MLIB = 'https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl', MERC = 85.05113, CORNERS = [[-180, MERC], [180, MERC], [180, -MERC], [-180, -MERC]];
+const GL = {on: false, map: null, ready: false, loading: null, proj: 'globe', base: 'gray'};
+function loadMaplibre() {
+  if (window.maplibregl) return Promise.resolve();
+  return GL.loading = GL.loading || new Promise((ok, no) => {
+    document.head.append(el('link', {rel: 'stylesheet', href: MLIB + '.css'}));
+    const sc = document.createElement('script'); sc.src = MLIB + '.js'; sc.onload = ok; sc.onerror = no; document.head.append(sc);
+  });
+}
+function landGeoJSON() {   // the page's land outline (x = lon + 180, y = 90 - lat), as polygons
+  const rings = DATA.land.split('M').map(r => r.replace(/Z/g, '').trim()).filter(Boolean)
+    .map(r => r.split(/\s+/).map(p => { const [x, y] = p.split(',').map(Number); return [x - 180, 90 - y]; })).filter(r => r.length > 2);
+  rings.forEach(r => { const a = r[0], b = r[r.length - 1]; if (a[0] !== b[0] || a[1] !== b[1]) r.push(a); });
+  return {type: 'Feature', properties: {}, geometry: {type: 'MultiPolygon', coordinates: rings.map(r => [r])}};
+}
+function mercatorImage() {   // the cell image warped to Web Mercator rows, so it sits exactly on the map; cells stay sharp (nearest)
+  const t = T(), H = 2048, out = GL.canvas || (GL.canvas = document.createElement('canvas'));
+  if (!t.ck) { out.width = 2; out.height = 2; return out.toDataURL(); }   // maps still loading: render() fills it in once they arrive
+  const small = cellImage(t, state.per[t.key]);
+  out.width = t.columns * 2; out.height = H;
+  const c = out.getContext('2d'); c.clearRect(0, 0, out.width, H); c.imageSmoothingEnabled = false;
+  const yMax = Math.log(Math.tan(Math.PI / 4 + MERC * Math.PI / 360));
+  for (let y = 0; y < H; y++) {
+    const lat = (2 * Math.atan(Math.exp(yMax - (y + 0.5) / H * 2 * yMax)) - Math.PI / 2) * 180 / Math.PI;
+    c.drawImage(small, 0, Math.floor((90 - lat) / t.cell), t.columns, 1, 0, y, out.width, 1);
+  }
+  return out.toDataURL();
+}
+function updateGlobe() {
+  if (!GL.on || !GL.ready) return;
+  GL.map.getSource('cells').updateImage({url: mercatorImage(), coordinates: CORNERS});
+  GL.map.setPaintProperty('bg', 'background-color', css('--surface-2'));   // the ocean: a shade off the page, so the globe's edge shows
+  GL.map.setPaintProperty('land', 'fill-color', css('--land'));
+  GL.map.setLayoutProperty('imagery', 'visibility', GL.base === 'imagery' ? 'visible' : 'none');
+  GL.map.setLayoutProperty('land', 'visibility', GL.base === 'imagery' ? 'none' : 'visible');
+}
+function setMapMode(globe) {
+  GL.on = globe; $('mStatic').classList.toggle('on', !globe); $('mGlobe').classList.toggle('on', globe);
+  $('map').hidden = globe; $('globe').hidden = !globe;
+  if (!globe) return;
+  loadMaplibre().then(() => {
+    if (GL.map) { GL.map.resize(); return updateGlobe(); }
+    GL.map = new maplibregl.Map({container: 'globe', center: [10, 25], zoom: 1.75, maxZoom: 7, attributionControl: {compact: true},
+      style: {version: 8, projection: {type: GL.proj},
+        sources: {land: {type: 'geojson', data: landGeoJSON()},
+          imagery: {type: 'raster', tileSize: 256, maxzoom: 17, attribution: 'Imagery © Esri, Maxar, Earthstar Geographics',
+                    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}']},
+          cells: {type: 'image', url: mercatorImage(), coordinates: CORNERS}},
+        layers: [{id: 'bg', type: 'background', paint: {'background-color': css('--surface-2')}},
+          {id: 'imagery', type: 'raster', source: 'imagery', layout: {visibility: 'none'}},
+          {id: 'land', type: 'fill', source: 'land', paint: {'fill-color': css('--land')}},
+          {id: 'cells', type: 'raster', source: 'cells', paint: {'raster-resampling': 'nearest', 'raster-fade-duration': 0}}]}});
+    GL.map.addControl(new maplibregl.NavigationControl({visualizePitch: true}), 'top-right');
+    GL.map.on('load', () => { GL.ready = true; updateGlobe(); });
+    GL.map.on('mousemove', e => {
+      const c = valueAt(e.lngLat.lng, e.lngLat.lat);   // the same tooltip as the static map
+      if (c.v) showTip(e.originalEvent, c.v.toLocaleString(), `${units(T())} near ${Math.abs(c.lat).toFixed(0)}°${c.lat >= 0 ? 'N' : 'S'}, ${Math.abs(c.lon).toFixed(0)}°${c.lon >= 0 ? 'E' : 'W'}`); else hideTip();
+    });
+    GL.map.on('mouseout', hideTip);
+  }).catch(e => { $('mapNote').textContent = window.maplibregl ? `The interactive globe could not start here (${e && e.message || e}); the static map is shown.`
+    : 'The interactive globe needs an internet connection (MapLibre GL); the static map is shown.'; setMapMode(false); });
+}
+$('mStatic').onclick = () => setMapMode(false);
+$('mGlobe').onclick = () => setMapMode(true);
+const pick = (on, off, apply) => { $(on).classList.add('on'); $(off).classList.remove('on'); apply(); };
+$('gGlobe').onclick = () => pick('gGlobe', 'gFlat', () => { GL.proj = 'globe'; GL.map && GL.map.setProjection({type: 'globe'}); });
+$('gFlat').onclick = () => pick('gFlat', 'gGlobe', () => { GL.proj = 'mercator'; GL.map && GL.map.setProjection({type: 'mercator'}); });
+$('gGray').onclick = () => pick('gGray', 'gImagery', () => { GL.base = 'gray'; updateGlobe(); });
+$('gImagery').onclick = () => pick('gImagery', 'gGray', () => { GL.base = 'imagery'; updateGlobe(); });
 function render() {
   if (!T().ck) return;   // still loading: show() renders once the maps arrive, with whatever view was picked meanwhile
   const t = T(), i = state.per[t.key], m = t.totals[i], total = t.totals.slice(0, i + 1).reduce((s, x) => s + x.n, 0), busiest = t.totals.reduce((a, b) => b.n > a.n ? b : a);
@@ -411,7 +497,7 @@ function render() {
     : t.days && !t.frames[i].length && G().frames[i].length ? 'Days with an acquisition are not counted for this month yet: switch Count to Acquisitions.'
     : t.days ? 'Days in the month with at least one acquisition in the cell, whatever its cloud cover. Point at a cell for its count.'
     : 'Every acquisition in the catalog, whatever its cloud cover. Point at a cell for its count.';
-  drawMap(); renderLegend(t); renderTimeline(t); renderTable(t);
+  drawMap(); updateGlobe(); renderLegend(t); renderTimeline(t); renderTable(t);
 }
 function go(i) { if (!T().ck) return; state.per[T().key] = i; render(); }
 function stop() { clearInterval(state.timer); state.timer = null; $('play').textContent = '▶ Play'; }
