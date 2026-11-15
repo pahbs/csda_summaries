@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Archive Density Dashboard</title>
-<meta name="description" content="Archive Density Dashboard: visualizing constellation acquisitions for each month">
-<meta property="og:title" content="Archive Density Dashboard">
+<title>Earth Observation Archive Density</title>
+<meta name="description" content="Earth Observation Archive Density: visualizing constellation acquisitions for each month">
+<meta property="og:title" content="Earth Observation Archive Density">
 <meta property="og:description" content="Visualizing constellation acquisitions for each month">
 <style>
 .viz-root {
@@ -186,9 +186,10 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
 .globebar button { background: color-mix(in oklab, var(--surface) 88%, transparent); }
 /* the controls in fixed places on every tab: Play and the month, the four choices on line 1; the constellation picker (vendors with
    several) on line 2, which keeps its height on single-constellation tabs; then the timeline */
-.filters.controls { display: grid; grid-template-columns: max-content 210px repeat(4, max-content); align-items: center; gap: 10px 22px; }
-.filters.controls .line2, .filters.controls .timeline { grid-column: 1 / -1; }
-.filters.controls .line2 { min-height: 30px; display: flex; align-items: center; }
+.filters.controls { display: grid; grid-template-columns: max-content 190px 230px max-content 1fr; align-items: center; gap: 10px 22px; }
+.filters.controls .speed { grid-column: 1 / 3; grid-row: 2; }
+.filters.controls .scale { grid-column: 3 / -1; grid-row: 2; justify-self: end; }
+.filters.controls .timeline { grid-column: 1 / -1; }
 @media (max-width: 1000px) { .filters.controls { display: flex; } }
 /* the four summary boxes: equal width and height, number and label on one line */
 .answer { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
@@ -199,21 +200,21 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
 </head>
 <body>
 <div class="viz-root"><div class="wrap">
-<h1>Archive Density Dashboard</h1>
+<h1>Earth Observation Archive Density</h1>
 <p class="sub">Visualizing constellation acquisitions for each month</p>
 <p class="note" style="margin:4px 0 0">Paul Montesano, PhD · NASA Goddard Space Flight Center; ESSIC · CSDA Multispectral Optical SME Group ·
   <a href="mailto:paul.m.montesano@nasa.gov">paul.m.montesano@nasa.gov</a> · <span id="updated"></span></p>
-<div class="warn" style="margin:12px 0 0;font-size:13.5px"><b>Suggested use:</b> use this page to see where and when a constellation has been collecting. For what is available at an evaluation site, use the <a href="archive_first_look.html">Archive First Look</a>. Drag along the timeline or press Play to watch collection change.</div>
+<div class="warn" style="margin:12px 0 0;font-size:13.5px"><b>Suggested use:</b> use this page to see where and when a constellation has been collecting. Drag along the timeline or press Play to watch collection change.</div>
 <div class="tabs" id="tabs" role="tablist"></div>
 <div class="card" id="pending" style="margin-top:18px"></div>
 <div class="filters controls">
   <button class="action play" id="play">▶ Play</button>
   <span class="month" id="month"></span>
+  <label id="groupWrap">Constellation <select id="group" aria-label="Constellation"></select></label>
   <label>Show <select id="view" aria-label="Show"><option value="month">This month</option><option value="total">Running total</option></select></label>
   <label>Count <select id="metric" aria-label="Count"><option value="n">Acquisitions</option><option value="days">Days with an acquisition</option></select></label>
-  <label>Scale <select id="scale" aria-label="Scale"><option value="own">This constellation</option><option value="shared">Shared, all constellations (log)</option></select></label>
-  <label>Speed <select id="speed" aria-label="Speed"><option value="1200">Slow</option><option value="600" selected>Medium</option><option value="250">Fast</option></select></label>
-  <div class="line2"><label id="groupWrap">Constellation <select id="group" aria-label="Constellation"></select></label></div>
+  <label class="speed">Speed <select id="speed" aria-label="Speed"><option value="1200">Slow</option><option value="600" selected>Medium</option><option value="250">Fast</option></select></label>
+  <label class="scale">Scale <select id="scale" aria-label="Scale"><option value="own">This constellation</option><option value="shared">Shared, all constellations (log)</option></select></label>
   <div class="timeline" id="timeline" role="slider" tabindex="0" aria-label="Month"></div>
 </div>
 <div class="answer" id="answer"></div>

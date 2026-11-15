@@ -20,7 +20,7 @@ exists at each site, what has been delivered, what is ready to use, and where ea
 |---|---|
  [**Vendor Specs dashboard**](https://pahbs.github.io/csda_summaries/html/vendor_specs.html) | How do the satellites compare in detail, coverage, bands and revisit? |
 | [**Vendor Archive First Look**](https://pahbs.github.io/csda_summaries/html/archive_first_look.html) | Which Candidate Acquisitions does each vendor's archive hold at my site, from each satellite? |
-| [**Vendor Archive Density Dashboard**](https://pahbs.github.io/csda_summaries/html/archive_density.html) | Where and how often has each constellation collected, month by month since 2020? |
+| [**Earth Observation Archive Density**](https://pahbs.github.io/csda_summaries/html/archive_density.html) | Where and how often has each constellation collected, month by month since 2020? |
 | [**Evaluation timeline**](https://pahbs.github.io/csda_summaries/html/timeline.html) | Where does each vendor evaluation stand, and what is next? |
 |
 | [**Footprints map**](https://pahbs.github.io/csda_summaries/html/footprints_csda_map.html) | Which delivered images sit on ADAPT, and where exactly? |
@@ -49,7 +49,7 @@ requirements. A green check shows when a site has enough.
 
 ---
 
-## Vendor Archive Density Dashboard
+## Earth Observation Archive Density
 
 **See where and when each constellation collects.** Monthly world maps from each vendor's own catalog, from 2020 to today. Press
 Play or drag along the timeline to watch collection grow, or switch to a running total. Vantor's Legion and WorldView satellites, and
@@ -142,7 +142,7 @@ the interactive map.
 |---|---|
 | Vendor Archive First Look | Automatic, every day at 3 am on ADAPT (`lib/first_look_daily.sh`, cron). By hand: `python lib/first_look_daily.py` |
 | Thumbnails of candidates | `notebooks/thumbnail_viewer.ipynb` (private page on ADAPT) |
-| Vendor Archive Density Dashboard | `python lib/archive_density.py fetch <vendor>`, then `python lib/archive_density.py build` |
+| Earth Observation Archive Density | `python lib/archive_density.py fetch <vendor>`, then `python lib/archive_density.py build` |
 | Data tracking pages | `notebooks/airbus_order_tracking.ipynb`, `notebooks/vantor_legion_supp_tracking.ipynb` |
 | Footprints map | `notebooks/footprint_CSDA_eval_all_data.ipynb` |
 | Timeline | `notebooks/timeline.ipynb` |
