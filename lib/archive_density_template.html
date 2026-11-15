@@ -184,6 +184,17 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
 #globe[hidden] { display: none; }
 .globebar { position: absolute; z-index: 2; left: 10px; top: 10px; display: flex; gap: 8px; }
 .globebar button { background: color-mix(in oklab, var(--surface) 88%, transparent); }
+/* the controls in fixed places on every tab: Play and the month, the four choices on line 1; the constellation picker (vendors with
+   several) on line 2, which keeps its height on single-constellation tabs; then the timeline */
+.filters.controls { display: grid; grid-template-columns: max-content 210px repeat(4, max-content); align-items: center; gap: 10px 22px; }
+.filters.controls .line2, .filters.controls .timeline { grid-column: 1 / -1; }
+.filters.controls .line2 { min-height: 30px; display: flex; align-items: center; }
+@media (max-width: 1000px) { .filters.controls { display: flex; } }
+/* the four summary boxes: equal width and height, number and label on one line */
+.answer { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+.tile { align-items: baseline; white-space: nowrap; overflow: hidden; min-height: 44px; }
+.tile .v, .tile.hero .v { font-size: 20px; }
+.tile .k { font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
 </style>
 </head>
 <body>
@@ -198,11 +209,11 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
 <div class="filters controls">
   <button class="action play" id="play">▶ Play</button>
   <span class="month" id="month"></span>
-  <label id="groupWrap" hidden>Constellation <select id="group" aria-label="Constellation"></select></label>
   <label>Show <select id="view" aria-label="Show"><option value="month">This month</option><option value="total">Running total</option></select></label>
   <label>Count <select id="metric" aria-label="Count"><option value="n">Acquisitions</option><option value="days">Days with an acquisition</option></select></label>
   <label>Scale <select id="scale" aria-label="Scale"><option value="own">This constellation</option><option value="shared">Shared, all constellations (log)</option></select></label>
   <label>Speed <select id="speed" aria-label="Speed"><option value="1200">Slow</option><option value="600" selected>Medium</option><option value="250">Fast</option></select></label>
+  <div class="line2"><label id="groupWrap">Constellation <select id="group" aria-label="Constellation"></select></label></div>
   <div class="timeline" id="timeline" role="slider" tabindex="0" aria-label="Month"></div>
 </div>
 <div class="answer" id="answer"></div>
@@ -486,8 +497,8 @@ function render() {
   const missing = t.totals[i].month < t.fetched_from || !!t.totals[i].pending;
   $('month').replaceChildren(name(t.totals[i].month), now ? el('small', {text: ' so far'}) : missing ? el('small', {text: ' not fetched yet'}) : '');
   const tile = (v, k, cls = '') => el('div', {class: 'tile ' + cls}, el('div', {class: 'v', text: v}), el('div', {class: 'k', text: k}));
-  $('answer').replaceChildren(tile(missing ? '–' : m.n.toLocaleString(), `${units(t)} in ${label(t, i)}`, 'hero'), tile(total.toLocaleString(), `${units(t)} from ${name(t.first)} to here`),
-    tile(`${m.clear.toLocaleString()}`, 'of this month with cloud up to 20%'), tile(name(busiest.month), `busiest month, ${busiest.n.toLocaleString()} ${units(t)}`));
+  $('answer').replaceChildren(tile(missing ? '–' : m.n.toLocaleString(), `${units(t)} in ${label(t, i)}`, 'hero'), tile(total.toLocaleString(), `${units(t)} since ${name(t.first)}`),
+    tile(`${m.clear.toLocaleString()}`, 'of this month with cloud up to 20%'), tile(name(busiest.month), `busiest month: ${busiest.n.toLocaleString()}`));
   $('mapTitle').textContent = t.days
     ? (state.view === 'month' ? `${t.vendor} ${t.constellation}, days with an acquisition in ${label(t, i)}` : `${t.vendor} ${t.constellation}, days with an acquisition, summed up to ${label(t, i)}`)
     : state.view === 'month' ? `${t.vendor} ${t.constellation}, ${label(t, i)}` : `${t.vendor} ${t.constellation}, all ${units(t)} up to ${label(t, i)}`;
@@ -539,7 +550,7 @@ function show() {
   if (TAB().pending) return showPending(TAB());
   const groups = TAB().groups, sel = $('group');
   sel.replaceChildren(...groups.map((g, i) => el('option', {value: i, text: g.constellation})));
-  sel.value = state.group[state.tab] || 0; $('groupWrap').hidden = groups.length < 2;
+  sel.value = state.group[state.tab] || 0; $('groupWrap').style.visibility = groups.length < 2 ? 'hidden' : '';   // keeps its place: nothing moves between tabs
   const t = T(), g0 = G();
   applyPalette(); renderTabs();
   $('metric').querySelector('[value=days]').disabled = !!g0.parts;   // days cannot be added across constellations
