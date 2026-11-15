@@ -186,9 +186,9 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
 .globebar button { background: color-mix(in oklab, var(--surface) 88%, transparent); }
 /* the controls in fixed places on every tab: Play and the month, the four choices on line 1; the constellation picker (vendors with
    several) on line 2, which keeps its height on single-constellation tabs; then the timeline */
-.filters.controls { display: grid; grid-template-columns: max-content 190px 230px max-content 1fr; align-items: center; gap: 10px 22px; }
+.filters.controls { display: grid; grid-template-columns: max-content 190px 230px max-content max-content 1fr; align-items: center; gap: 10px 22px; }
 .filters.controls .speed { grid-column: 1 / 3; grid-row: 2; }
-.filters.controls .scale { grid-column: 3 / -1; grid-row: 2; justify-self: end; }
+.filters.controls .scale { grid-column: 6; grid-row: 1; justify-self: end; }
 .filters.controls .timeline { grid-column: 1 / -1; }
 @media (max-width: 1000px) { .filters.controls { display: flex; } }
 /* the four summary boxes: equal width and height, number and label on one line */
