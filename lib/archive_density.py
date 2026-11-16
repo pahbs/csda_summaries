@@ -279,15 +279,20 @@ def fetch_stats(vendor: str = "superdove", refresh: int = REFRESH_MONTHS, worker
     print(f"{vendor} done", flush=True)
 
 
-def fetch_stats_days(vendor: str = "superdove", workers: int = 3, cell: float = CELL_DEG) -> None:
+def fetch_stats_days(vendor: str = "superdove", workers: int = 3, cell: float = CELL_DEG, refresh: int = REFRESH_MONTHS) -> None:
     """SuperDove: days with at least one scene, per land cell and month, from Planet's stats by day (one request per cell for
-    the whole period). Saved as STORE/<vendor>/cells_days.pkl (cell, month, d); resumes from cells_days_done.json."""
+    the whole period). Saved as STORE/<vendor>/cells_days.pkl (cell, month, d); resumes from cells_days_done.json. Once every cell
+    is counted, a run counts the last `refresh` months again at every cell (catalogs add scenes late; new months appear)."""
     from concurrent.futures import ThreadPoolExecutor, as_completed
     folder = STORE / vendor
     path, done_path = folder / "cells_days.pkl", folder / "cells_days_done.json"
     start, end = VENDORS[vendor].get("start", START), f"{pd.Timestamp.today():%Y-%m-%d}"
     old = pd.read_pickle(path) if path.exists() else pd.DataFrame(columns=["cell", "month", "d"])
-    done = set(json.loads(done_path.read_text()).get("cells", [])) if done_path.exists() else set()
+    status = json.loads(done_path.read_text()) if done_path.exists() else {}
+    done = set(status.get("cells", []))
+    if status.get("complete") or status.get("refresh_from"):   # all counted: the recent months again, at every cell
+        start = status.get("refresh_from") or months(start)[-refresh]   # a month (YYYY-MM), as _planet_stats expects
+        done = set(status.get("cells", [])) if status.get("refresh_from") else set()   # a stopped refresh resumes
     instrument = [{"type": "StringInFilter", "field_name": "instrument", "config": ["PSB.SD"]}]
     session, columns = _planet_session(), int(360 / cell)
 
@@ -310,7 +315,9 @@ def fetch_stats_days(vendor: str = "superdove", workers: int = 3, cell: float = 
             done.add(c)
             if i % 500 == 0 or i == len(todo):   # checkpoint, so a stopped run resumes
                 pd.concat([old, pd.DataFrame(new, columns=["cell", "month", "d"])]).drop_duplicates(["cell", "month"], keep="last").to_pickle(path)
-                done_path.write_text(json.dumps({"complete": i == len(todo), "cells": sorted(done)}))
+                refreshing = start != VENDORS[vendor].get("start", START) and i < len(todo)
+                done_path.write_text(json.dumps({"complete": i == len(todo), "cells": [] if i == len(todo) else sorted(done),
+                                                 **({"refresh_from": start} if refreshing else {})}))
                 print(f"{vendor} days: {i} of {len(todo)} cells, {time.time() - started:.0f} s", flush=True)
     print(f"{vendor} days done", flush=True)
 
