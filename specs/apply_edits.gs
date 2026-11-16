@@ -1,6 +1,6 @@
 /**
- * Apply recorded edits to the CSDA Vendor Specs sheet: 246 cells (enmap_2026-11-06, pixxel_firefly_2026-11-03, public_check_2026-11-02), 27 not yet in the sheet.
- * Written by csda_summaries lib/vendor_specs.py (apps_script) from specs/edits_log.csv on 2026-11-06.
+ * Apply recorded edits to the CSDA Vendor Specs sheet: 244 cells (enmap_2026-11-06, pixxel_firefly_2026-11-03, public_check_2026-11-02), 27 not yet in the sheet.
+ * Written by csda_summaries lib/vendor_specs.py (apps_script) from specs/edits_log.csv on 2026-11-16.
  *
  * Use: open the spreadsheet > Extensions > Apps Script, paste this file, save.
  *   1. Run previewEdits: changes nothing; the log (View > Logs / Execution log) lists what would change.
@@ -98,8 +98,6 @@ const EDITS = [
   {"edit_id": "80", "batch": "public_check_2026-11-02", "cell": "CI23", "label": "HydroSat VanZyl-2", "field": "Total Bands (MS)", "before": "(empty)", "after": "7", "source": "CSDA vendor page", "source_url": "https://science.nasa.gov/earth-science/csda/vendor-hydrosat/", "note": "7 VNIR (blue to NIR incl. 3 red edge), no pan"},
   {"edit_id": "81", "batch": "public_check_2026-11-02", "cell": "CJ22", "label": "HydroSat VanZyl-1", "field": "Total Bands", "before": "(empty)", "after": "9", "source": "CSDA vendor page", "source_url": "https://science.nasa.gov/earth-science/csda/vendor-hydrosat/", "note": "7 VNIR + 2 LWIR"},
   {"edit_id": "82", "batch": "public_check_2026-11-02", "cell": "CJ23", "label": "HydroSat VanZyl-2", "field": "Total Bands", "before": "(empty)", "after": "9", "source": "CSDA vendor page", "source_url": "https://science.nasa.gov/earth-science/csda/vendor-hydrosat/", "note": "7 VNIR + 2 LWIR"},
-  {"edit_id": "83", "batch": "public_check_2026-11-02", "cell": "N22", "label": "HydroSat VanZyl-1", "field": "Orbit Altitude (km)", "before": "500", "after": "500-600", "source": "CSDA vendor page", "source_url": "https://science.nasa.gov/earth-science/csda/vendor-hydrosat/", "note": ""},
-  {"edit_id": "84", "batch": "public_check_2026-11-02", "cell": "N23", "label": "HydroSat VanZyl-2", "field": "Orbit Altitude (km)", "before": "552", "after": "500-600", "source": "CSDA vendor page", "source_url": "https://science.nasa.gov/earth-science/csda/vendor-hydrosat/", "note": ""},
   {"edit_id": "85", "batch": "public_check_2026-11-02", "cell": "Z71", "label": "FOREST SAFIRE-2", "field": "Pan GSD Nadir (m)", "before": "0.75", "after": "(empty)", "source": "CSDA vendor page", "source_url": "https://science.nasa.gov/earth-science/csda/vendor-ororatech/", "note": "thermal only: no pan or MS bands"},
   {"edit_id": "86", "batch": "public_check_2026-11-02", "cell": "AA71", "label": "FOREST SAFIRE-2", "field": "MS GSD Nadir (m)", "before": "3", "after": "(empty)", "source": "CSDA vendor page", "source_url": "https://science.nasa.gov/earth-science/csda/vendor-ororatech/", "note": ""},
   {"edit_id": "87", "batch": "public_check_2026-11-02", "cell": "AC71", "label": "FOREST SAFIRE-2", "field": "TIR GSD Nadir (m)", "before": "(empty)", "after": "200", "source": "CSDA vendor page", "source_url": "https://science.nasa.gov/earth-science/csda/vendor-ororatech/", "note": "design 200 / 210 m, threshold 250 m"},
