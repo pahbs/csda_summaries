@@ -212,8 +212,8 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
     <h2 id="h-foot">Cross-track swaths with evaluation AOIs</h2>
     <div class="filters" style="position:static;border:0;padding:6px 0"><label>View <span id="foot-view"></span></label></div>
     <div id="foot-map-view">
-      <div class="note">Every constellation's swath as a square at true ground scale, centered on the chosen evaluation AOI, with the AOI shaded behind them (square side = swath width; a nominal
-        scene; pushbroom strips can be much longer). Hover a square or a name for its specs; click a name to zoom to it.</div>
+      <div class="note">Evaluation AOIs are the areas of interest in the evaluation sites database: the sites used to evaluate vendor data. Every constellation's swath as a square at true ground scale, centered on the chosen evaluation AOI, with the AOI shaded behind them (square side = swath width; a nominal
+        scene; pushbroom strips can be much longer). Hover a square or a name for its specs; click a name to zoom to it. The swaths are drawn north-up: their real orientation follows each orbit and is not shown, so these depictions are for general reference only.</div>
       <form class="filters" id="fm-form" style="position:static;border:0;padding:8px 0">
         <label>Evaluation AOI <input type="text" id="fm-site" list="fm-sites" placeholder="Type a keyword" autocomplete="off" aria-describedby="fm-msg"></label>
         <datalist id="fm-sites"></datalist>
@@ -249,7 +249,7 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
   </section>
 
   <section class="card" aria-labelledby="h-rv-method">
-    <h2 id="h-rv-method">How revisit is estimated</h2>
+    <h2 id="h-rv-method">Revisit estimation methodology</h2>
     <div class="note" id="rv-method"></div>
   </section>
   </div>
@@ -257,7 +257,7 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
   <div role="tabpanel" id="panel-launches" aria-labelledby="tab-launches" hidden>
   <section class="card" aria-labelledby="h-launch">
     <h2 id="h-launch">Launches, orbits and satellite size</h2>
-    <div class="note">One mark per sensor row in the sheet, at its launch date (x) and orbit altitude (y). Marker shape = orbit type,
+    <div class="note">One mark per sensor row in the database, at its launch date (x) and orbit altitude (y). Marker shape = orbit type,
       size = satellite size class, color = data owner or sector (key above); open = planned. The line runs to the end date, or to today while in operation.
       Hover a mark for details.</div>
     <div class="legend" id="lg-launch"></div>
@@ -281,7 +281,7 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
   <div class="two">
     <section class="card" aria-labelledby="h-comp">
       <h2 id="h-comp">Core fields filled</h2>
-      <div class="note">Share of the sheet's sensors with each field filled.</div>
+      <div class="note">Share of the database's sensors with each field filled.</div>
       <div id="comp" style="margin-top:8px"></div>
     </section>
     <section class="card" aria-labelledby="h-qa">
@@ -307,16 +307,18 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
 <script>
 const D = /*__DATA__*/null;
 
-// Program-neutral wording: the sheet's labels and notes name CSDA; the page does not (source URLs are kept as they are)
+// Program-neutral wording: the database's labels and notes name CSDA; the page does not (source URLs are kept as they are)
 (function neutral(x) {
   const fix = s => s.replace(/CSDA vendor pages?/g, m => m.replace('CSDA', 'NASA')).replace(/not on the CSDA page/g, 'not on the NASA vendor page')
     .replace(/the CSDA tasking request form/g, "NASA's tasking request form").replace(/ · CSDA$/, '')
-    .replace(/\bGovernment\b/g, 'Civil').replace(/\bgovernment\b/g, 'civil');   // sector: Commercial or Civil
+    .replace(/\bGovernment\b/g, 'Civil').replace(/\bgovernment\b/g, 'civil')   // sector: Commercial or Civil
+    .replace(/\bGoogle Sheet\b/g, 'database').replace(/\bsheet\b/g, 'database').replace(/\bSheet\b/g, 'Database');
   for (const [k, v] of Object.entries(x)) {
     if (typeof v === 'string') { if (!/url$/i.test(k) && !/^https?:/.test(v)) x[k] = fix(v); }
     else if (v && typeof v === 'object') neutral(v);
   }
 })(D);
+D.edit_status = Object.fromEntries(Object.entries(D.edit_status || {}).map(([k, n]) => [k.replace(/\bsheet\b/g, 'database'), n]));
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt = v => v == null ? '–' : (+v).toLocaleString(undefined, {maximumFractionDigits: 2});
@@ -359,7 +361,7 @@ function showTip(ev, g) {
     ['Bands', `${fmt(g.ms_bands)} MS (incl. pan) · ${fmt(g.total_bands)} total`],
     ['Revisit', g.revisit_days != null ? fmt(g.revisit_days) + ' days' : '–'],
     ['Geolocation', g.ce90_m != null ? fmt(g.ce90_m) + ' m CE90' : '–'],
-    ['Scanner · tasking', `${esc(g.scanner || '–')} · ${esc(g.acquisition || '–')}`], ['Sheet rows', esc(g.sheet_rows)],
+    ['Scanner · tasking', `${esc(g.scanner || '–')} · ${esc(g.acquisition || '–')}`], ['Database rows', esc(g.sheet_rows)],
   ];
   let flags = '';
   if (g.edits.length) flags += `<div class="flags"><b>${g.edits.length} edit${g.edits.length > 1 ? 's' : ''} applied</b>: ` +
@@ -447,19 +449,20 @@ function drawScatter(G) {
     }
   }
   const left = G.filter(g => !(g.ms_gsd && g.swath_km)).map(g => g.group);
-  $('#scatter-left').textContent = left.length ? 'Not plotted (no MS GSD or swath in the sheet): ' + left.join(', ') : '';
+  $('#scatter-left').textContent = left.length ? 'Not plotted (no MS GSD or swath in the database): ' + left.join(', ') : '';
 }
 function scatterLegend() {
   const sw = (fill, stroke, r, ring) => `<svg width="${2 * r + 10}" height="${2 * r + 10}"><circle cx="${r + 5}" cy="${r + 5}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${fill === 'var(--surface)' ? 2 : 0}"/>${ring ? `<circle cx="${r + 5}" cy="${r + 5}" r="${r + 3}" fill="none" stroke="var(--ring)" stroke-width="1.3"/>` : ''}</svg>`;
   $('#lg-scatter').innerHTML =
     `<span>Color: see the key above.</span><span style="margin-left:8px">Number of bands (MS incl. pan):</span>` +
     BINS.map(b => `<span>${sw('var(--ink-3)', 'none', b[3])} ${b[2]}</span>`).join('') +
-    `<span>${sw('var(--surface)', 'var(--ink-3)', 4.5)} not in sheet</span><span>${sw('var(--ink-3)', 'none', 5, true)} has a panchromatic band</span>`;
+    `<span>${sw('var(--surface)', 'var(--ink-3)', 4.5)} not in database</span><span>${sw('var(--ink-3)', 'none', 5, true)} has a panchromatic band</span>`;
 }
 
 // ---------- launches, orbits, size ----------
 const SIZE_R = {Nano: 3, Micro: 4.5, Mini: 6, Medium: 7.5, Large: 9.5};
-const SHAPES = {'Sun-synchronous': 'circle', 'Mid-inclination / inclined': 'triangle', 'Near-polar': 'diamond', 'Not in sheet': 'square'};
+const SIZE_TIP = {Large: '> 1,000 kg to 5,000+ kg (e.g., Hubble, school-bus size)', Medium: '500 – 1,000 kg', Mini: '100 – 500 kg', Micro: '10 – 100 kg', Nano: '1 – 10 kg'};   // the legend's hover text
+const SHAPES = {'Sun-synchronous': 'circle', 'Mid-inclination / inclined': 'triangle', 'Near-polar': 'diamond', 'Not in database': 'square'};
 function shapePath(shape, cx, cy, r) {
   if (shape === 'triangle') { const h = r * 1.25; return `M${cx},${cy - h}L${cx + h * .95},${cy + h * .7}L${cx - h * .95},${cy + h * .7}Z`; }
   if (shape === 'diamond') { const h = r * 1.3; return `M${cx},${cy - h}L${cx + h},${cy}L${cx},${cy + h}L${cx - h},${cy}Z`; }
@@ -472,13 +475,13 @@ function showSensorTip(ev, x) {
     ['Launch', esc(x.launch || '–')], ['End', esc(x.end || (x.current ? 'in operation' : '–'))],
     ['Orbit', `${esc(x.orbit_text || '–')}${x.altitude_km != null ? ' · ' + fmt(x.altitude_km) + ' km' : ''}`],
     ['Size class', `${esc(x.size_class || '–')}${x.mass_kg != null ? ' · ' + fmt(x.mass_kg) + ' kg' : ''}`],
-    ['Satellites', fmt(x.n_satellites)], ['Sheet row', x.sheet_row]];
+    ['Satellites', fmt(x.n_satellites)], ['Database row', x.sheet_row]];
   tip.innerHTML = `<b>${esc(x.label)}</b>${x.group ? ` <span class="pill">${esc(x.group)}</span>` : ''}<table>${rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</table>`;
   tip.style.display = 'block'; moveTip(ev);
 }
 function drawLaunches() {
   const svg = $('#launch'); svg.innerHTML = '';
-  const W = 1180, H = 560, m = {l: 64, r: 16, t: 14, b: 44}, nobase = 26;   // band at the bottom for "altitude not in sheet"
+  const W = 1180, H = 560, m = {l: 64, r: 16, t: 14, b: 44}, nobase = 26;   // band at the bottom for "altitude not in database"
   const all = D.sensors.filter(x => x.launch), t = d => new Date(d + 'T00:00:00Z').getTime(), now = Date.now();
   const yr = d => new Date(d).getUTCFullYear();
   const t0 = Date.UTC(Math.min(...all.map(x => yr(t(x.launch)))) - 1, 0, 1), t1 = Date.UTC(Math.max(yr(now), ...all.map(x => yr(t(x.launch)))) + 2, 0, 1);
@@ -526,14 +529,14 @@ function drawLaunches() {
     }
   }
   const noLaunch = shownSensors().filter(x => !x.launch).map(x => x.label);
-  $('#launch-left').textContent = (noLaunch.length ? 'No launch date in the sheet: ' + noLaunch.join(', ') + '. ' : '') +
-    'Sensors without an altitude in the sheet sit in the n/a band.';
+  $('#launch-left').textContent = (noLaunch.length ? 'No launch date in the database: ' + noLaunch.join(', ') + '. ' : '') +
+    'Sensors without an altitude in the database sit in the n/a band.';
 }
 function launchLegend() {
   const ic = (shape, r, fill, stroke) => `<svg width="${2 * r + 12}" height="${2 * r + 12}"><path d="${shapePath(shape, r + 6, r + 6, r)}" fill="${fill}" stroke="${stroke}" stroke-width="1.6"/></svg>`;
   $('#lg-launch').innerHTML = Object.entries(SHAPES).map(([k, sh]) => `<span>${ic(sh, 5, 'var(--ink-3)', 'none')} ${esc(k)}</span>`).join('') +
-    `<span style="margin-left:8px">Size class:</span>` + Object.entries(SIZE_R).map(([k, r]) => `<span>${ic('circle', r, 'var(--ink-3)', 'none')} ${k}</span>`).join('') +
-    `<span>${ic('circle', 5, 'var(--surface)', 'var(--ink-3)')} planned / size not in sheet</span>` +
+    `<span style="margin-left:8px">Size class:</span>` + Object.entries(SIZE_R).map(([k, r]) => `<span title="${esc(SIZE_TIP[k] || '')}" style="cursor:help">${ic('circle', r, 'var(--ink-3)', 'none')} ${k}</span>`).join('') +
+    `<span>${ic('circle', 5, 'var(--surface)', 'var(--ink-3)')} planned / size not in database</span>` +
     `<span><svg width="30" height="12"><line x1="2" x2="28" y1="6" y2="6" stroke="var(--ink-3)" stroke-width="2"/><line x1="28" x2="28" y1="2" y2="10" stroke="var(--ink-3)" stroke-width="1.5"/></svg> in operation until end date</span>`;
 }
 
@@ -782,10 +785,10 @@ function showRevisitTip(ev, g) {
   const rows = [['Data owner', `${esc(g.affiliation)} · ${esc(g.sector)}`],
     [`0° · 40° · 60°`, `<b>${line(RV.view)}</b><br><span class="note">${viewName(RV.view)}, ${seasonName(RV.season)}</span>`],
     [viewName(other).replace(/^./, c => c.toUpperCase()), line(other)],
-    ['Sheet value', g.revisit_days != null ? fmt(g.revisit_days) + ' d' : '–']];
+    ['Database value', g.revisit_days != null ? fmt(g.revisit_days) + ' d' : '–']];
   const same = new Map();      // sensors with identical inputs share one line (Legion LG-3 to LG-6)
   for (const x of r.inputs) { const k = `${fmt(x.alt_km)} km · ${fmt(x.incl_deg)}° (${esc(x.incl_source || 'not known')})` +
-      ` · reach ${fmt(x.half_swath_deg)}°${x.agility_deg ? ' + ' + fmt(x.agility_deg) + '° pointing' : x.agility_deg === 0 ? ' (nadir)' : ' + agility not in sheet'}` +
+      ` · reach ${fmt(x.half_swath_deg)}°${x.agility_deg ? ' + ' + fmt(x.agility_deg) + '° pointing' : x.agility_deg === 0 ? ' (nadir)' : ' + agility not in database'}` +
       (x.notes ? `<br><i>${esc(x.notes)}</i>` : '');
     if (!same.has(k)) same.set(k, {labels: [], n: 0}); same.get(k).labels.push(esc(x.label)); same.get(k).n += x.n_sat || 0; }
   const inp = [...same].map(([k, v]) => `${v.labels.join(', ')}: ${fmt(v.n)} sat · ${k}`).join('<br>');
@@ -867,8 +870,8 @@ function drawEdits() {
     return (!all.has(r) || scope.has(r)) && (hits.has(r) || found([e.cell, e.label, e.field, e.note, e.status].join(' '))); });
   const st = Object.entries(D.edit_status).map(([k, n]) => `${n} ${esc(k)}`).join(', ');
   $('#edits-note').innerHTML = `Showing ${E.length} of ${D.edits.length}, following the filters. Every change made to the database, one row per cell (${st}). All views use the edited values. ` +
-    `<i>Applied (not yet in sheet)</i> = the Google Sheet still has the old value; <i>in sheet</i> = copied into the sheet; ` +
-    `<i>skipped</i> = the sheet changed since the edit was recorded, so the sheet value is used. Rule: <i>Total Bands (MS)</i> counts the pan band. ` +
+    `<i>Applied (not yet in database)</i> = the database still has the old value; <i>in database</i> = copied into the database; ` +
+    `<i>skipped</i> = the database changed since the edit was recorded, so the database value is used. Rule: <i>Total Bands (MS)</i> counts the pan band. ` +
     `Sources: NASA vendor pages on science.nasa.gov first, then vendor / agency pages; "computed" = derived from other fields. ` +
     `Record: <code>specs/edits_log.csv</code>.`;
   $('#edits').innerHTML = '<thead><tr><th>#</th><th>Date</th><th>Cell</th><th>Sensor</th><th>Field</th><th>Before</th><th>After</th><th>Status</th><th>Source</th><th>Note</th></tr></thead><tbody>' +
@@ -910,7 +913,7 @@ function render() {
   drawScatter(G); drawLaunches(); drawStrips(G); drawFoot(G); drawFootMap(G); drawTable(G); drawRevisit(G); drawRsr(); drawEdits();
   const comm = G.filter(g => g.sector === 'Commercial').length;
   const tiles = a => a.map(([v, k]) => `<div class="tile"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join('');
-  // A sheet row is one sensor on one platform, which can be a whole fleet (SuperDove: 200 satellites); the same instrument on
+  // A database row is one sensor on one platform, which can be a whole fleet (SuperDove: 200 satellites); the same instrument on
   // several platforms is a row each (VIIRS: 5)
   const sats = D.sensors.reduce((n, s) => n + (Number(s.n_satellites) || 0), 0);
   $('#tiles').innerHTML = tiles([[G.length, `constellations shown (${comm} commercial)`],
@@ -959,20 +962,29 @@ function init() {
     chips('#rv-season', [['year', 'Whole year'], ['jja', 'June–August']], k => RV.season === k, k => RV.season = k);
     chips('#rv-sort', LATS.map(([k], j) => [j, k + '°']), k => RV.sort === k, k => RV.sort = k);
     chips('#rv-group', [['', 'None'], ['sector', 'Sector'], ['affiliation', 'Data owner']], k => RV.group === k, k => RV.group = k);
-    $('#rv-note').innerHTML = `Average time between chances to image a site, from each constellation's orbit, swath and pointing (not the sheet's ` +
+    $('#rv-note').innerHTML = `Average time between chances to image a site, from each constellation's orbit, swath and pointing (not the database's ` +
       `<i>Revisit Time</i>, which mixes definitions). One row per constellation, current satellites only; shape = latitude, color = <i>Color by</i>. ` +
       `Values below 1 day mean more than one chance per day. Hover a row for the inputs.`;
-    $('#rv-method').innerHTML = `Each orbit is simulated for a year (circular orbit at the sheet's altitude, with the Earth's oblateness turning the orbit plane) over ` +
-      `sites on 36 longitudes at each latitude; the result is the average over longitudes. A pass counts when the site is within the satellite's reach ` +
-      `(half the swath, plus the agility for satellites that point), within the view-angle limit (≤ ${D.revisit.cap_deg}° off nadir, or the full agility; ` +
-      `a systematic imager collects its whole swath on every pass, so MODIS, VIIRS and other wide mappers count it all in both views), ` +
-      `and the sun is at least ${D.revisit.sun_min_deg}° above the horizon. Satellites of a constellation are assumed spread evenly, so their passes add.<ul>` +
-      `<li><b>Inclination</b>: sun-synchronous from the altitude (crossing the equator southbound at 10:30); <i>Near polar</i> rows are treated the same. ` +
-      `Legion 3–6 (45°) and EROS-C3 (139.3°, retrograde) are given in <code>lib/vendor_specs.py</code>; the sheet has no inclination column.</li>` +
-      `<li><b>Agility not in the sheet</b>: wide-swath systematic mappers (Landsat, Sentinel, MODIS, VIIRS…) look at nadir; tasked satellites are assumed able ` +
+    $('#rv-method').innerHTML = `Revisit is estimated by simulating each constellation's orbits for a year and counting how often each satellite can image a set of test sites.<ul>` +
+      `<li><b>Orbits</b>: each satellite flies a circular orbit at its altitude in the database. The orbit plane slowly turns over the year because ` +
+      `the Earth bulges at the equator (the effect that keeps a sun-synchronous orbit crossing the equator at the same local time all year).</li>` +
+      `<li><b>Sites</b>: test sites at each latitude shown, on 36 longitudes around the globe; the result is the average over those longitudes.</li>` +
+      `<li><b>Passes and revisit</b>: a <i>pass</i> is one time a satellite comes within reach of a site and could image it. ` +
+      `The revisit time is the average number of days between passes, counting the passes of all of a constellation's satellites together ` +
+      `(assumed spread evenly around their orbits).</li>` +
+      `<li><b>When a pass counts</b>: the site is within the satellite's reach (half the swath, plus accounting for the agility of satellites that point) ` +
+      `and the sun is at least ${D.revisit.sun_min_deg}° above the horizon.</li>` +
+      `<li><b>Two views</b>: <i>≤ ${D.revisit.cap_deg}°</i> counts only passes that can image the site within ${D.revisit.cap_deg}° of straight down ` +
+      `(best radiometric quality); <i>Full agility</i> counts every pass the satellite can point to, as vendors usually quote revisit. ` +
+      `Satellites that do not point (systematic mappers such as Landsat, MODIS and VIIRS) image their whole swath on every pass, so they have the same value in both views.</li>` +
+      `<li><b>Inclination</b>: sun-synchronous orbits are worked out from the altitude (crossing the equator southbound at 10:30); <i>Near polar</i> rows are treated the same. ` +
+      `Legion 3–6 (45°) and EROS-C3 (139.3°, retrograde) are given in <code>lib/vendor_specs.py</code>, since the database has no inclination column.</li>` +
+      `<li><b>Agility not in the database</b>: wide-swath systematic mappers (Landsat, Sentinel, MODIS, VIIRS…) are taken to look straight down; tasked satellites are assumed able ` +
       `to point to ${D.revisit.cap_deg}°, so they appear in the ≤ ${D.revisit.cap_deg}° view only.</li>` +
-      `<li><b>Not included</b>: cloud, competing orders, how long the instrument can image per orbit, and the longest gap (the mean hides repeat-cycle structure).</li>` +
-      `<li><b>Season</b>: at 60°N the sun is too low in winter, so the whole-year value is longer than June–August.</li></ul>`;
+      `<li><b>Not included</b>: cloud, competing orders, and how long the instrument can image per orbit. The average also hides uneven spacing: ` +
+      `an orbit's ground track repeats on a fixed cycle, so passes can come in clusters (several days in a row) followed by longer gaps.</li>` +
+      `<li><b>Season</b>: a pass only counts in daylight. At high latitudes (60°N) the sun stays too low through much of the winter, so those passes are lost ` +
+      `and the whole-year average is longer (fewer passes) than the June–August average.</li></ul>`;
     revisitLegend();
   }
   scatterLegend(); launchLegend(); drawQuality(); render();
