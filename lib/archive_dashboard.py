@@ -245,8 +245,30 @@ def _site_table(sites: gpd.GeoDataFrame, sites_file: Union[str, Path], name_fiel
         out.append({"name": name, "lon": round(point.x, 3), "lat": round(point.y, 3),
                     "cloud": _number(row.get("max_cloud_pct_aoi")), "scene": _number(row.get("max_cloud_pct_scene")),
                     "off": _number(row.get("max_view_angle")),
-                    "need": _number(row.get("min_num_acqs"), 0), "ideal": _number(row.get("ideal_num_acqs"), 0)})
+                    "need": _number(row.get("min_num_acqs"), 0), "ideal": _number(row.get("ideal_num_acqs"), 0),
+                    **_site_fields(row)})
     return sorted(out, key=lambda s: s["name"].lower())
+
+
+SITE_FIELDS = {"source": "Source", "domain": "Surface Domain", "program": "Program Use"}   # the page's site filters
+
+
+def _site_fields(row) -> dict:
+    get = row.get if hasattr(row, "get") else (lambda k: None)
+    return {k: (None if pd.isna(get(col)) else str(get(col)).strip()) if get(col) is not None else None for k, col in SITE_FIELDS.items()}
+
+
+def add_site_fields(data_dir: Path = DATA_DIR, sites_file: Union[str, Path] = None, name_field: str = None) -> None:
+    """Add Source, Surface Domain and Program Use to the sites of tabs already published (no catalog search)."""
+    sites_file, name_field = sites_file or SITES, name_field or SITE_NAME_FIELD
+    table = gpd.read_file(sites_file).drop_duplicates(name_field).set_index(name_field)
+    for path in sorted(Path(data_dir).glob("*.json")):
+        if path.name == INDEX or path.name.endswith(".ids.json"):
+            continue
+        tab = json.loads(path.read_text(encoding="utf-8"))
+        for site in tab.get("sites", []):
+            site.update(_site_fields(table.loc[site["name"]] if site["name"] in table.index else {}))
+        path.write_text(json.dumps(tab, separators=(",", ":")), encoding="utf-8")
 
 
 def tab_data(vendor: str, gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, sites_file: Union[str, Path], name_field: str,
