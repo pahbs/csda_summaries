@@ -539,11 +539,17 @@ def _delta(frame: List[int]) -> List[int]:
     return out
 
 
+def order_tabs(tabs: List[dict]) -> List[dict]:
+    """As on the Archive First Look: commercial vendors by name, then those pending, then the civil missions at the far right."""
+    group = lambda t: 2 if t["vendor"] in PUBLIC else 1 if t.get("pending") else 0
+    return sorted(tabs, key=lambda t: (group(t), t["vendor"].lower() if group(t) < 2 else ""))   # civil keep their order (Landsat, Sentinel-2)
+
+
 def build(page: Path = PAGE, cell: float = CELL_DEG, data_dir: Optional[Path] = None,
           data_base: str = data_repo.DATA_URL + "archive_density/") -> Path:
     """The page. Large frames go to `data_dir` (default: the data repository), read by the page from `data_base`."""
     tabs = [t for t in (tab(k, g, cell) for k, g in TABS) if t]
-    tabs += pending_tabs(t["vendor"] for t in tabs)
+    tabs = order_tabs(tabs + pending_tabs(t["vendor"] for t in tabs))
     lazy_dir = data_dir or data_repo.folder("archive_density")
     for t in tabs:
         for g in t["groups"]:
