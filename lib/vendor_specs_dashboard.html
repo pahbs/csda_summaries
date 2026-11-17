@@ -977,14 +977,24 @@ function init() {
       `<li><b>Two views</b>: <i>≤ ${D.revisit.cap_deg}°</i> counts only passes that can image the site within ${D.revisit.cap_deg}° of straight down ` +
       `(best radiometric quality); <i>Full agility</i> counts every pass the satellite can point to, as vendors usually quote revisit. ` +
       `Satellites that do not point (systematic mappers such as Landsat, MODIS and VIIRS) image their whole swath on every pass, so they have the same value in both views.</li>` +
-      `<li><b>Inclination</b>: sun-synchronous orbits are worked out from the altitude (crossing the equator southbound at 10:30); <i>Near polar</i> rows are treated the same. ` +
-      `Legion 3–6 (45°) and EROS-C3 (139.3°, retrograde) are given in <code>lib/vendor_specs.py</code>, since the database has no inclination column.</li>` +
-      `<li><b>Agility not in the database</b>: wide-swath systematic mappers (Landsat, Sentinel, MODIS, VIIRS…) are taken to look straight down; tasked satellites are assumed able ` +
-      `to point to ${D.revisit.cap_deg}°, so they appear in the ≤ ${D.revisit.cap_deg}° view only.</li>` +
-      `<li><b>Not included</b>: cloud, competing orders, and how long the instrument can image per orbit. The average also hides uneven spacing: ` +
-      `an orbit's ground track repeats on a fixed cycle, so passes can come in clusters (several days in a row) followed by longer gaps.</li>` +
       `<li><b>Season</b>: a pass only counts in daylight. At high latitudes (60°N) the sun stays too low through much of the winter, so those passes are lost ` +
-      `and the whole-year average is longer (fewer passes) than the June–August average.</li></ul>`;
+      `and the whole-year average is longer (fewer passes) than the June–August average.</li></ul>` +
+      `<b>Assumptions, most significant first</b><ol>` +
+      `<li><b>No cloud, competing orders or imaging limits</b>: every pass counts as a chance to image. Cloud, other customers' orders, and how long ` +
+      `an instrument can image per orbit all remove chances, often most of them, so real revisit of a clear image is longer.</li>` +
+      `<li><b>Satellites evenly spread</b>: a constellation's satellites are taken as evenly spaced around their orbits, so their passes add up neatly. ` +
+      `Real constellations are often uneven, especially while satellites are being launched or replaced, which can bunch passes together.</li>` +
+      `<li><b>Pointing where the database has none</b>: wide-swath systematic mappers (Landsat, Sentinel, MODIS, VIIRS…) are taken to look straight down; ` +
+      `tasked satellites are assumed able to point to ${D.revisit.cap_deg}°, so they appear in the ≤ ${D.revisit.cap_deg}° view only.</li>` +
+      `<li><b>Inclination</b>: the database has no inclination column. Sun-synchronous orbits are worked out from the altitude (crossing the equator ` +
+      `southbound at 10:30); <i>Near polar</i> rows are treated the same; Legion 3–6 (45°) and EROS-C3 (139.3°, retrograde) are set in ` +
+      `<code>lib/vendor_specs.py</code>. A different crossing time or inclination shifts which latitudes get the most passes.</li>` +
+      `<li><b>Altitude as listed</b>: each satellite is at its altitude in the database. Small satellites drift lower over their lives and fleets fly at a ` +
+      `range of altitudes, which changes swath, reach and timing slightly.</li>` +
+      `<li><b>Daylight</b>: a pass counts when the sun is at least ${D.revisit.sun_min_deg}° above the horizon, the same for every sensor.</li>` +
+      `<li><b>Circular orbits</b>: Earth-imaging satellites in low orbit fly nearly circular orbits on purpose (eccentricity typically below 0.002; ` +
+      `sun-synchronous imagers use "frozen" orbits that keep it fixed). At 700 km that is about ±7 km of altitude, about 1% of swath or reach: ` +
+      `negligible here.</li></ol>`;
     revisitLegend();
   }
   scatterLegend(); launchLegend(); drawQuality(); render();
