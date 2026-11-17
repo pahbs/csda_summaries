@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Union
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 from shapely import affinity
 from shapely.ops import unary_union
@@ -274,12 +275,13 @@ def tab_data(vendor: str, gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, sites_
 def build(page: Path = PAGE, data_base: str = data_repo.DATA_URL + "archive_first_look/") -> Path:
     """The tab summaries (<data repo>/archive_first_look/index.json, from every tab's data file) and the page, which reads
     them from `data_base`. The page itself only changes with the template, so a daily refresh touches the data repo only."""
-    tabs = sorted((json.loads(p.read_text(encoding="utf-8")) for p in DATA_DIR.glob("*.json") if p.name != INDEX),
+    convert_tabs(DATA_DIR)   # any tab still published as JSON records becomes column files first
+    tabs = sorted((json.loads(p.read_text(encoding="utf-8")) for p in DATA_DIR.glob("*.json")
+                   if p.name != INDEX and not p.name.endswith(".ids.json")),
                   key=lambda t: (t["vendor"], t["constellation"]))   # a vendor's constellations side by side
     for t in tabs:
         t["palette"] = vendor_palette(t["vendor"])
-        if len(t["acqs"]) > LAZY_ROWS:   # the page reads them from the tab's data file when the tab is opened
-            t["rows"], t["acqs"], t["lazy"] = len(t["acqs"]), None, True
+        t.pop("acqs", None)   # the page reads a tab's acquisitions from its column files when the tab is opened
     tabs += pending_tabs(t["vendor"] for t in tabs)   # after the vendors with data, so the page opens on one of them
     (DATA_DIR / INDEX).write_text(json.dumps({"tabs": tabs, "land": LAND.read_text(encoding="utf-8").strip(),
                                               "updated": f"{pd.Timestamp.today():%-d %b %Y}"}, separators=(",", ":")), encoding="utf-8")
@@ -300,7 +302,75 @@ def write_footprints(tab: dict, fp: dict, folder: Path) -> None:
         (folder / f"{s}.json").write_text(json.dumps({"site": fp["sites"][s], "acqs": acqs}, separators=(",", ":")), encoding="utf-8")
 
 
-LAZY_ROWS = 40000   # tabs bigger than this load their acquisitions when opened
+# A tab's acquisitions are stored column by column in <key>.bin (about 22 bytes each, against about 165 as JSON records), with
+# the acquisition IDs in <key>.ids.json and the tab's description in <key>.json; the page decodes them when the tab is opened.
+# Columns, in file order (4-byte, then 2-byte, then 1-byte values, so each starts aligned): name, type, how stored.
+#   u   uint32  index into <key>.ids.json (the acquisition ID)
+#   s   uint16  site index            d   uint16  days since 2000-01-01
+#   cloud, off, cov, sun_az, az, el   uint16  value x 10 (65535 = not reported); sun  uint16  (value + 90) x 10
+#   items uint16                      n   uint8   sensor index
+#   flags uint8   1 night, 2 day, 4 in CSDA     lv  uint8  bit k = level k
+NONE16 = 65535
+DAY0 = pd.Timestamp("2000-01-01")
+COLUMNS = [("u", "<u4"), ("s", "<u2"), ("d", "<u2"), ("cloud", "<u2"), ("off", "<u2"), ("cov", "<u2"), ("items", "<u2"),
+           ("sun", "<u2"), ("sun_az", "<u2"), ("az", "<u2"), ("el", "<u2"), ("n", "u1"), ("flags", "u1"), ("lv", "u1")]
+_SOURCE = {"cloud": "cloud", "off": "off", "cov": "cov", "sun": "sun", "sun_az": "sunaz", "az": "az", "el": "el"}
+
+
+def tab_columns(acqs: List[dict]) -> tuple:
+    """(columns as numpy arrays, the acquisition IDs) for a tab's acquisition records."""
+    ids, index = [], {}
+    cols = {name: np.zeros(len(acqs), dtype=dt) for name, dt in COLUMNS}
+    for i, a in enumerate(acqs):
+        if a["a"] not in index:
+            index[a["a"]] = len(ids); ids.append(a["a"])
+        cols["u"][i] = index[a["a"]]
+        cols["s"][i], cols["n"][i] = a["s"], a["n"]
+        cols["d"][i] = (pd.Timestamp(a["d"]) - DAY0).days
+        for name, key in _SOURCE.items():
+            v = a.get(key)
+            cols[name][i] = NONE16 if v is None else int(round((v + (90 if name == "sun" else 0)) * 10))
+        cols["items"][i] = min(int(a.get("items") or 0), NONE16)
+        cols["flags"][i] = (1 if a.get("dn") == "night" else 2 if a.get("dn") == "day" else 0) | (4 if a.get("csda") else 0)
+        cols["lv"][i] = sum(1 << k for k in a.get("lv") or [])
+    return cols, ids
+
+
+def write_tab_files(tab: dict, data_dir: Path) -> None:
+    """<key>.json (the tab without its acquisitions), <key>.bin (the acquisitions, column by column) and <key>.ids.json."""
+    acqs = tab["acqs"]
+    if len(tab["sensors"]) > 255 or len(tab["levels"]) > 8 or len(tab["sites"]) >= NONE16:
+        raise ValueError(f"{tab['key']}: too many sensors, levels or sites for the binary columns")
+    cols, ids = tab_columns(acqs)
+    layout, offset = [], 0
+    for name, dt in COLUMNS:
+        layout.append({"name": name, "type": dt, "offset": offset}); offset += cols[name].nbytes
+    meta = {k: v for k, v in tab.items() if k != "acqs"}
+    meta.update(rows=len(acqs), ids=len(ids), columns=layout)
+    data_dir = Path(data_dir)
+    (data_dir / f"{tab['key']}.bin").write_bytes(b"".join(cols[name].tobytes() for name, _ in COLUMNS))
+    (data_dir / f"{tab['key']}.ids.json").write_text(json.dumps(ids, separators=(",", ":")), encoding="utf-8")
+    (data_dir / f"{tab['key']}.json").write_text(json.dumps(meta, separators=(",", ":")), encoding="utf-8")
+
+
+def convert_tabs(data_dir: Path = DATA_DIR) -> None:
+    """Rewrite tabs published as JSON records into the column files (no catalog search), checking that every value decodes back."""
+    for path in sorted(Path(data_dir).glob("*.json")):
+        if path.name == INDEX or path.name.endswith(".ids.json"):
+            continue
+        tab = json.loads(path.read_text(encoding="utf-8"))
+        if "acqs" not in tab:
+            continue
+        cols, ids = tab_columns(tab["acqs"])
+        for i, a in enumerate(tab["acqs"]):   # every value must come back as it was
+            assert ids[cols["u"][i]] == a["a"] and cols["s"][i] == a["s"] and cols["n"][i] == a["n"]
+            assert (DAY0 + pd.Timedelta(days=int(cols["d"][i]))).strftime("%Y-%m-%d") == a["d"]
+            for name, key in _SOURCE.items():
+                raw = cols[name][i]; v = None if raw == NONE16 else raw / 10 - (90 if name == "sun" else 0)
+                assert (v is None and a.get(key) is None) or (a.get(key) is not None and abs(v - a[key]) < 1e-6), (path.name, i, key, v, a.get(key))
+        write_tab_files(tab, data_dir)
+        print(f"{tab['key']}: {len(tab['acqs']):,} acquisitions, {len(ids):,} IDs, "
+              f"{(Path(data_dir) / (tab['key'] + '.bin')).stat().st_size / 1e6:.1f} MB columns")
 
 
 def publish(vendor: str, gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, sites_file: Union[str, Path], name_field: str,
@@ -310,8 +380,8 @@ def publish(vendor: str, gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, sites_f
     Path(data_dir).mkdir(parents=True, exist_ok=True)
     for constellation in sorted(gdf.constellation.dropna().unique()):
         tab, fp = tab_data(vendor, gdf, sites, sites_file, name_field, start, end, log, constellation)
-        (Path(data_dir) / f"{tab['key']}.json").write_text(json.dumps(tab, separators=(",", ":")), encoding="utf-8")
         write_footprints(tab, fp, Path(data_dir) / "fp" / tab["key"])
+        write_tab_files(tab, data_dir)
         print(f"{tab['vendor']} {constellation}: {len(tab['acqs'])} acquisition-site rows, {tab['items']} catalog items, "
               f"{len(tab['sites'])} sites")
     if not rebuild:

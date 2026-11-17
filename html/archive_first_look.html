@@ -272,42 +272,77 @@ function tip(node, value, label) {
   node.addEventListener('pointermove', show); node.addEventListener('focus', show);
   node.addEventListener('pointerleave', hide); node.addEventListener('blur', hide);
 }
-const reported = (tab, field) => tab.acqs.some(a => a[field] != null);
+// ---- A tab's acquisitions arrive as columns (<key>.bin, see archive_dashboard.COLUMNS) plus their IDs (<key>.ids.json). Each record
+// below holds only its row number; its values are read from the columns, so a tab of millions of acquisitions stays light.
+const NONE16 = 65535, DAY0 = Date.UTC(2000, 0, 1);
+function decodeTab(tab, buf, ids) {
+  const C = {}, kinds = {'<u4': Uint32Array, '<u2': Uint16Array, 'u1': Uint8Array};
+  for (const c of tab.columns) C[c.name] = new kinds[c.type](buf, c.offset, tab.rows);
+  let dmin = Infinity, dmax = -1, night = false, cloud = false, off = false;
+  for (let i = 0; i < tab.rows; i++) {
+    const d = C.d[i]; if (d < dmin) dmin = d; if (d > dmax) dmax = d;
+    if (C.flags[i] & 1) night = true; if (C.cloud[i] !== NONE16) cloud = true; if (C.off[i] !== NONE16) off = true;
+  }
+  const dstr = [], dmon = [];   // date and month strings for each day number: a record's date is a table lookup
+  for (let k = 0; k <= dmax; k++) { const t = new Date(DAY0 + k * 864e5).toISOString(); dstr.push(t.slice(0, 10)); dmon.push(t.slice(0, 7)); }
+  const st = new Uint8Array(tab.rows);   // the tests of the last slice(): 1 good, 2 check, 4 cloud ok, 8 off-nadir ok, 16 coverage ok
+  const v10 = (col, i, shift = 0) => { const v = col[i]; return v === NONE16 ? null : (v - shift) / 10; };
+  class Acq {
+    constructor(i) { this.i = i; }
+    get s() { return C.s[this.i]; } get n() { return C.n[this.i]; } get u() { return C.u[this.i]; } get a() { return ids[C.u[this.i]]; }
+    get dd() { return C.d[this.i]; } get d() { return dstr[C.d[this.i]]; } get m() { return dmon[C.d[this.i]]; }
+    get cloud() { return v10(C.cloud, this.i); } get off() { return v10(C.off, this.i); } get cov() { return v10(C.cov, this.i); }
+    get sun() { return v10(C.sun, this.i, 900); } get sunaz() { return v10(C.sun_az, this.i); }
+    get az() { return v10(C.az, this.i); } get el() { return v10(C.el, this.i); } get items() { return C.items[this.i]; }
+    get dn() { const f = C.flags[this.i]; return f & 1 ? 'night' : f & 2 ? 'day' : null; } get csda() { return !!(C.flags[this.i] & 4); }
+    get lvb() { return C.lv[this.i]; }
+    get lv() { const b = C.lv[this.i], out = []; for (let k = 0; k < 8; k++) if (b >> k & 1) out.push(k); return out; }
+    get g() { return !!(st[this.i] & 1); } get c() { return !!(st[this.i] & 2); }
+    get tc() { return !!(st[this.i] & 4); } get to() { return !!(st[this.i] & 8); } get tv() { return !!(st[this.i] & 16); }
+  }
+  tab.C = C; tab.st = st; tab.acqs = Array.from({length: tab.rows}, (_, i) => new Acq(i));
+  tab.has = {cloud, off}; tab.night = night; tab.dstr = dstr;
+  tab.dayRange = tab.rows ? [dmin, dmax] : [0, -1];
+}
+const dayOf = (y, m) => Math.round((Date.UTC(y, m - 1, 1) - DAY0) / 864e5);
 const plural = (n, word) => `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
 const months = tab => {
-  const days = tab.acqs.map(a => a.d).sort();
-  if (!days.length) return [];
-  const out = []; let [y, m] = days[0].split('-').map(Number); const [ey, em] = days[days.length - 1].split('-').map(Number);
+  if (!tab.rows) return [];
+  const [first, last] = tab.dayRange.map(k => tab.dstr[k]);
+  const out = []; let [y, m] = first.split('-').map(Number); const [ey, em] = last.split('-').map(Number);
   while (y < ey || (y === ey && m <= em)) { out.push(`${y}-${String(m).padStart(2, '0')}`); m++; if (m > 12) { m = 1; y++; } }
   return out;
 };
 function defaults(tab) {
   const ms = months(tab);
   return {cloud: 20, off: 30, cov: 50, level: 'any', own: true, from: ms[0], to: ms[ms.length - 1], site: null,
-          source: 'any', dn: tab.acqs.some(a => a.dn === 'night') ? 'day' : 'any'};
+          source: 'any', dn: tab.night ? 'day' : 'any'};
 }
 function limits(tab, site) {
   const s = S();
   return {cloud: s.own && site.cloud != null ? site.cloud : s.cloud, off: s.own && site.off != null ? site.off : s.off};
 }
-function test(tab, a) {
-  const lim = limits(tab, tab.sites[a.s]), s = S(), fields = tab.has;
-  const site = tab.sites[a.s], tested = fields.cloud && a.dn !== 'night';
-  const clear = !tested || (a.cloud != null && a.cloud <= lim.cloud);
-  // A whole-scene value above the site's limit does not show the site is cloudy: up to the scene limit, check the AOI
-  const unsure = tested && !clear && a.cloud != null && s.own && site.cloud != null && tab.cloud_scope === 'scene'
-    && a.cloud <= (site.scene != null ? site.scene : s.cloud);
-  const off = !fields.off || (a.off != null && a.off <= lim.off);
-  const cov = a.cov != null && a.cov >= s.cov;
-  return {cloud: clear || unsure, off, cov, good: clear && off && cov, check: unsure && off && cov};
+function slice(tab) {   // the acquisitions passing the month, level, source and time choices, each tested against the limits
+  const s = S(), C = tab.C, st = tab.st, acqs = tab.acqs, out = [];
+  const [fy, fm] = s.from.split('-').map(Number), [ty, tm] = s.to.split('-').map(Number), d0 = dayOf(fy, fm), d1 = dayOf(ty, tm + 1) - 1;
+  const lvl = s.level === 'any' ? -1 : +s.level, csdaOnly = s.source !== 'any', want = s.dn === 'any' ? 0 : s.dn === 'night' ? 1 : 2;
+  const lims = tab.sites.map(x => limits(tab, x)), scene = tab.cloud_scope === 'scene', has = tab.has;
+  for (let i = 0; i < tab.rows; i++) {
+    const d = C.d[i], f = C.flags[i];
+    if (d < d0 || d > d1 || (lvl >= 0 && !(C.lv[i] >> lvl & 1)) || (csdaOnly && !(f & 4)) || (want && !(f & want))) continue;
+    const k = C.s[i], site = tab.sites[k], lim = lims[k], raw = C.cloud[i], cloud = raw === NONE16 ? null : raw / 10;
+    const tested = has.cloud && !(f & 1);   // a night acquisition is not tested for cloud
+    const clear = !tested || (cloud != null && cloud <= lim.cloud);
+    // A whole-scene value above the site's limit does not show the site is cloudy: up to the scene limit, check the AOI
+    const unsure = tested && !clear && cloud != null && s.own && site.cloud != null && scene && cloud <= (site.scene != null ? site.scene : s.cloud);
+    const o = C.off[i], off = !has.off || (o !== NONE16 && o / 10 <= lim.off);
+    const v = C.cov[i], cov = v !== NONE16 && v / 10 >= s.cov;
+    st[i] = (clear && off && cov ? 1 : 0) | (unsure && off && cov ? 2 : 0) | (clear || unsure ? 4 : 0) | (off ? 8 : 0) | (cov ? 16 : 0);
+    out.push(acqs[i]);
+  }
+  return out;   // a.i: the row's place in the tab, and in its footprint file
 }
-function slice(tab) {
-  const s = S();
-  return tab.acqs.map((a, i) => ({...a, i})).filter(a => a.d.slice(0, 7) >= s.from && a.d.slice(0, 7) <= s.to && (s.level === 'any' || a.lv.includes(+s.level))
-      && (s.source === 'any' || a.csda) && (s.dn === 'any' || a.dn === s.dn))
-    .map(a => ({...a, t: test(tab, a)}));   // a.i: the row's place in tab.acqs, and in its footprint file
-}
-const uniq = rows => new Set(rows.map(a => a.a)).size;
+const uniq = rows => new Set(rows.map(a => a.u)).size;   // one acquisition can cover two sites
 
 function color(v, max) {
   const steps = ramp();
@@ -359,7 +394,7 @@ function renderFilters(tab) {
       options.map(([value, text]) => el('option', {value, text})));
     sel.value = s[key]; return el('label', {}, label, sel);
   };
-  const hasNight = tab.acqs.some(a => a.dn === 'night');
+  const hasNight = tab.night;
   const blank = (label, text, why) => el('label', {class: 'off', title: why}, label, Object.assign(el('select', {'aria-label': label}, el('option', {text})), {disabled: true}));
   f.classList.add('fixed');
   f.replaceChildren(el('span', {class: 'lead'}, el('span', {class: 'gq', text: 'Candidate Acquisition'}), ' means'),
@@ -372,26 +407,28 @@ function renderFilters(tab) {
     el('label', {}, 'From', when('from'), 'to', when('to')));
 }
 function renderAnswer(tab, rows) {
-  const good = rows.filter(a => a.t.good), bySite = new Map();
+  const good = rows.filter(a => a.g), bySite = new Map();
   good.forEach(a => bySite.set(a.s, (bySite.get(a.s) || 0) + 1));
   const needing = tab.sites.map((x, i) => ({...x, i})).filter(x => x.need != null);
   const met = needing.filter(x => (bySite.get(x.i) || 0) >= x.need).length;
-  const last = good.map(a => a.d).sort().pop();
+  const last = good.length ? tab.dstr[good.reduce((m, a) => Math.max(m, a.dd), 0)] : null;
   const tile = (v, k, cls = '') => el('div', {class: 'tile ' + cls}, el('div', {class: 'v', text: v}), el('div', {class: 'k'}, ...rich(k)));
   $('answer').replaceChildren(
-    tile(good.length.toLocaleString(), `Candidate Acquisitions at these sites, of ${rows.length.toLocaleString()} found.` + (uniq(good) < good.length ? ` ${uniq(good).toLocaleString()} are unique: one can cover two sites.` : '') + (tab.csda_checked === false ? '' : ` ${good.filter(a => a.csda).length.toLocaleString()} are in CSDA.`) + (rows.some(a => a.t.check) ? ` ${rows.filter(a => a.t.check).length.toLocaleString()} more to check over the site.` : ''), 'hero'),
+    tile(good.length.toLocaleString(), `Candidate Acquisitions at these sites, of ${rows.length.toLocaleString()} found.` + (uniq(good) < good.length ? ` ${uniq(good).toLocaleString()} are unique: one can cover two sites.` : '') + (tab.csda_checked === false ? '' : ` ${good.filter(a => a.csda).length.toLocaleString()} are in CSDA.`) + (rows.some(a => a.c) ? ` ${rows.filter(a => a.c).length.toLocaleString()} more to check over the site.` : ''), 'hero'),
     tile(`${bySite.size} of ${tab.sites.length}`, 'sites with a Candidate Acquisition'),
     tile(needing.length ? `${met} of ${needing.length}` : 'none set', 'sites reaching their minimum number'),
     tile(last || 'none', 'newest Candidate Acquisition'));
 }
 function renderScore(tab, rows) {
   const s = S(), ms = months(tab).filter(m => m >= s.from && m <= s.to);
-  const counts = tab.sites.map((site, i) => {
-    const mine = rows.filter(a => a.s === i), good = mine.filter(a => a.t.good), check = mine.filter(a => a.t.check).length;
-    const sensors = tab.sensors.map((_, n) => good.filter(a => a.n === n).length);
-    const byMonth = ms.map(m => good.filter(a => a.d.startsWith(m)).length);
-    return {site, i, all: mine.length, good: good.length, check, sensors, byMonth};
-  }).filter(c => match(c.site.name)).sort((a, b) => b.good - a.good || b.all - a.all || a.site.name.localeCompare(b.site.name));
+  const per = tab.sites.map(() => ({all: 0, good: 0, check: 0, sensors: new Array(tab.sensors.length).fill(0), byMonth: new Array(ms.length).fill(0)}));
+  const mk = new Map(ms.map((m, k) => [m, k]));
+  for (const a of rows) {
+    const c = per[a.s]; c.all++;
+    if (a.g) { c.good++; c.sensors[a.n]++; const k = mk.get(a.m); if (k != null) c.byMonth[k]++; }
+    if (a.c) c.check++;
+  }
+  const counts = tab.sites.map((site, i) => ({site, i, ...per[i]})).filter(c => match(c.site.name)).sort((a, b) => b.good - a.good || b.all - a.all || a.site.name.localeCompare(b.site.name));
   const totals = tab.sensors.map((_, n) => counts.reduce((t, c) => t + c.sensors[n], 0));
   const order = tab.sensors.map((name, n) => ({name, n, total: totals[n]})).sort((a, b) => b.total - a.total);
   const fold = order.length > 8 && !s.allSensors, shown = fold ? order.slice(0, 7) : order, rest = fold ? order.slice(7) : [];
@@ -442,17 +479,17 @@ function renderScore(tab, rows) {
 function pick(tab, i) { const s = S(); s.site = s.site === i ? null : i; renderData(tab); }
 
 function renderReasons(tab, rows) {
-  const n = rows.length, good = rows.filter(a => a.t.good).length;
+  const n = rows.length, good = rows.filter(a => a.g).length;
   const line = (label, v, cls = '') => {
     const bar = el('div', {class: 'bar'}); bar.style.width = n ? `${100 * v / n}%` : '0';
     return el('div', {class: 'reason ' + cls}, el('span', {}, ...rich(label)), el('div', {class: 'track'}, bar), el('span', {class: 'num', text: v.toLocaleString()}));
   };
   const na = field => el('div', {class: 'reason'}, el('span', {text: field}), el('span', {class: 'note', style: 'margin:0', text: 'Not reported in this catalog'}), el('span'));
   $('reasons').replaceChildren(...[line('Candidate Acquisitions', good, 'good'),
-    tab.cloud_scope === 'scene' ? line('Check AOI: site may be clear', rows.filter(a => a.t.check).length, 'check') : null,
-    tab.has.cloud ? line('Too cloudy', rows.filter(a => !a.t.cloud).length) : na('Too cloudy'),
-    tab.has.off ? line('Too far off-nadir', rows.filter(a => !a.t.off).length) : na('Too far off-nadir'),
-    line('Site not covered enough', rows.filter(a => !a.t.cov).length)].filter(Boolean));
+    tab.cloud_scope === 'scene' ? line('Check AOI: site may be clear', rows.filter(a => a.c).length, 'check') : null,
+    tab.has.cloud ? line('Too cloudy', rows.filter(a => !a.tc).length) : na('Too cloudy'),
+    tab.has.off ? line('Too far off-nadir', rows.filter(a => !a.to).length) : na('Too far off-nadir'),
+    line('Site not covered enough', rows.filter(a => !a.tv).length)].filter(Boolean));
 }
 let lmap = null, lgroup = null, fitted = null, drawing = 0;
 const fpCache = {};
@@ -483,8 +520,8 @@ function renderMap(tab, all) {
   if (f == null) { $('sitemap').hidden = true; $('map').hidden = false; fitted = null; return renderWorld(tab, all); }
   $('map').hidden = true; $('sitemap').hidden = false;
   const map = siteMap(); map.invalidateSize();
-  const site = tab.sites[f], here = all.filter(a => a.s === f && (a.t.good || a.t.check));
-  const good = here.filter(a => a.t.good).length, check = here.length - good, token = ++drawing;
+  const site = tab.sites[f], here = all.filter(a => a.s === f && (a.g || a.c));
+  const good = here.filter(a => a.g).length, check = here.length - good, token = ++drawing;
   $('mapNote').textContent = `Loading the footprints at ${site.name}…`;
   $('mapLegend').replaceChildren();
   footprints(tab, f).then(fp => {
@@ -495,13 +532,13 @@ function renderMap(tab, all) {
     // ...and past a few hundred they merge into one block: then the newest only, so single passes still show
     const busy = here.length > 30, faint = here.length > 120, MOST = 300;
     const drawn = here.length > MOST ? [...here].sort((a, b) => b.d.localeCompare(a.d)).slice(0, MOST) : here;
-    drawn.sort((a, b) => a.t.good - b.t.good).forEach(a => {   // good ones drawn last, on top
+    drawn.sort((a, b) => a.g - b.g).forEach(a => {   // good ones drawn last, on top
       const rings = fp.acqs[a.i];
       if (!rings || !rings.length) return;
-      L.polygon(rings.map(r => r.map(([x, y]) => [y, x])), {color: a.t.good ? color('--series') : color('--check'), weight: busy ? 1 : 1.5,
-        opacity: faint ? .35 : busy ? .6 : 1, fillOpacity: busy ? 0 : .06, dashArray: a.t.good ? null : '5 4'}).bindTooltip(
+      L.polygon(rings.map(r => r.map(([x, y]) => [y, x])), {color: a.g ? color('--series') : color('--check'), weight: busy ? 1 : 1.5,
+        opacity: faint ? .35 : busy ? .6 : 1, fillOpacity: busy ? 0 : .06, dashArray: a.g ? null : '5 4'}).bindTooltip(
         `${a.d} · ${tab.sensors[a.n]}<br>cloud ${a.cloud == null ? '–' : a.cloud + '%'} · off-nadir ${a.off == null ? '–' : a.off + '°'} · site covered ${a.cov}%` +
-        (a.t.good ? '' : '<br>Check AOI'), {sticky: true}).addTo(lgroup);
+        (a.g ? '' : '<br>Check AOI'), {sticky: true}).addTo(lgroup);
     });
     const outline = (fp.site || []).map(r => r.map(([x, y]) => [y, x]));
     if (outline.length) L.polygon(outline, {color: '#ffffff', weight: 2.5, fill: false, interactive: false}).addTo(lgroup);
@@ -526,7 +563,7 @@ function renderWorld(tab, all) {
   $('mapNote').replaceChildren(...rich('Circle area shows Candidate Acquisitions. Empty rings have none. Select a site to see its footprints.'));
   $('mapLegend').replaceChildren();
   const s = S(), w = 560, h = 280, X = lon => (lon + 180) / 360 * w, Y = lat => (90 - lat) / 180 * h * 1;
-  const good = new Map(); all.filter(a => a.t.good).forEach(a => good.set(a.s, (good.get(a.s) || 0) + 1));
+  const good = new Map(); all.filter(a => a.g).forEach(a => good.set(a.s, (good.get(a.s) || 0) + 1));
   const max = Math.max(1, ...good.values());
   const land = svg('path', {d: DATA.land, fill: 'var(--land)', transform: `scale(${w / 360} ${h / 180})`});
   const dots = tab.sites.map((site, i) => ({site, i, v: good.get(i) || 0})).filter(d => match(d.site.name)).sort((a, b) => b.v - a.v).map(({site, i, v}) => {
@@ -544,7 +581,7 @@ function histogram(title, rows, field, lo, hi, step, unit, limit) {
   const known = rows.filter(a => a[field] != null);
   if (!known.length) { box.append(el('div', {class: 'empty', text: 'Not reported in this catalog'})); return box; }
   const n = Math.round((hi - lo) / step), bins = Array.from({length: n}, () => ({good: 0, check: 0, not: 0}));
-  known.forEach(a => { const i = Math.max(0, Math.min(n - 1, Math.floor((a[field] - lo) / step))); bins[i][a.t.good ? 'good' : a.t.check ? 'check' : 'not']++; });
+  known.forEach(a => { const i = Math.max(0, Math.min(n - 1, Math.floor((a[field] - lo) / step))); bins[i][a.g ? 'good' : a.c ? 'check' : 'not']++; });
   const w = 260, h = 130, pad = 18, max = Math.max(1, ...bins.map(b => b.good + b.check + b.not)), bw = (w - 8) / n;
   const y = v => (h - pad) * v / max, root = svg('svg', {viewBox: `0 0 ${w} ${h}`, width: '100%', role: 'img', 'aria-label': title});
   root.append(svg('line', {x1: 0, x2: w, y1: h - pad, y2: h - pad, stroke: 'var(--axis)'}));
@@ -586,7 +623,7 @@ function renderSky(tab, rows) {
   suns.slice(0, 1500).forEach(a => { const [x, y] = xy(a.sunaz, a.sun), g = svg('g', {tabindex: 0});
     g.append(svg('circle', {cx: x, cy: y, r: 7, fill: 'transparent'}), svg('circle', {cx: x, cy: y, r: 3, fill: 'none', stroke: 'var(--ink-2)', 'stroke-width': 1.2}));
     tip(g, `${a.sun}° sun`, el('span', {text: `${a.d}, ${tab.sites[a.s].name}`})); root.append(g); });
-  placed.slice(0, 1500).forEach(a => { const [x, y] = xy(a.az, a.el); root.append(dot(a, x, y, a.t.good ? 'var(--series)' : 'var(--muted-mark)', `${a.el}° elevation`, `${a.d}, ${tab.sensors[a.n]}, ${tab.sites[a.s].name}`)); });
+  placed.slice(0, 1500).forEach(a => { const [x, y] = xy(a.az, a.el); root.append(dot(a, x, y, a.g ? 'var(--series)' : 'var(--muted-mark)', `${a.el}° elevation`, `${a.d}, ${tab.sensors[a.n]}, ${tab.sites[a.s].name}`)); });
   $('sky').replaceChildren(root, el('div', {class: 'legend'}, el('span', {}, el('i', {class: 'sw dot', style: 'background:var(--series)'}), 'Satellite, good'),
     el('span', {}, el('i', {class: 'sw dot', style: 'background:var(--muted-mark)'}), 'Satellite, not a candidate'),
     el('span', {}, el('i', {class: 'sw dot', style: 'background:none;border:1.5px solid var(--ink-2);width:9px;height:9px'}), 'Sun')));
@@ -596,8 +633,8 @@ function renderGuide(tab, all) {
   const entries = [['Imagery', tab.bands], ['One acquisition is', tab.acquisition], ['Counted here', merged], ['Footprint', tab.footprint], ['Cloud cover', tab.cloud], ['In this tab', tab.scope]];
   $('guide').replaceChildren(...entries.flatMap(([k, v]) => { const d = el('dd'); d.innerHTML = v; return [el('dt', {text: k}), d]; }));
   const rows = tab.levels.map((l, i) => {
-    const mine = all.filter(a => a.lv.includes(i));
-    return el('tr', {}, el('td', {}, el('code', {text: l.code})), el('td', {text: l.plain}), el('td', {class: 'n', text: mine.length.toLocaleString()}), el('td', {class: 'n', text: mine.filter(a => a.t.good).length.toLocaleString()}));
+    const mine = all.filter(a => a.lvb >> i & 1);
+    return el('tr', {}, el('td', {}, el('code', {text: l.code})), el('td', {text: l.plain}), el('td', {class: 'n', text: mine.length.toLocaleString()}), el('td', {class: 'n', text: mine.filter(a => a.g).length.toLocaleString()}));
   });
   if (!tab.levels.length) { $('levels').replaceChildren(); return; }
   $('levels').replaceChildren(el('table', {class: 'levels'}, el('thead', {}, el('tr', {}, el('th', {text: 'Level'}), el('th', {text: 'What it is'}), el('th', {class: 'n', text: 'Acqs'}), el('th', {class: 'n'}, ...rich('Candidate Acquisitions')))), el('tbody', {}, rows)));
@@ -605,14 +642,14 @@ function renderGuide(tab, all) {
 const fmt = (v, unit) => v == null ? '–' : `${v}${unit}`;
 const slug = x => String(x).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 function renderList(tab, rows) {
-  const s = S(), rank = a => a.t.good ? 2 : a.t.check ? 1 : 0, sorted = [...rows].sort((a, b) => (rank(b) - rank(a)) || b.d.localeCompare(a.d)), shown = sorted.slice(0, 200);
-  const night = tab.acqs.some(a => a.dn === 'night');
+  const s = S(), rank = a => a.g ? 2 : a.c ? 1 : 0, sorted = [...rows].sort((a, b) => (rank(b) - rank(a)) || (b.dd - a.dd)), shown = sorted.slice(0, 200);
+  const night = tab.night;
   const checked = tab.csda_checked !== false;
   const head = ['Date', 'Site', 'Sensor', ...(night ? ['Time'] : []), 'Status', 'Cloud', 'Off-nadir', 'Site covered', 'Items', 'Levels', ...(checked ? ['In CSDA'] : []), 'Acquisition ID'];
   const left = new Set(['Site', 'Sensor', 'Time', 'Status', 'Levels', 'In CSDA', 'Acquisition ID']);
   const body = shown.map(a => el('tr', {}, el('td', {text: a.d}), el('td', {class: 't', text: tab.sites[a.s].name}), el('td', {class: 't', text: tab.sensors[a.n]}),
     night ? el('td', {class: 't', text: a.dn === 'night' ? 'Night' : 'Day'}) : null,
-    el('td', {class: 't'}, a.t.good ? el('span', {class: 'status ok'}, '✓ ', ...rich('Candidate Acquisition')) : a.t.check ? el('span', {class: 'status check', text: '? Check AOI'}) : el('span', {class: 'status none', text: 'Not a candidate'})),
+    el('td', {class: 't'}, a.g ? el('span', {class: 'status ok'}, '✓ ', ...rich('Candidate Acquisition')) : a.c ? el('span', {class: 'status check', text: '? Check AOI'}) : el('span', {class: 'status none', text: 'Not a candidate'})),
     el('td', {text: fmt(a.cloud, '%')}), el('td', {text: fmt(a.off, '°')}), el('td', {text: fmt(a.cov, '%')}), el('td', {text: a.items}),
     el('td', {class: 't', text: a.lv.map(i => tab.levels[i].code).join(', ')}), checked ? el('td', {class: 't', text: a.csda ? 'Yes' : 'No'}) : null,
     el('td', {class: 't id', title: a.a, text: a.a})));
@@ -622,7 +659,7 @@ function renderList(tab, rows) {
     : n === 1 ? tab.sites.find(x => match(x.name)).name : `the ${n} matching sites`;
   $('listTitle').textContent = `Acquisitions at ${where}`;
   // counts follow the limits set above: candidates, Check AOI, and the rest
-  const nGood = rows.filter(a => a.t.good).length, nCheck = rows.filter(a => !a.t.good && a.t.check).length, N = x => x.toLocaleString();
+  const nGood = rows.filter(a => a.g).length, nCheck = rows.filter(a => !a.g && a.c).length, N = x => x.toLocaleString();
   const counts = `${N(nGood)} Candidate Acquisitions, ${N(nCheck)} Check AOI and ${N(rows.length - nGood - nCheck)} not candidates under the limits above`;
   $('listNote').replaceChildren(...rich(sorted.length > 200
     ? `${N(sorted.length)} acquisitions: ${counts}. Showing the first 200, Candidate Acquisitions first, then newest. The download has all ${N(nGood + nCheck)} Candidate Acquisitions and Check AOI acquisitions.`
@@ -680,7 +717,7 @@ async function unzipJson(buf) {   // the selection's .json from a saved .zip (al
 function saveSelection(tab, rows, sorted) {
   const s = S(), picked = s.site != null ? tab.sites[s.site].name : null;
   const scope = tab.sites.map((x, i) => ({x, i})).filter(({x, i}) => s.site != null ? i === s.site : match(x.name));
-  const kept = sorted.filter(a => a.t.good || a.t.check), status = a => a.t.good ? 'candidate' : 'check AOI';
+  const kept = sorted.filter(a => a.g || a.c), status = a => a.g ? 'candidate' : 'check AOI';
   const settings = {cloud_max_pct: tab.has.cloud ? s.cloud : null, off_nadir_max_deg: tab.has.off ? s.off : null, site_covered_min_pct: s.cov,
     use_site_requirements: s.own, level: s.level === 'any' ? 'any' : tab.levels[+s.level].code, time_of_day: s.dn, source: s.source,
     from_month: s.from, to_month: s.to, find_sites: state.find.trim(), look_closer_site: picked};
@@ -696,9 +733,9 @@ function saveSelection(tab, rows, sorted) {
       a.lv.map(i => tab.levels[i].code).join(' '), tab.csda_checked === false ? '' : a.csda, a.dn, a.a, id].map(q).join(',')); });
   const per = new Map(scope.map(({i}) => [i, {candidates: 0, check_aoi: 0, found: 0}])), months = {};
   rows.forEach(a => { const c = per.get(a.s); if (c) c.found++; });
-  kept.forEach(a => { const c = per.get(a.s), k = a.d.slice(0, 7); months[k] = months[k] || {candidates: 0, check_aoi: 0};
-    if (a.t.good) { c.candidates++; months[k].candidates++; } else { c.check_aoi++; months[k].check_aoi++; } });
-  const good = kept.filter(a => a.t.good);
+  kept.forEach(a => { const c = per.get(a.s), k = a.m; months[k] = months[k] || {candidates: 0, check_aoi: 0};
+    if (a.g) { c.candidates++; months[k].candidates++; } else { c.check_aoi++; months[k].check_aoi++; } });
+  const good = kept.filter(a => a.g);
   const record = {
     selection: {id, note: $('selNote').value.trim(), saved: new Date().toISOString(), files: [`${base}.csv`, `${base}.json`],
       page: location.origin + location.pathname, rule: RULE, rule_text: RULE_TEXT},
@@ -730,7 +767,7 @@ function applyRestore(tab, r) {
   // then: how today's list compares with the saved one
   const all = slice(tab), found = all.filter(a => match(tab.sites[a.s].name)), rows = s.site == null ? found : found.filter(a => a.s === s.site);
   const key = a => `${a.acquisition_id ?? a.a}|${a.site ?? tab.sites[a.s].name}`;
-  const was = new Set(r.acquisitions.filter(a => a.status === 'candidate').map(key)), now = new Set(rows.filter(a => a.t.good).map(key));
+  const was = new Set(r.acquisitions.filter(a => a.status === 'candidate').map(key)), now = new Set(rows.filter(a => a.g).map(key));
   const added = [...now].filter(k => !was.has(k)).length, gone = [...was].filter(k => !now.has(k)).length;
   const missing = r.sites.filter(x => !tab.sites.some(y => y.name === x.site)).map(x => x.site);
   const N = n => n.toLocaleString();
@@ -774,15 +811,16 @@ function renderData(tab) {
   pickSel.value = s.site != null ? s.site : shown.length === 1 && filtering ? shown[0].i : '';   // one match: that is the site
   pickSel.onchange = e => { s.site = e.target.value === '' ? null : +e.target.value; renderData(tab); };
 }
-function loadTab(tab) {   // a large tab: its acquisitions load from its data file when it is first opened
+function loadTab(tab) {   // a tab's acquisitions load from its column files when it is first opened
   renderTabs();
   ['filters', 'answer', 'score', 'scoreLegend', 'nothing', 'reasons', 'mapNote', 'mapLegend', 'hist', 'sky', 'guide', 'levels', 'list', 'listNote', 'findNote']
     .forEach(id => $(id).replaceChildren());
   $('map').replaceChildren(); $('sitemap').hidden = true;
   const note = text => $('warn').replaceChildren(el('div', {class: 'warn', text}));
   note(`Loading ${tab.vendor} ${tab.constellation}: ${tab.rows.toLocaleString()} acquisitions at the sites…`);
-  fetch(`${DATA.data_base}${tab.key}.json`).then(r => { if (!r.ok) throw r.status; return r.json(); })
-    .then(d => { tab.acqs = d.acqs; if (DATA.tabs[state.tab] === tab) renderAll(); })
+  const get = (name, how) => fetch(`${DATA.data_base}${tab.key}${name}`).then(r => { if (!r.ok) throw r.status; return r[how](); });
+  Promise.all([get('.bin', 'arrayBuffer'), get('.ids.json', 'json')])
+    .then(([buf, ids]) => { decodeTab(tab, buf, ids); if (DATA.tabs[state.tab] === tab) renderAll(); })
     .catch(() => note(`This tab loads on the published page: https://pahbs.github.io/csda_summaries/html/archive_first_look.html`));
 }
 function showPending(tab) {   // a vendor whose catalog access is not in place yet
@@ -797,8 +835,7 @@ function renderAll() {
   document.querySelector('.viz-root').classList.toggle('is-pending', !!tab.pending);
   $('selbar').hidden = !!tab.pending;
   if (tab.pending) return showPending(tab);
-  if (tab.lazy && !tab.acqs) return loadTab(tab);
-  tab.has = tab.has || {cloud: reported(tab, 'cloud'), off: reported(tab, 'off')};
+  if (!tab.acqs) return loadTab(tab);
   state.per[state.tab] = state.per[state.tab] || defaults(tab);
   if (restore && restore.catalog.tab === tab.key) { const r = restore; restore = null; applyRestore(tab, r); }
   else if (!restore) $('loaded').replaceChildren();

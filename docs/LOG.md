@@ -31,6 +31,7 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-17 · [1] First look data restructured for many more sites: each tab's acquisitions as column files (<key>.bin, about 22 bytes each instead of ~165 as JSON; IDs in <key>.ids.json), index.json 21.6 MB -> 0.3 MB, SuperDove 64 MB -> 14 MB. The page reads the columns through light records and filters in one pass; numbers identical to the old page across all tabs and settings checked.
 - 2026-11-16 · [2] Density refreshed for all 13 constellations (Sep–Nov 2026 fetched again). SuperDove days with an acquisition: once complete, a run now recounts the last 3 months at every cell (before, new months were never counted).
 - 2026-11-14 · [2] Density page: "Interactive globe" option (MapLibre GL, loaded on first use): the same cells, colors, legend and controls on a zoomable 3D globe (or flat map), gray land by default or Esri imagery, hover tooltips; zoom capped at regional scale.
 - 2026-11-13 · [2] Density page: legend moved to the top right of the map card, opposite the heading. Commercial switch: `python lib/archive_density.py commercial hide|show [--push]` greys out the commercial tabs (Landsat and Sentinel-2 stay), takes their counts out of the page and moves their data files from the data repo to monthly_fp/withheld/ (full page kept there); show restores both. A rebuild while hidden stays hidden.
