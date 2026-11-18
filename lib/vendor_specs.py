@@ -1279,7 +1279,12 @@ def eval_sites(path: Optional[str] = None) -> List[dict]:
 
 
 RSR_CSV = "/explore/nobackup/projects/CSDA_eval/results/csda_rsr_curve_data.csv"
-RSR_OWNER = {"Maxar": "Vantor", "Planet": "Planet Labs", "NASA/USGS": "US Agency"}   # as named on the dashboard
+RSR_OWNER = {"Maxar": "Vantor", "Planet": "Planet Labs", "NASA/USGS": "US Agency", "NASA": "US Agency",
+             "NOAA": "US Agency"}   # as named on the dashboard
+RSR_REGIONS = [(452, "Coastal"), (512, "Blue"), (585, "Green"), (625, "Yellow"), (695, "Red"), (760, "RedEdge"), (1000, "NIR"),
+               (1360, "SWIR"), (1390, "Cirrus"), (2600, "SWIR")]   # upper center (nm), for bands not named by region
+RSR_THERMAL = [(5000, "MWIR 3–5 µm"), (8000, "Water vapor 6–8 µm"), (10300, "LWIR 8–10 µm"), (11600, "LWIR ~11 µm"),
+               (12800, "LWIR ~12 µm"), (1e9, "CO₂ 13–14.5 µm")]   # upper center (nm): thermal bands grouped by region
 RSR_CONSTELLATION = {"Sentinel": "Sentinel-2"}
 RSR_GROUPS = {   # dashboard constellation groups each RSR panel belongs to, so the dashboard's filters apply to it
     "Sentinel-2": ["Sentinel-2"], "Landsat": ["Landsat 8/9"], "Pleiades": ["Pléiades"], "PleiadesNeo": ["Pléiades Neo"],
@@ -1287,35 +1292,42 @@ RSR_GROUPS = {   # dashboard constellation groups each RSR panel belongs to, so 
     "Dove-Classic": ["PlanetScope Dove-Classic/Dove-R"], "Dove-R": ["PlanetScope Dove-Classic/Dove-R"],
     "SuperDove": ["PlanetScope SuperDove"], "RapidEye": ["RapidEye"], "SkySat": ["SkySat A/B", "SkySat C1", "SkySat C2"],
     "Aleph-1": [f"Satellogic Mark {m}" for m in ("I", "II", "III", "IV", "V")], "GeoEye": ["GeoEye-1"], "Legion": ["Legion"],
-    "QuickBird": ["QuickBird"], "WV2": ["WorldView-2"], "WV3": ["WorldView-3"]}
+    "QuickBird": ["QuickBird"], "WV2": ["WorldView-2"], "WV3": ["WorldView-3"], "MODIS": ["MODIS"], "VIIRS": ["VIIRS"],
+    "Sentinel-3": ["Sentinel-3"], "Landsat 5": ["Landsat 5"], "Landsat 7": ["Landsat 7"], "Tanager": ["Tanager"],
+    "Firefly": ["Pixxel Firefly"], "VanZyl": ["Hydrosat VanZyl"]}
 
 
 def rsr_curves(path: str = RSR_CSV) -> Optional[dict]:
     """Relative spectral response curves for the dashboard (see build_rsr_db.ipynb), None if the file is not there.
-    TIR is left out, as in the notebook's comparison plots. Bands that share a name and wavelengths are two real bands
+    Bands centered past 2600 nm go to `thermal` (grouped by RSR_THERMAL), the rest to `curves`; a band named TIR* centered
+    below that is a data error and is left out. Files named
+    gaussian_* are bands modeled from delivered centers and FWHM, not measured. Bands that share a name and wavelengths are two real bands
     (SuperDove's two greens), so they are split; a few repeated wavelengths in a band keep the larger value. Each
-    curve drops its near-zero ends and is simplified to within 0.3 nm or 0.003 response to keep the page small."""
+    curve drops its near-zero ends and is simplified to within 0.3 nm (thermal 3 nm) or 0.003 response to keep the page small."""
     from pathlib import Path
     from shapely.geometry import LineString
     if not Path(path).exists():
         return None
     d = pd.read_csv(path).dropna(subset=["wavelength_nm", "rsr", "band", "sensor", "constellation"])
-    d = d[~d["band"].str.startswith("TIR")].assign(
+    d = d.assign(
         owner=lambda x: x["affiliation"].replace(RSR_OWNER), name=lambda x: x["constellation"].replace(RSR_CONSTELLATION),
         sector=lambda x: x["sector"].replace({"Civil": "Government"}))
 
-    def group(band):
+    def group(band, center):
         for pattern, label in (("(?i)swir", "SWIR"), ("(?i)rededge", "RedEdge"), ("(?i)^nir", "NIR"), ("^Green", "Green")):
             if re.search(pattern, band):
                 return label
-        return band
+        if band in ("Pan", "Coastal", "Blue", "Yellow", "Red", "Cirrus"):
+            return band
+        return next(label for top, label in RSR_REGIONS if center < top)
 
     keys = d[["sector", "owner", "name"]].drop_duplicates()
     keys = sorted(keys.itertuples(index=False), key=lambda k: (k.sector != "Government", k.owner, k.name))
-    panels, curves = [], []
+    panels, curves, thermal = [], [], []
     for i, k in enumerate(keys):
         c = d[(d["sector"] == k.sector) & (d["owner"] == k.owner) & (d["name"] == k.name)]
-        panels.append(dict(name=k.name, owner=k.owner, sector=k.sector, sensors=int(c["sensor"].nunique()),
+        modeled = bool(c["source_file"].str.contains("gaussian_").any())
+        panels.append(dict(name=k.name, owner=k.owner, sector=k.sector, sensors=int(c["sensor"].nunique()), modeled=modeled,
                            groups=RSR_GROUPS.get(k.name, []), sensor_names=" ".join(c["sensor"].unique())))
         for (sensor, band), x in c.groupby(["sensor", "band"], sort=False):
             if x.duplicated("wavelength_nm", keep=False).mean() > 0.5:
@@ -1329,12 +1341,19 @@ def rsr_curves(path: str = RSR_CSV) -> Optional[dict]:
                 if len(on) < 2:
                     continue
                 w, r = w[on[0]:on[-1] + 1], r[on[0]:on[-1] + 1]
+                core = r >= 0.05 * r.max()                # out-of-band tails would pull the center away
+                center = float((w[core] * r[core]).sum() / r[core].sum())
+                tir = center > 2600
+                if band.startswith("TIR") and not tir:
+                    continue
                 half = w[r >= r.max() / 2]
-                line = np.array(LineString(np.c_[w / 100, r]).simplify(0.003).coords)
-                curves.append(dict(p=i, sensor=sensor, band=label, group=group(band), center=round(float((w * r).sum() / r.sum()), 1),
-                                   fwhm=round(float(half.max() - half.min()), 1), w=[round(v * 100, 1) for v in line[:, 0]],
-                                   r=[round(v, 3) for v in line[:, 1]]))
-    return dict(panels=panels, curves=curves, source=Path(path).name)
+                s = 1000 if tir else 100                  # simplification tolerance 3 nm thermal, 0.3 nm otherwise
+                line = np.array(LineString(np.c_[w / s, r]).simplify(0.003).coords)
+                g = next(lb for top, lb in RSR_THERMAL if center < top) if tir else "Hyperspectral" if modeled else group(band, center)
+                (thermal if tir else curves).append(dict(
+                    p=i, sensor=sensor, band=label, group=g, center=round(center, 1), fwhm=round(float(half.max() - half.min()), 1),
+                    w=[round(v * s, 1) for v in line[:, 0]], r=[round(v, 3) for v in line[:, 1]]))
+    return dict(panels=panels, curves=curves, thermal=thermal, source=Path(path).name)
 
 
 def write_dashboard(raw: pd.DataFrame, groups: pd.DataFrame, issues: pd.DataFrame, edit_log: Optional[pd.DataFrame],

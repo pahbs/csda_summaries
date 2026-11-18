@@ -31,6 +31,8 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-18 · [6] Vendor Specs: Spectral Response tab gets a thermal infrared chart and band table (3–14.5 µm, 69 curves: Landsat 5/7/8/9, MODIS, VIIRS, Sentinel-3 SLSTR, Hydrosat). Landsat 8/9 thermal rows fixed in the source and both database copies.
+- 2026-11-18 · [6] RSR database: Hydrosat VanZyl-1 and -2 curves (vendor-provided .h5) added to both `csda_rsr_curve_data.csv` copies; Spectral Response tab now has a Hydrosat VanZyl panel (8 VNIR bands per satellite; LWIR in the database, not drawn).
 - 2026-11-17 · [1] First look for many sites: Source / Surface / Program chips and checkable sites (Only checked sites, Check all shown, Clear), saved with selections; site table and acquisition list scroll in place; summary tiles follow the site choices; "Source" is now "Catalog" (<vendor> or CSDA, CSDA greyed where not matched); "Use site-specific filtering where specified in evaluation sites dB", off by default.
 - 2026-11-17 · [1] First look data restructured for many more sites: each tab's acquisitions as column files (<key>.bin, about 22 bytes each instead of ~165 as JSON; IDs in <key>.ids.json), index.json 21.6 MB -> 0.3 MB, SuperDove 64 MB -> 14 MB. The page reads the columns through light records and filters in one pass; numbers identical to the old page across all tabs and settings checked.
 - 2026-11-16 · [2] Density refreshed for all 13 constellations (Sep–Nov 2026 fetched again). SuperDove days with an acquisition: once complete, a run now recounts the last 3 months at every cell (before, new months were never counted).
@@ -548,13 +550,28 @@ only if needed), never a separate search API.
 
 ## 6 · Evaluation results, RadCalNet and spectral response
 
+### 2026-11-18 · Vendor Specs: thermal infrared RSR; Landsat 8/9 thermal fixed
+- **Landsat 8/9 thermal rows were mislabeled** (`civil/landsat_89_RSR.csv` and both database copies). Matched against Pyspectral v1.6.1 `rsr_oli_tirs_Landsat-{8,9}.h5` (whose own TIRS wavelengths are 1000x too small): `OLI-1 TIR1` was Landsat 8 band 10; the 9–14 µm part of `TIRS-2 TIR2` (`TIRS--2` in the page's copy) was Landsat 8 band 11; `TIRS-1 TIR1` and the 1100–1300 part of `TIRS-2 TIR2` were Landsat 9 bands 10 and 11 with wavelengths 10x too small. Now TIRS-1 = Landsat 8, TIRS-2 = Landsat 9, as with OLI-1/OLI-2; RMS difference to Pyspectral ≤ 0.0009 in all three files.
+- Fix by `civil/fix_landsat_89_thermal.py` (284 rows per file, every other line byte-identical; backups `*_pre_thermal_fix_2026-11-18.csv`). The notebook's copy had no Landsat 8/9 thermal rows (and still has no Landsat 8/9 Cirrus); the fixed thermal rows were appended to it.
+- `rsr_curves()` now returns bands centered past 2600 nm as `thermal`, grouped by region (`RSR_THERMAL`: MWIR 3–5, water vapor 6–8, LWIR 8–10, ~11, ~12, CO₂ 13–14.5 µm), simplified to 3 nm; a TIR-named band centered below 2600 nm is still dropped as a data error.
+- Tab: second chart and band table for thermal, in µm, with its own wavelength range (3–14.5, MWIR, LWIR) and response axis; the same filters, Find, Highlight, hover and key as the visible-SWIR chart (one shared `drawRs` for both). Panels show only the sensors drawn in that chart (Landsat: 2 OLI on one, 2 TIRS on the other).
+- Thermal colors: six hues of the dataviz reference palette in spectral order (orange, blue, yellow, magenta, green, violet), light and dark steps as theme tokens `--t-*`. Validated with a Python port of the skill's validator (no Node on ADAPT): adjacent CVD ΔE ≥ 13.0, normal vision ≥ 19.3 in both modes; magenta and yellow are under 3:1 on the light surface, covered by the key labels and band table.
+- Not checked in a browser (no browser or JS runtime on ADAPT; installing Node was not allowed). Checked: bracket structure of the new script, helpers it uses, panel-to-group mapping, and a matplotlib plot of the page's thermal curves. Open the page before publishing.
+
+### 2026-11-18 · RSR database: Hydrosat VanZyl
+- Source: 4 files from Hydrosat in `CSDA_eval/results/evaluation_results_db/rsr/commercial/hydrosat/vanzyl/` (`rsr_viri_VanZyl-{1,2}.h5`, `rsr_liri_VanZyl-{1,2}.h5`, pyspectral layout). Built into `rsr/added/hydrosat_vanzyl.csv` by `rsr/added/build_hydrosat_rsr.py` (README there); affiliation HydroSat, constellation VanZyl, sensors VanZyl-1 / VanZyl-2.
+- Bands renamed to the database's names: Blue, Green, Red, RedEdge1-3, NIR, Pan; LWIR1/2 as TIR1/2. Peak set to 1.
+- Appended as text to both `csda_rsr_curve_data.csv` copies (24,004 rows; existing rows byte-identical; backups `*_pre_hydrosat_2026-11-18.csv`). `build_rsr_db.ipynb` picks the file up from `rsr/added/` on its next run.
+- Spectral Response tab: new panel tied to the *Hydrosat VanZyl* group (`RSR_GROUPS["VanZyl"]`), source note added. Page refreshed by replacing only its RSR data (rest of the page as built 17 Nov). Band centers 480-485, 559, 662, 702, 737, 780-781, 835-836 and Pan 621-625 nm, close to Hydrosat's stated 490/560/665/705/740/783/842/625.
+- Data issues, not changed in the source: VIRI wavelengths are in nm although the files say micrometres (LIRI really is in micrometres); `rsr_liri_VanZyl-2.h5` is byte-identical to VanZyl-1's and says platform VanZyl-1: ask Hydrosat whether VanZyl-2 has its own LIRI curves.
+
 ### 2026-11-06 · RSR database: added sensors
 - New curves in `CSDA_eval/results/evaluation_results_db/rsr/added/` (README and `build_added_rsr.py` there), appended to both `csda_rsr_curve_data.csv` copies (backups `*_pre_added_2026-11-06.csv`). The database files stay off GitHub.
 - Measured: MODIS, VIIRS, Sentinel-3 OLCI and SLSTR (Pyspectral v1.6.1, CC-BY-4.0, credited on the page); Landsat 5 TM and 7 ETM+ (GFZ pyrsr, Apache-2.0).
 - Modeled, not measured: Tanager (426 bands) and Pixxel Firefly (135 per satellite), as Gaussians from centers and FWHM in delivered products. Files are named `gaussian_*`; the panels say *modeled* and leave the band table.
 - Band center now ignores response below 5% of the peak (VIIRS M1 read 422 nm from an out-of-band tail; now 410.5). Sentinel-2 values did not move.
 - `build_rsr_db.ipynb` reads `rsr/added/` and keeps band names outside `band_order`. Snippet tested in R; the notebook itself not rerun. Its plots show those bands as NA.
-- **Not found (29 constellations):** no public curves for Hydrosat VanZyl, EarthDaily, Satlantis GEISAT-P and HORACIO, OroraTech, OSK GHOSt and GHOSt-6, ImageSat EROS-A, B, C2, C3 and Runner-1, HotSat, FireSat, Pelican Gen 1 and 2, Kuva. Also none reachable for EnMAP, DESIS, MERIS, PROBA-V, GCOM-C (NWP SAF has only its two thermal channels), ADEOS, ADEOS-II, ALOS, ALOS-3, IKONOS, WorldView-1, WorldView-4. None were invented from band edges.
+- **Not found (29 constellations):** no public curves for Hydrosat VanZyl (vendor curves added 18 Nov), EarthDaily, Satlantis GEISAT-P and HORACIO, OroraTech, OSK GHOSt and GHOSt-6, ImageSat EROS-A, B, C2, C3 and Runner-1, HotSat, FireSat, Pelican Gen 1 and 2, Kuva. Also none reachable for EnMAP, DESIS, MERIS, PROBA-V, GCOM-C (NWP SAF has only its two thermal channels), ADEOS, ADEOS-II, ALOS, ALOS-3, IKONOS, WorldView-1, WorldView-4. None were invented from band edges.
 - Leads: EarthDaily says its Science product metadata holds spectral response functions; OSK's SPIE 2024 calibration paper; Apollo Mapping's "Maxar Constellation Spectral Response Values" (blocks automated access) for WorldView-1, WorldView-4 and maybe IKONOS; any EnMAP L2A scene for band centers and FWHM.
 
 ### 2026-11-06 · Vendor Specs: one pinned set of filters
@@ -571,7 +588,7 @@ only if needed), never a separate search API.
   - Two copies of the file: `evaluation_results_db/rsr/` (6 Oct, what the notebook writes) adds newsat51-52 but lacks WV3 SWIR, Cirrus and thermal bands. Shared rows match.
   - SuperDove has two bands named `Green` (peaks 528 and 557 nm); the tab splits them into Green 1 and Green 2. The notebook plots them as one zigzag line.
   - SkySat 1-13 are not normalized (peaks 0.27-0.44); SkySat 14-19 reach 1.0.
-  - Landsat thermal: `TIRS-2` wavelengths are ~10x too small (980-1300 nm) and `OLI-1` has a TIR1 band at 9000-14000 nm. Thermal is left out of the tab.
+  - Landsat thermal: `TIRS-2` wavelengths are ~10x too small (980-1300 nm) and `OLI-1` has a TIR1 band at 9000-14000 nm. Thermal is left out of the tab. (Fixed 18 Nov; thermal now has its own chart.)
 
 ### 2026-11-06 · Vendor Specs: footprint map (`lib/vendor_specs_dashboard.html`, trial)
 - *Cross-track swath width* has a View switch: **Map** (new, default) and **Panels** (unchanged). Map: Leaflet 1.9.4 from unpkg (pinned with SRI);

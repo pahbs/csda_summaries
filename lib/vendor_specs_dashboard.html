@@ -12,6 +12,7 @@
   --surface: #fcfcfb; --surface-2: #f3f2ee; --ink: #0b0b0b; --ink-2: #52514e; --ink-3: #8a8984;
   --grid: #e6e5e0; --com: #2a78d6; --gov: #eb6834; --ring: #0b0b0b; --bar: #256abf; --bar-bg: #e9edf3;
   --link: #1c5cab; --edge: rgba(0,0,0,.45);
+  --t-mwir: #eb6834; --t-wv: #2a78d6; --t-l8: #eda100; --t-l11: #e87ba4; --t-l12: #008300; --t-co2: #6250d6;
 }
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) .viz-root {
@@ -19,6 +20,7 @@
     --surface: #1a1a19; --surface-2: #232322; --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #8f8e86;
     --grid: #30302d; --com: #3987e5; --gov: #d95926; --ring: #f0efec; --bar: #3987e5; --bar-bg: #2b2f36;
     --link: #86b6ef; --edge: rgba(255,255,255,.55);
+    --t-mwir: #d95926; --t-wv: #3987e5; --t-l8: #c98500; --t-l11: #d55181; --t-l12: #008300; --t-co2: #9085e9;
   }
 }
 :root[data-theme="dark"] .viz-root {
@@ -26,6 +28,7 @@
   --surface: #1a1a19; --surface-2: #232322; --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #8f8e86;
   --grid: #30302d; --com: #3987e5; --gov: #d95926; --ring: #f0efec; --bar: #3987e5; --bar-bg: #2b2f36;
   --link: #86b6ef; --edge: rgba(255,255,255,.55);
+  --t-mwir: #d95926; --t-wv: #3987e5; --t-l8: #c98500; --t-l11: #d55181; --t-l12: #008300; --t-co2: #9085e9;
 }
 * { box-sizing: border-box; }
 body { margin: 0; }
@@ -103,13 +106,13 @@ table.data td.n { text-align: right; font-variant-numeric: tabular-nums; }
 @media (max-width: 760px), (max-height: 560px) { #shared { position: static; } }
 .rs-grid { display: grid; grid-template-columns: minmax(0, 1fr) 104px; gap: 12px; align-items: start; }
 .rs-title { font-size: 12.5px; font-weight: 650; margin: 4px 0 6px; }
-#rs-key { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
-#rs-key .sw { width: 13px; height: 13px; border-radius: 2px; }
-#rs-key button[aria-pressed="true"] { text-decoration: none; font-weight: 400; }
-#rs-key button[aria-pressed="false"] { opacity: .35; }
-#rs-tbl th.n { text-align: right; }
-#rs-tbl th { cursor: default; }
-@media (max-width: 760px) { .rs-grid { grid-template-columns: minmax(0, 1fr); } #rs-key { flex-direction: row; flex-wrap: wrap; } }
+#rs-key, #rst-key { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+#rs-key .sw, #rst-key .sw { width: 13px; height: 13px; border-radius: 2px; }
+#rs-key button[aria-pressed="true"], #rst-key button[aria-pressed="true"] { text-decoration: none; font-weight: 400; }
+#rs-key button[aria-pressed="false"], #rst-key button[aria-pressed="false"] { opacity: .35; }
+#rs-tbl th.n, #rst-tbl th.n { text-align: right; }
+#rs-tbl th, #rst-tbl th { cursor: default; }
+@media (max-width: 760px) { .rs-grid { grid-template-columns: minmax(0, 1fr); } #rs-key, #rst-key { flex-direction: row; flex-wrap: wrap; } }
 .fm-grid { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 12px; margin: 6px 0 8px; }
 #foot-map { height: 560px; border: 1px solid var(--grid); border-radius: 8px; isolation: isolate; }
 #fm-list { height: 560px; overflow-y: auto; border: 1px solid var(--grid); border-radius: 8px; padding: 4px; }
@@ -182,7 +185,7 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
 
   <div role="tabpanel" id="panel-spectral" aria-labelledby="tab-spectral" hidden>
   <section class="card" aria-labelledby="h-rsr">
-    <h2 id="h-rsr">Relative spectral response curves</h2>
+    <h2 id="h-rsr">Relative spectral response curves: visible to shortwave infrared</h2>
     <div class="note">One panel per constellation on a shared wavelength axis; each line is one band of one sensor, colored by band. Hover a curve for its
       sensor, band and response. Click a band in the key to hide or show it. To compare a few, list them in <i>Find</i>, separated by commas.
       Panels marked <i>modeled</i> are hyperspectral bands drawn as Gaussians from the vendor's band centers and FWHM, not measured responses.</div>
@@ -196,7 +199,8 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
     </div>
     <div class="note" id="rs-left"></div>
     <div class="note">MODIS, VIIRS and Sentinel-3 curves: Pyspectral RSR data v1.6.1 (<a href="https://zenodo.org/records/19373017" target="_blank" rel="noopener">Zenodo</a>, CC-BY-4.0),
-      detectors averaged. Landsat 5 and 7: <a href="https://git.gfz-potsdam.de/geomultisens/pyrsr" target="_blank" rel="noopener">GFZ pyrsr</a> (Apache-2.0).</div>
+      detectors averaged. Landsat 5 and 7: <a href="https://git.gfz-potsdam.de/geomultisens/pyrsr" target="_blank" rel="noopener">GFZ pyrsr</a> (Apache-2.0).
+      Hydrosat VanZyl-1 and VanZyl-2: curves provided by Hydrosat (Nov 2026).</div>
   </section>
 
   <section class="card" aria-labelledby="h-rsr-table">
@@ -204,6 +208,29 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
     <div class="note">For the constellations and bands shown above. Center = response-weighted mean wavelength, ignoring response below 5% of the peak; FWHM = width at half the peak response. Where a
       constellation has several sensors, the center is a range and the FWHM a median. Modeled hyperspectral bands are not listed.</div>
     <div class="scroll"><table class="data" id="rs-tbl"></table></div>
+  </section>
+
+  <section class="card" aria-labelledby="h-rsr-tir">
+    <h2 id="h-rsr-tir">Relative spectral response curves: thermal infrared</h2>
+    <div class="note">Bands centered past 2.6 µm, on their own axis in micrometres: mid-wave (3–5 µm), water vapor (6–8 µm), long-wave (8–12.8 µm) and CO₂
+      (13–14.5 µm). Colors group bands by region. Hover, the band key and the filters work as above.</div>
+    <div class="filters" style="position:static;border:0;padding:8px 0">
+      <label>Wavelength <span id="rst-range"></span></label>
+      <label>Response axis <span id="rst-floor"></span></label>
+    </div>
+    <div class="rs-grid">
+      <svg id="rst" width="100%" role="img" aria-label="Thermal infrared relative spectral response by wavelength, one panel per constellation"></svg>
+      <div><div class="rs-title">Spectral region</div><div class="key" id="rst-key" aria-label="Thermal spectral region key"></div></div>
+    </div>
+    <div class="note" id="rst-left"></div>
+    <div class="note">Landsat 8/9: thermal curves relabeled on 18 Nov 2026 (TIRS-1 = Landsat 8, TIRS-2 = Landsat 9; Landsat 9 wavelengths were 10× too small), checked against Pyspectral.
+      Hydrosat: the VanZyl-2 thermal curves came as an exact copy of VanZyl-1's, to be confirmed with Hydrosat.</div>
+  </section>
+
+  <section class="card" aria-labelledby="h-rsr-tir-table">
+    <h2 id="h-rsr-tir-table">Thermal band centers and widths</h2>
+    <div class="note">For the constellations and bands shown in the thermal chart, in micrometres; computed as in the table above.</div>
+    <div class="scroll"><table class="data" id="rst-tbl"></table></div>
   </section>
   </div>
 
@@ -687,8 +714,21 @@ function fmGo() {
 // ---------- spectral response ----------
 const RS_BANDS = {Pan: '#bebebe', Coastal: '#4f3a89', Blue: '#1f78b4', Green: '#33a02c', Yellow: '#ffd92f', Red: '#e31a1c',
   RedEdge: '#b15928', NIR: '#cd5c5c', Cirrus: '#4682b4', SWIR: '#4682b4', Hyperspectral: '#2a9d8f'};   // as in build_rsr_db.ipynb
-const RS_RANGES = {full: ['350–2500 nm', 350, 2500], vnir: ['VNIR 400–1000', 400, 1000], swir: ['SWIR 1300–2400', 1300, 2400]};
-const RS = { range: 'full', floor: .25, on: new Set(), off: new Set() };
+// Thermal regions: theme tokens (one validated set per theme), in spectral order
+const RS_TIR = {'MWIR 3–5 µm': 'var(--t-mwir)', 'Water vapor 6–8 µm': 'var(--t-wv)', 'LWIR 8–10 µm': 'var(--t-l8)',
+  'LWIR ~11 µm': 'var(--t-l11)', 'LWIR ~12 µm': 'var(--t-l12)', 'CO₂ 13–14.5 µm': 'var(--t-co2)'};
+const RS_RANGES = {full: ['350–2500 nm', 350, 2500, [500, 1000, 1500, 2000, 2500]], vnir: ['VNIR 400–1000', 400, 1000, [400, 500, 600, 700, 800, 900, 1000]],
+  swir: ['SWIR 1300–2400', 1300, 2400, [1400, 1600, 1800, 2000, 2200, 2400]]};
+const RS_TRANGES = {full: ['3–14.5 µm', 3000, 14600, [4000, 6000, 8000, 10000, 12000, 14000]], mwir: ['MWIR 3–5 µm', 3200, 5000, [3500, 4000, 4500, 5000]],
+  lwir: ['LWIR 8–14.5 µm', 8000, 14600, [8000, 9000, 10000, 11000, 12000, 13000, 14000]]};
+const RS = { range: 'full', floor: .25, on: new Set(), off: new Set() }, RT = { range: 'full', floor: .25, off: new Set() };
+const RS_NM = {unit: 'nm', w: v => fmt(Math.round(v)), wx: v => fmt(v), span: (lo, hi) => `${fmt(Math.round(lo))}–${fmt(Math.round(hi))}`};
+const RS_UM = {unit: 'µm', w: v => (v / 1000).toFixed(2), wx: v => (v / 1000).toFixed(2), span: (lo, hi) => `${(lo / 1000).toFixed(2)}–${(hi / 1000).toFixed(2)}`};
+const RS_VIEWS = {
+  opt: {id: 'rs', st: RS, colors: RS_BANDS, ranges: RS_RANGES, u: RS_NM, tick: v => fmt(v), list: () => D.rsr.curves,
+        left: (np, nt, n) => `${np} of ${nt} constellations with curves, ${n} curves, from ${D.rsr.source}. Thermal bands are in the thermal infrared chart below.`},
+  tir: {id: 'rst', st: RT, colors: RS_TIR, ranges: RS_TRANGES, u: RS_UM, tick: v => fmt(v / 1000), list: () => D.rsr.thermal || [],
+        left: (np, nt, n) => `${np} of ${nt} constellations with thermal curves, ${n} curves, from ${D.rsr.source}.`}};
 // A panel follows the dashboard's filters through its constellation groups; Find also matches its own name and sensors
 function rsShown(p, G) {
   const groups = D.groups.filter(g => p.groups.includes(g.group));
@@ -701,38 +741,42 @@ function rsAt(c, v) {
   return c.r[i - 1] + (c.r[i] - c.r[i - 1]) * (v - c.w[i - 1]) / (c.w[i] - c.w[i - 1]);
 }
 function drawRsr() {
-  const svg = $('#rsr'); if (!D.rsr) return;
-  svg.innerHTML = '';
+  if (!D.rsr) return;
   const G = shown(); RS.on = new Set(D.rsr.panels.flatMap((p, i) => rsShown(p, G) ? [i] : []));
-  const [, x0, x1] = RS_RANGES[RS.range], W = 1060, left = 50, strip = 136, right = W - strip, ph = 76, gap = 7, top = 4;
-  const panels = D.rsr.panels.map((p, i) => [p, i]).filter(([, i]) => RS.on.has(i)), H = top + panels.length * (ph + gap) + 44;
-  const X = v => left + (v - x0) / (x1 - x0) * (right - left), Y0 = RS.floor, Y1 = 1.04;
-  const ticks = RS.range === 'full' ? [500, 1000, 1500, 2000, 2500] : RS.range === 'vnir' ? [400, 500, 600, 700, 800, 900, 1000] : [1400, 1600, 1800, 2000, 2200, 2400];
+  drawRs(RS_VIEWS.opt); drawRs(RS_VIEWS.tir);
+}
+// One chart (visible-SWIR or thermal): a panel per constellation that has curves in the view's list
+function drawRs(V) {
+  const svg = $('#' + V.id), st = V.st, all = V.list(), u = V.u; svg.innerHTML = '';
+  const [, x0, x1, ticks] = V.ranges[st.range], W = 1060, left = 50, strip = 136, right = W - strip, ph = 76, gap = 7, top = 4;
+  const has = new Set(all.map(c => c.p));
+  const panels = D.rsr.panels.map((p, i) => [p, i]).filter(([, i]) => RS.on.has(i) && has.has(i)), H = top + panels.length * (ph + gap) + 44;
+  const X = v => left + (v - x0) / (x1 - x0) * (right - left), Y0 = st.floor, Y1 = 1.04;
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  const on = c => RS.on.has(c.p) && !RS.off.has(c.group);
+  const on = c => RS.on.has(c.p) && !st.off.has(c.group);
   const hl = [];
-  panels.forEach(([p, i], n) => { const y0 = top + n * (ph + gap), Y = v => y0 + ph - (v - Y0) / (Y1 - Y0) * ph;
-    const clip = el('clipPath', {id: 'rs-clip-' + i}, svg); el('rect', {x: left, y: y0, width: right - left, height: ph}, clip);
+  panels.forEach(([p, i], n) => { const y0 = top + n * (ph + gap), Y = v => y0 + ph - (v - Y0) / (Y1 - Y0) * ph, cid = `${V.id}-clip-${i}`;
+    const clip = el('clipPath', {id: cid}, svg); el('rect', {x: left, y: y0, width: right - left, height: ph}, clip);
     for (const v of [0, .2, .4, .6, .8, 1]) if (v >= Y0) {
       el('line', {x1: left, x2: right, y1: Y(v), y2: Y(v), class: 'gridline'}, svg);
       el('text', {x: left - 6, y: Y(v) + 3.5, 'text-anchor': 'end', 'font-size': 11.5, class: 'muted'}, svg).textContent = v.toFixed(1); }
     for (const v of ticks) el('line', {x1: X(v), x2: X(v), y1: y0, y2: y0 + ph, class: 'gridline'}, svg);
-    const box = el('g', {'clip-path': `url(#rs-clip-${i})`, class: lit({affiliation: p.owner}) ? '' : 'dim'}, svg), base = y0 + ph + 2;
-    const here = D.rsr.curves.filter(c => c.p === i && on(c));
-    for (const c of here) { const col = RS_BANDS[c.group] || 'var(--ink-3)';
+    const box = el('g', {'clip-path': `url(#${cid})`, class: lit({affiliation: p.owner}) ? '' : 'dim'}, svg), base = y0 + ph + 2;
+    const here = all.filter(c => c.p === i && on(c)), ns = new Set(all.filter(c => c.p === i).map(c => c.sensor)).size;   // sensors in this chart
+    for (const c of here) { const col = V.colors[c.group] || 'var(--ink-3)';
       const pts = c.w.map((v, j) => `${X(v).toFixed(1)} ${Y(c.r[j]).toFixed(1)}`).join('L');
-      el('path', {d: `M${X(c.w[0]).toFixed(1)} ${base}L${pts}L${X(c.w[c.w.length - 1]).toFixed(1)} ${base}Z`, fill: col, 'fill-opacity': .1}, box);
-      el('path', {d: 'M' + pts, fill: 'none', stroke: col, 'stroke-width': .8, 'stroke-opacity': .9}, box); }
+      el('path', {d: `M${X(c.w[0]).toFixed(1)} ${base}L${pts}L${X(c.w[c.w.length - 1]).toFixed(1)} ${base}Z`, style: `fill:${col};fill-opacity:.1`}, box);
+      el('path', {d: 'M' + pts, style: `fill:none;stroke:${col};stroke-width:.8;stroke-opacity:.9`}, box); }
     el('rect', {x: left, y: y0, width: right - left, height: ph, fill: 'none', stroke: 'var(--ink-3)'}, svg);
-    el('rect', {x: right, y: y0, width: strip, height: ph, fill: 'var(--surface-2)', stroke: 'var(--ink-3)'}, svg);
+    el('rect', {x: right, y: y0, width: strip, height: ph, style: 'fill:var(--surface-2);stroke:var(--ink-3)'}, svg);
     el('text', {x: right + 9, y: y0 + 23, 'font-size': 12, 'font-weight': 650}, svg).textContent = p.name;
     el('text', {x: right + 9, y: y0 + 40, 'font-size': 10.5, class: 'muted'}, svg).textContent = p.owner + (p.modeled ? ' · modeled' : '');
-    el('text', {x: right + 9, y: y0 + 55, 'font-size': 10.5, class: 'muted'}, svg).textContent = `${p.sector} · ${p.sensors} sensor${p.sensors > 1 ? 's' : ''}`;
-    hl.push({p, y0, ph, Y, here, clip: `url(#rs-clip-${i})`}); });
+    el('text', {x: right + 9, y: y0 + 55, 'font-size': 10.5, class: 'muted'}, svg).textContent = `${p.sector} · ${ns} sensor${ns > 1 ? 's' : ''}`;
+    hl.push({p, y0, ph, Y, here, clip: `url(#${cid})`}); });
   const bottom = top + panels.length * (ph + gap) - gap;
   if (panels.length) {
-    for (const v of ticks) el('text', {x: X(v), y: bottom + 15, 'text-anchor': 'middle', 'font-size': 12, class: 'muted'}, svg).textContent = fmt(v);
-    el('text', {x: (left + right) / 2, y: bottom + 33, 'text-anchor': 'middle', 'font-size': 14, class: 'muted'}, svg).textContent = 'Wavelength (nm)';
+    for (const v of ticks) el('text', {x: X(v), y: bottom + 15, 'text-anchor': 'middle', 'font-size': 12, class: 'muted'}, svg).textContent = V.tick(v);
+    el('text', {x: (left + right) / 2, y: bottom + 33, 'text-anchor': 'middle', 'font-size': 14, class: 'muted'}, svg).textContent = `Wavelength (${u.unit})`;
     el('text', {transform: `translate(13 ${(top + bottom) / 2}) rotate(-90)`, 'text-anchor': 'middle', 'font-size': 14, class: 'muted'}, svg).textContent = 'Relative spectral response';
   }
   const cross = el('line', {y1: top, y2: bottom, stroke: 'var(--ink-2)', 'stroke-dasharray': '3 3', visibility: 'hidden'}, svg), mark = el('g', {}, svg);
@@ -743,32 +787,32 @@ function drawRsr() {
     if (!panel) return hideTip();
     const r = Y0 + (panel.y0 + panel.ph - py) / panel.ph * (Y1 - Y0);
     const near = panel.here.map(c => [c, rsAt(c, v)]).filter(([, a]) => a != null && Math.abs(a - r) < .12).sort((a, b) => Math.abs(a[1] - r) - Math.abs(b[1] - r));
-    if (!near.length) { tip.innerHTML = `<b>${fmt(Math.round(v))} nm</b>`; tip.style.display = 'block'; return moveTip(ev); }
+    if (!near.length) { tip.innerHTML = `<b>${u.w(v)} ${u.unit}</b>`; tip.style.display = 'block'; return moveTip(ev); }
     const [c, a] = near[0];
-    el('path', {d: 'M' + c.w.map((u, j) => `${X(u).toFixed(1)} ${panel.Y(c.r[j]).toFixed(1)}`).join('L'), fill: 'none', stroke: RS_BANDS[c.group], 'stroke-width': 2.2, 'clip-path': panel.clip}, mark);
-    const same = near.length - 1, rows = [['Constellation', esc(panel.p.name)], ['Data owner', esc(panel.p.owner)], [`At ${fmt(Math.round(v))} nm`, a.toFixed(2)],
-      ['Center', `${fmt(c.center)} nm`], ['FWHM', `${fmt(c.fwhm)} nm`]];
+    el('path', {d: 'M' + c.w.map((x, j) => `${X(x).toFixed(1)} ${panel.Y(c.r[j]).toFixed(1)}`).join('L'), style: `fill:none;stroke:${V.colors[c.group]};stroke-width:2.2`, 'clip-path': panel.clip}, mark);
+    const same = near.length - 1, rows = [['Constellation', esc(panel.p.name)], ['Data owner', esc(panel.p.owner)], [`At ${u.w(v)} ${u.unit}`, a.toFixed(2)],
+      ['Center', `${u.wx(c.center)} ${u.unit}`], ['FWHM', `${u.wx(c.fwhm)} ${u.unit}`]];
+    if (V.id === 'rst') rows.push(['Region', esc(c.group)]);
     if (panel.p.modeled) rows.push(['Curve', 'Gaussian model']);
     tip.innerHTML = `<b>${esc(c.sensor)} · ${esc(c.band)}</b><table>${rows.map(x => `<tr><td>${x[0]}</td><td>${x[1]}</td></tr>`).join('')}</table>` +
       (same ? `<div class="flags">${same} more curve${same > 1 ? 's' : ''} close by</div>` : '');
     tip.style.display = 'block'; moveTip(ev); });
   hit.addEventListener('mouseleave', () => { cross.setAttribute('visibility', 'hidden'); mark.innerHTML = ''; hideTip(); });
-  const n = D.rsr.curves.filter(on).length;
-  $('#rs-left').textContent = panels.length ? `${panels.length} of ${D.rsr.panels.length} constellations with curves, ${n} curves, from ${D.rsr.source}. Thermal bands are left out.` :
-    'No spectral response curves match the filters.';
+  const n = all.filter(on).length;
+  $(`#${V.id}-left`).textContent = panels.length ? V.left(panels.length, has.size, n) : 'No spectral response curves match the filters.';
   const rows = new Map();
-  for (const c of D.rsr.curves.filter(c => on(c) && !D.rsr.panels[c.p].modeled)) { const key = c.p + '|' + c.band; if (!rows.has(key)) rows.set(key, []); rows.get(key).push(c); }
+  for (const c of all.filter(c => on(c) && !D.rsr.panels[c.p].modeled)) { const key = c.p + '|' + c.band; if (!rows.has(key)) rows.set(key, []); rows.get(key).push(c); }
   const mid = a => { const s = [...a].sort((p, q) => p - q), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
   const line = [...rows.values()].map(cs => { const a = cs.map(c => c.center), lo = Math.min(...a), hi = Math.max(...a); return {p: D.rsr.panels[cs[0].p], order: cs[0].p, c: cs[0], n: cs.length,
-    ctr: lo === hi ? fmt(lo) : `${fmt(Math.round(lo))}–${fmt(Math.round(hi))}`, at: lo, fwhm: mid(cs.map(c => c.fwhm))}; }).sort((a, b) => a.order - b.order || a.at - b.at);
-  $('#rs-tbl').innerHTML = '<thead><tr><th>Constellation</th><th>Data owner</th><th>Band</th><th class="n">Sensors</th><th class="n">Center (nm)</th><th class="n">FWHM (nm)</th></tr></thead><tbody>' +
-    line.map(x => `<tr><td>${esc(x.p.name)}</td><td>${esc(x.p.owner)}</td><td><span class="sw" style="background:${RS_BANDS[x.c.group]}"></span> ${esc(x.c.band)}</td><td class="n">${x.n}</td><td class="n">${x.ctr}</td><td class="n">${fmt(x.fwhm)}</td></tr>`).join('') + '</tbody>';
+    ctr: lo === hi ? u.wx(lo) : u.span(lo, hi), at: lo, fwhm: mid(cs.map(c => c.fwhm))}; }).sort((a, b) => a.order - b.order || a.at - b.at);
+  $(`#${V.id}-tbl`).innerHTML = `<thead><tr><th>Constellation</th><th>Data owner</th><th>Band</th><th class="n">Sensors</th><th class="n">Center (${u.unit})</th><th class="n">FWHM (${u.unit})</th></tr></thead><tbody>` +
+    line.map(x => `<tr><td>${esc(x.p.name)}</td><td>${esc(x.p.owner)}</td><td><span class="sw" style="background:${V.colors[x.c.group]}"></span> ${esc(x.c.band)}</td><td class="n">${x.n}</td><td class="n">${x.ctr}</td><td class="n">${u.wx(x.fwhm)}</td></tr>`).join('') + '</tbody>';
 }
-function rsKey() {
-  const groups = Object.keys(RS_BANDS).filter(g => D.rsr.curves.some(c => c.group === g)), key = $('#rs-key'); key.innerHTML = '';
-  for (const g of groups) { const b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-pressed', !RS.off.has(g));
-    b.innerHTML = `<span class="sw" style="background:${RS_BANDS[g]}"></span>${esc(g)}`;
-    b.onclick = () => { RS.off.has(g) ? RS.off.delete(g) : RS.off.add(g); rsKey(); drawRsr(); }; key.appendChild(b); }
+function rsKey(V = RS_VIEWS.opt) {
+  const groups = Object.keys(V.colors).filter(g => V.list().some(c => c.group === g)), key = $(`#${V.id}-key`); key.innerHTML = '';
+  for (const g of groups) { const b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-pressed', !V.st.off.has(g));
+    b.innerHTML = `<span class="sw" style="background:${V.colors[g]}"></span>${esc(g)}`;
+    b.onclick = () => { V.st.off.has(g) ? V.st.off.delete(g) : V.st.off.add(g); rsKey(V); drawRsr(); }; key.appendChild(b); }
 }
 
 // ---------- revisit ----------
@@ -945,9 +989,11 @@ function init() {
   $('#tab-q-count').textContent = `${D.n_issues} flags · ${D.edits.length} edits`;
   const TABS = ['specs', 'spectral', 'coverage', 'revisit', 'launches', 'table', 'quality'].filter(t => t !== 'spectral' || D.rsr);
   if (D.rsr) {
-    rsKey();
+    rsKey(RS_VIEWS.opt); rsKey(RS_VIEWS.tir);
     chips('#rs-range', Object.entries(RS_RANGES).map(([k, v]) => [k, v[0]]), k => RS.range === k, k => RS.range = k);
     chips('#rs-floor', [[.25, '0.25–1'], [0, '0–1']], k => RS.floor === k, k => RS.floor = k);
+    chips('#rst-range', Object.entries(RS_TRANGES).map(([k, v]) => [k, v[0]]), k => RT.range === k, k => RT.range = k);
+    chips('#rst-floor', [[.25, '0.25–1'], [0, '0–1']], k => RT.floor === k, k => RT.floor = k);
   } else $('#tab-spectral').hidden = true;
   const show = name => { for (const t of TABS) {
       $('#tab-' + t).setAttribute('aria-selected', t === name); $('#panel-' + t).hidden = t !== name; }
