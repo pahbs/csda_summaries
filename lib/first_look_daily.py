@@ -241,10 +241,10 @@ def side_by_side(vendors, today: pd.Timestamp, force_publish: bool) -> dict:
         out = CACHE / v / "outcome.txt"
         out.unlink(missing_ok=True)
         log = open(CACHE / "logs" / f"{today:%Y%m%d}_{v}.log", "a")
-        cmd = [sys.executable, "-u", __file__, "--vendors", v, "--child"] + (["--publish"] if force_publish else [])
+        cmd = [sys.executable, "-u", __file__, "--vendors", v, "--child", "--batch", str(NEW_BATCH)] + (["--publish"] if force_publish else [])
         procs[v] = (subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, cwd=str(ad.REPO)), log, time.time())
         say(v, f"started (log {log.name})")
-    outcome, deadline = {}, VENDOR_HOURS * 3600
+    outcome, deadline = {}, VENDOR_HOURS * 3600 if VENDOR_HOURS else float("inf")
     while procs:
         for v, (proc, log, started) in list(procs.items()):
             if proc.poll() is None and time.time() - started < deadline:
@@ -263,13 +263,17 @@ def side_by_side(vendors, today: pd.Timestamp, force_publish: bool) -> dict:
 
 
 def main(argv=None) -> int:
+    global VENDOR_HOURS, NEW_BATCH   # set from --hours and --batch
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     p.add_argument("--vendors", default=",".join(VENDORS), help="comma-separated, from: " + ", ".join(VENDORS))
     p.add_argument("--no-push", action="store_true", help="update the data repository's files but do not push them")
     p.add_argument("--publish", action="store_true", help="republish the tabs even if nothing changed")
     p.add_argument("--one-by-one", action="store_true", help="run the vendors in this process, one after another")
+    p.add_argument("--hours", type=float, default=VENDOR_HOURS, help="stop a vendor after this many hours (0 = no limit, for a catch-up)")
+    p.add_argument("--batch", type=int, default=NEW_BATCH, help="new sites searched and saved at a time")
     p.add_argument("--child", action="store_true", help=argparse.SUPPRESS)   # one vendor, started by side_by_side
     a = p.parse_args(argv)
+    VENDOR_HOURS, NEW_BATCH = a.hours, a.batch
     today = pd.Timestamp.today().normalize()
     vendors = a.vendors.split(",")
     if a.child:   # no summary rebuild or push here: the parent does those once, after every vendor

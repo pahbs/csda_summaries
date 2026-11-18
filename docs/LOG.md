@@ -31,6 +31,7 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-17 · [1] First look covers every evaluation site except the USGS ARD acquisition tiles (was: CSDA optical/thermal + Misc). Find also searches source, location, country and abbreviation; Source chips stay on one line (smallest give way, "+N more"); site table filled in batches and counts read straight from the columns; tabs over 200k rows redraw when a slider is let go. Daily job: `--hours` (0 = no limit, for a catch-up) and `--batch`. Thumbnail viewer subtitle reworded.
 - 2026-11-18 · [6] Vendor Specs: Spectral Response tab gets a thermal infrared chart and band table (3–14.5 µm, 69 curves: Landsat 5/7/8/9, MODIS, VIIRS, Sentinel-3 SLSTR, Hydrosat). Landsat 8/9 thermal rows fixed in the source and both database copies.
 - 2026-11-18 · [6] RSR database: Hydrosat VanZyl-1 and -2 curves (vendor-provided .h5) added to both `csda_rsr_curve_data.csv` copies; Spectral Response tab now has a Hydrosat VanZyl panel (8 VNIR bands per satellite; LWIR in the database, not drawn).
 - 2026-11-17 · [1] First look for many sites: Source / Surface / Program chips and checkable sites (Only checked sites, Check all shown, Clear), saved with selections; site table and acquisition list scroll in place; summary tiles follow the site choices; "Source" is now "Catalog" (<vendor> or CSDA, CSDA greyed where not matched); "Use site-specific filtering where specified in evaluation sites dB", off by default.

@@ -54,19 +54,15 @@ def pending_tabs(have_vendors) -> List[dict]:
                  constellations=v["constellations"], catalog=v["catalog"], pending=True, palette=vendor_palette(v["vendor"]))
             for k, v in PENDING_VENDORS.items() if v["vendor"] not in set(have_vendors)]
 
-# The sites every tab covers, from the evaluation sites database: the CSDA sites for optical or thermal validation (Remote
-# Sensing Domain contains Optical or Thermal), and the Misc sites (SLI-FUSION and FireSense fire perimeters, surface water and
-# bathymetry areas) except the USGS ARD acquisition tiles, which are containers ~150 km across rather than sites.
+# The sites every tab covers: the evaluation sites database, all but the USGS ARD acquisition tiles (site_rows).
 SITES = str(REPO / "sites" / "eval_sites_aoi.geojson")
 SITE_NAME_FIELD = "Site Name"
 
 
 def site_rows(sites: gpd.GeoDataFrame) -> pd.Series:
-    """Which rows of the sites file are first-look sites."""
-    domain = sites["Remote Sensing Domain"].astype(str)
-    csda = sites["Program Use"].eq("CSDA") & domain.str.contains("Optical|Thermal", case=False)
-    misc = domain.str.contains("Misc", case=False) & ~sites["aoi_family"].fillna("").str.contains("ARD acquisition area")
-    return csda | misc
+    """Which rows of the sites file are first-look sites: every evaluation site except the USGS ARD acquisition tiles (containers
+    ~150 km across rather than sites). The page's Find box and Source / Surface / Program filters narrow them down."""
+    return ~sites["aoi_family"].fillna("").str.contains("ARD acquisition area")
 
 
 def load_sites() -> gpd.GeoDataFrame:
@@ -250,7 +246,8 @@ def _site_table(sites: gpd.GeoDataFrame, sites_file: Union[str, Path], name_fiel
     return sorted(out, key=lambda s: s["name"].lower())
 
 
-SITE_FIELDS = {"source": "Source", "domain": "Surface Domain", "program": "Program Use"}   # the page's site filters
+SITE_FIELDS = {"source": "Source", "domain": "Surface Domain", "program": "Program Use",   # the page's site filters
+               "location": "Location Name", "country": "Country", "abbrev": "Site Name abbrev"}   # ...and what Find searches
 
 
 def _site_fields(row) -> dict:

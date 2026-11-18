@@ -178,6 +178,7 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
 .chip { font: inherit; font-size: 12.5px; padding: 2px 10px; border-radius: 9999px; border: 1px solid var(--axis); background: var(--surface); color: var(--ink-2); cursor: pointer; }
 .chip .k { margin-left: 5px; opacity: .65; font-variant-numeric: tabular-nums; font-size: 11.5px; }
 .chip.on { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.chipgroup .more { margin: 0 0 0 4px; font-size: 12px; white-space: nowrap; cursor: help; }
 .sitebar label.only { font-size: 13.5px; display: inline-flex; gap: 6px; align-items: center; font-weight: 400; }
 .sitebar label.only input { width: auto; padding: 0; margin: 0; }
 .scroll.tall { max-height: 460px; overflow: auto; border-bottom: 1px solid var(--grid); }
@@ -203,7 +204,7 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
 <div class="answer" id="answer"></div>
 <div class="finder sitebar">
   <div class="siterow"><label for="find">Find sites</label>
-    <input type="search" id="find" placeholder="Part of a name; separate several with commas" autocomplete="off">
+    <input type="search" id="find" placeholder="Name, source, place or country (e.g. AERONET, Brazil); separate several with commas" autocomplete="off">
     <span class="note" id="findNote"></span></div>
   <div class="siterow" id="siteChips"></div>
   <div class="siterow"><label class="only"><input type="checkbox" id="onlyChecked"> Only checked sites</label>
@@ -260,11 +261,12 @@ const terms = () => state.find.split(',').map(t => t.trim().toLowerCase()).filte
 // Sites: the name search, the Source / Surface / Program chips (any picked value within a field, all fields together) and the
 // sites you checked; the same choices hold on every tab
 const SF = {source: new Set(), domain: new Set(), program: new Set(), checked: new Set(), only: false};
-let SITEMETA = new Map();   // site name -> its entry in the tab (source, domain, program)
+let SITEMETA = new Map();   // site name -> its entry in the tab (source, domain, program, location, country, abbrev)
+let SITETEXT = new Map();   // site name -> everything Find searches, lower case: "aeronet" finds the AERONET sites, "brazil" the Brazilian
 const siteFiltering = () => terms().length > 0 || SF.source.size + SF.domain.size + SF.program.size > 0 || SF.only;
 const match = name => {
   const t = terms();
-  if (t.length && !t.some(x => name.toLowerCase().includes(x))) return false;
+  if (t.length && !t.some(x => (SITETEXT.get(name) || name.toLowerCase()).includes(x))) return false;
   const m = SITEMETA.get(name) || {};
   if ((SF.source.size && !SF.source.has(m.source)) || (SF.domain.size && !SF.domain.has(m.domain)) || (SF.program.size && !SF.program.has(m.program))) return false;
   return !SF.only || SF.checked.has(name);
@@ -276,10 +278,23 @@ function renderSiteControls(tab) {
     const counts = new Map(); tab.sites.forEach(x => { if (x[k]) counts.set(x[k], (counts.get(x[k]) || 0) + 1); });
     const vals = [...counts.keys()].sort((a, b) => counts.get(b) - counts.get(a) || a.localeCompare(b));
     if (!vals.length) return null;
-    return el('span', {class: 'chipgroup'}, el('b', {text: label}), ...vals.map(v => el('button', {type: 'button', class: 'chip' + (SF[k].has(v) ? ' on' : ''),
-      'aria-pressed': String(SF[k].has(v)), title: `${counts.get(v)} sites`, onclick: () => { SF[k].has(v) ? SF[k].delete(v) : SF[k].add(v); reset(); }},
+    return el('span', {class: 'chipgroup', 'data-k': k}, el('b', {text: label}), ...vals.map(v => el('button', {type: 'button', class: 'chip' + (SF[k].has(v) ? ' on' : ''),
+      'aria-pressed': String(SF[k].has(v)), title: `${counts.get(v)} sites`, 'data-v': v, onclick: () => { SF[k].has(v) ? SF[k].delete(v) : SF[k].add(v); reset(); }},
       v, el('span', {class: 'k', text: counts.get(v)}))));
   }).filter(Boolean));
+  // One line of chips: the smallest sources give way (a picked one stays); the rest are named on hover, and Find searches them
+  const box = $('siteChips'), src = box.querySelector('[data-k=source]');
+  if (src) {
+    const more = el('span', {class: 'note more'}); src.append(more);
+    const hidden = [];
+    const wraps = () => { const c = box.querySelectorAll('.chip, .more'); return c.length && c[c.length - 1].offsetTop > c[0].offsetTop + 4; };
+    let drop = [...src.querySelectorAll('.chip:not(.on)')].reverse();
+    while (wraps() && drop.length) {
+      const c = drop.shift(); hidden.push(c.dataset.v); c.remove();
+      more.textContent = `+${hidden.length} more: type in Find`;
+    }
+    if (!hidden.length) more.remove(); else more.title = 'Not shown: ' + hidden.join(', ');
+  }
   $('onlyChecked').checked = SF.only;
   $('onlyChecked').onchange = e => { SF.only = e.target.checked; reset(); };
   $('checkShown').onclick = () => { tab.sites.forEach(x => { if (match(x.name)) SF.checked.add(x.name); }); reset(); };
@@ -424,7 +439,10 @@ function renderFilters(tab) {
     const out = el('output', {text: on ? `${s[key]}${unit}` : 'not reported'});
     const input = el('input', {type: 'range', min: 0, max, step: 5, value: s[key], 'aria-label': label});
     if (!on) input.disabled = true;
-    input.addEventListener('input', () => { s[key] = +input.value; out.textContent = `${s[key]}${unit}`; renderData(tab); });
+    // a very large tab redraws when the slider is let go, not at every step of the drag
+    const big = tab.rows > 200000;
+    input.addEventListener('input', () => { s[key] = +input.value; out.textContent = `${s[key]}${unit}`; if (!big) renderData(tab); });
+    if (big) input.addEventListener('change', () => renderData(tab));
     return el('label', {class: on ? '' : 'off'}, label, input, out);
   };
   const own = el('input', {type: 'checkbox'}); own.checked = s.own;
@@ -475,11 +493,12 @@ function renderAnswer(tab, rows) {
 function renderScore(tab, rows) {
   const s = S(), ms = months(tab).filter(m => m >= s.from && m <= s.to);
   const per = tab.sites.map(() => ({all: 0, good: 0, check: 0, sensors: new Array(tab.sensors.length).fill(0), byMonth: new Array(ms.length).fill(0)}));
-  const mk = new Map(ms.map((m, k) => [m, k]));
-  for (const a of rows) {
-    const c = per[a.s]; c.all++;
-    if (a.g) { c.good++; c.sensors[a.n]++; const k = mk.get(a.m); if (k != null) c.byMonth[k]++; }
-    if (a.c) c.check++;
+  const mk = new Map(ms.map((m, k) => [m, k])), C = tab.C, st = tab.st;
+  const monthOfDay = Int16Array.from(tab.dstr, d => { const k = mk.get(d.slice(0, 7)); return k == null ? -1 : k; });
+  for (const a of rows) {   // straight from the columns: this runs over every row in view
+    const i = a.i, c = per[C.s[i]], b = st[i]; c.all++;
+    if (b & 1) { c.good++; c.sensors[C.n[i]]++; const k = monthOfDay[C.d[i]]; if (k >= 0) c.byMonth[k]++; }
+    if (b & 2) c.check++;
   }
   const counts = tab.sites.map((site, i) => ({site, i, ...per[i]})).filter(c => match(c.site.name)).sort((a, b) => b.good - a.good || b.all - a.all || a.site.name.localeCompare(b.site.name));
   const totals = tab.sensors.map((_, n) => counts.reduce((t, c) => t + c.sensors[n], 0));
@@ -492,7 +511,7 @@ function renderScore(tab, rows) {
     shown.map(o => el('th', {class: 'heat', text: o.name})), rest.length ? el('th', {class: 'heat', text: `${rest.length} others`}) : null,
     el('th', {class: 'months'}, el('div', {class: 'strip head'}, ms.map((m, i) => el('i', {text: i === 0 || m.endsWith('-01') ? m.slice(0, 4) : ''})))));
   const nothing = counts.filter(c => !c.all && !tab.failed.includes(c.site.name)).map(c => c.site.name);
-  const body = counts.filter(c => c.all).map(c => {
+  const makeRow = c => {
     const need = c.site.need;
     const status = need == null ? el('span', {class: 'status none', text: 'No minimum set'})
       : c.good >= need ? el('span', {class: 'status ok', text: `✓ Has ${need}+`}) : el('span', {class: 'status short', text: `▲ ${need - c.good} short of ${need}` + (c.check ? `, ${c.check} to check` : '')});
@@ -524,8 +543,12 @@ function renderScore(tab, rows) {
       rest.length ? heat(rest.reduce((t, o) => t + c.sensors[o.n], 0), rest.map(o => o.name).join(', ')) : null,
       el('td', {class: 'months'}, strip));
     return row;
-  });
-  $('score').replaceChildren(el('table', {class: 'score'}, el('thead', {}, head), el('tbody', {}, body)));
+  };
+  // The first rows at once, the rest in batches right after, so a table of hundreds of sites does not hold up the page
+  const withAcqs = counts.filter(c => c.all), tbody = el('tbody', {}, withAcqs.slice(0, 80).map(makeRow)), gen = ++scoreGen;
+  $('score').replaceChildren(el('table', {class: 'score'}, el('thead', {}, head), tbody));
+  const more_ = k => { if (gen !== scoreGen || k >= withAcqs.length) return; tbody.append(...withAcqs.slice(k, k + 120).map(makeRow)); setTimeout(() => more_(k + 120), 0); };
+  setTimeout(() => more_(80), 0);
   const lights = ramp();
   $('scoreNote').replaceChildren(...rich(`Columns are ${tab.sensors.length === 1 ? 'the sensor' : 'sensors, most productive first'}, then months. Select a row to look closer.`
     + (scene ? ' Check AOI: the scene is over the site\'s cloud limit but within the scene limit, so the site itself may be clear. Look at the image.' : '')));
@@ -536,6 +559,7 @@ function renderScore(tab, rows) {
   more.onclick = () => { s.allSensors = !s.allSensors; renderData(tab); };
   $('scoreLegend').replaceChildren(el('span', {}, 'Fewer', el('span', {class: 'ramp'}, lights.map(c => { const i = el('i'); i.style.background = c; return i; })), ...rich(`More Candidate Acquisitions in a sensor or month cell (up to ${cellMax} and ${monthMax})`)));
 }
+let scoreGen = 0;   // a newer site table stops an older one still being filled in
 function pick(tab, i) { const s = S(); s.site = s.site === i ? null : i; renderData(tab); }
 
 function renderReasons(tab, rows) {
@@ -636,12 +660,17 @@ function renderWorld(tab, all) {
   });
   $('map').replaceChildren(svg('svg', {viewBox: `0 0 ${w} ${h}`, width: '100%', role: 'img', 'aria-label': 'Map of sites by Candidate Acquisitions'}, land, dots));
 }
-function histogram(title, rows, field, lo, hi, step, unit, limit) {
+function histogram(tab, title, rows, field, lo, hi, step, unit, limit) {
   const box = el('div', {}, el('h3', {text: title}));
-  const known = rows.filter(a => a[field] != null);
-  if (!known.length) { box.append(el('div', {class: 'empty', text: 'Not reported in this catalog'})); return box; }
+  const col = tab.C[field], shift = field === 'sun' ? 900 : 0, st = tab.st;   // straight from the columns (value x 10)
   const n = Math.round((hi - lo) / step), bins = Array.from({length: n}, () => ({good: 0, check: 0, not: 0}));
-  known.forEach(a => { const i = Math.max(0, Math.min(n - 1, Math.floor((a[field] - lo) / step))); bins[i][a.g ? 'good' : a.c ? 'check' : 'not']++; });
+  let known = 0;
+  for (const a of rows) {
+    const raw = col[a.i]; if (raw === NONE16) continue; known++;
+    const k = Math.max(0, Math.min(n - 1, Math.floor(((raw - shift) / 10 - lo) / step))), b = st[a.i];
+    bins[k][b & 1 ? 'good' : b & 2 ? 'check' : 'not']++;
+  }
+  if (!known) { box.append(el('div', {class: 'empty', text: 'Not reported in this catalog'})); return box; }
   const w = 260, h = 130, pad = 18, max = Math.max(1, ...bins.map(b => b.good + b.check + b.not)), bw = (w - 8) / n;
   const y = v => (h - pad) * v / max, root = svg('svg', {viewBox: `0 0 ${w} ${h}`, width: '100%', role: 'img', 'aria-label': title});
   root.append(svg('line', {x1: 0, x2: w, y1: h - pad, y2: h - pad, stroke: 'var(--axis)'}));
@@ -665,12 +694,17 @@ function histogram(title, rows, field, lo, hi, step, unit, limit) {
 function renderHist(tab, rows) {
   const s = S(), sites = s.site == null ? tab.sites.filter(x => match(x.name)) : [tab.sites[s.site]];
   const one = key => { const v = new Set(sites.map(x => limits(tab, x)[key])); return v.size === 1 ? [...v][0] : null; };
-  $('hist').replaceChildren(histogram('Cloud cover', rows, 'cloud', 0, 100, 10, '%', one('cloud')),
-    histogram('Off-nadir angle', rows, 'off', 0, 60, 5, '°', one('off')),
-    histogram('Site covered', rows, 'cov', 0, 100, 10, '%', s.cov), histogram('Sun elevation', rows, 'sun', 0, 90, 10, '°', null));
+  $('hist').replaceChildren(histogram(tab, 'Cloud cover', rows, 'cloud', 0, 100, 10, '%', one('cloud')),
+    histogram(tab, 'Off-nadir angle', rows, 'off', 0, 60, 5, '°', one('off')),
+    histogram(tab, 'Site covered', rows, 'cov', 0, 100, 10, '%', s.cov), histogram(tab, 'Sun elevation', rows, 'sun', 0, 90, 10, '°', null));
 }
 function renderSky(tab, rows) {
-  const placed = rows.filter(a => a.az != null && a.el != null), suns = rows.filter(a => a.sunaz != null && a.sun != null);
+  const placed = [], suns = [];
+  for (const a of rows) {   // the first 1,500 of each (all that is drawn)
+    if (placed.length < 1500 && a.az != null && a.el != null) placed.push(a);
+    if (suns.length < 1500 && a.sunaz != null && a.sun != null) suns.push(a);
+    if (placed.length >= 1500 && suns.length >= 1500) break;
+  }
   if (!placed.length && !suns.length) { $('sky').replaceChildren(el('div', {class: 'empty', text: 'Angles not reported in this catalog'})); return; }
   const c = 150, R = 130, xy = (az, elv) => { const r = R * (90 - elv) / 90, t = az * Math.PI / 180; return [c + r * Math.sin(t), c - r * Math.cos(t)]; };
   const root = svg('svg', {viewBox: '0 0 300 300', width: '100%', style: 'max-width:340px;margin:0 auto', role: 'img', 'aria-label': 'Satellite and sun positions'});
@@ -701,8 +735,21 @@ function renderGuide(tab, all) {
 }
 const fmt = (v, unit) => v == null ? '–' : `${v}${unit}`;
 const slug = x => String(x).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+// Candidate Acquisitions first, then Check AOI, then the rest; newest first within each; ties keep their order. A numeric key per
+// row sorted natively, so a tab of a million rows ranks in a fraction of a second
+function ranked(tab, rows) {
+  const st = tab.st, D = tab.C.d, keys = new Float64Array(rows.length);
+  for (let k = 0; k < rows.length; k++) {
+    const i = rows[k].i, b = st[i], rank = b & 1 ? 0 : b & 2 ? 1 : 2;
+    keys[k] = ((rank * 65536 + (65535 - D[i])) * 1e7) + k;
+  }
+  keys.sort();
+  const out = new Array(rows.length);
+  for (let k = 0; k < keys.length; k++) out[k] = rows[keys[k] % 1e7];
+  return out;
+}
 function renderList(tab, rows) {
-  const s = S(), rank = a => a.g ? 2 : a.c ? 1 : 0, sorted = [...rows].sort((a, b) => (rank(b) - rank(a)) || (b.dd - a.dd)), shown = sorted.slice(0, 200);
+  const s = S(), sorted = ranked(tab, rows), shown = sorted.slice(0, 200);
   const night = tab.night;
   const checked = tab.csda_checked !== false;
   const head = ['Date', 'Site', 'Sensor', ...(night ? ['Time'] : []), 'Status', 'Cloud', 'Off-nadir', 'Site covered', 'Items', 'Levels', ...(checked ? ['In CSDA'] : []), 'Acquisition ID'];
@@ -901,6 +948,7 @@ function renderAll() {
   if (tab.pending) return showPending(tab);
   if (!tab.acqs) return loadTab(tab);
   SITEMETA = new Map(tab.sites.map(x => [x.name, x]));
+  SITETEXT = new Map(tab.sites.map(x => [x.name, [x.name, x.source, x.domain, x.program, x.location, x.country, x.abbrev].filter(Boolean).join(' | ').toLowerCase()]));
   state.per[state.tab] = state.per[state.tab] || defaults(tab);
   if (restore && restore.catalog.tab === tab.key) { const r = restore; restore = null; applyRestore(tab, r); }
   else if (!restore) $('loaded').replaceChildren();
