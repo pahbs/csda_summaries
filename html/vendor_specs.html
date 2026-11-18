@@ -725,9 +725,9 @@ const RS = { range: 'full', floor: .25, on: new Set(), off: new Set() }, RT = { 
 const RS_NM = {unit: 'nm', w: v => fmt(Math.round(v)), wx: v => fmt(v), span: (lo, hi) => `${fmt(Math.round(lo))}–${fmt(Math.round(hi))}`};
 const RS_UM = {unit: 'µm', w: v => (v / 1000).toFixed(2), wx: v => (v / 1000).toFixed(2), span: (lo, hi) => `${(lo / 1000).toFixed(2)}–${(hi / 1000).toFixed(2)}`};
 const RS_VIEWS = {
-  opt: {id: 'rs', st: RS, colors: RS_BANDS, ranges: RS_RANGES, u: RS_NM, tick: v => fmt(v), list: () => D.rsr.curves,
+  opt: {id: 'rs', svg: 'rsr', st: RS, colors: RS_BANDS, ranges: RS_RANGES, u: RS_NM, tick: v => fmt(v), list: () => D.rsr.curves,
         left: (np, nt, n) => `${np} of ${nt} constellations with curves, ${n} curves, from ${D.rsr.source}. Thermal bands are in the thermal infrared chart below.`},
-  tir: {id: 'rst', st: RT, colors: RS_TIR, ranges: RS_TRANGES, u: RS_UM, tick: v => fmt(v / 1000), list: () => D.rsr.thermal || [],
+  tir: {id: 'rst', svg: 'rst', st: RT, colors: RS_TIR, ranges: RS_TRANGES, u: RS_UM, tick: v => fmt(v / 1000), list: () => D.rsr.thermal || [],
         left: (np, nt, n) => `${np} of ${nt} constellations with thermal curves, ${n} curves, from ${D.rsr.source}.`}};
 // A panel follows the dashboard's filters through its constellation groups; Find also matches its own name and sensors
 function rsShown(p, G) {
@@ -747,7 +747,7 @@ function drawRsr() {
 }
 // One chart (visible-SWIR or thermal): a panel per constellation that has curves in the view's list
 function drawRs(V) {
-  const svg = $('#' + V.id), st = V.st, all = V.list(), u = V.u; svg.innerHTML = '';
+  const svg = $('#' + V.svg), st = V.st, all = V.list(), u = V.u; svg.innerHTML = '';
   const [, x0, x1, ticks] = V.ranges[st.range], W = 1060, left = 50, strip = 136, right = W - strip, ph = 76, gap = 7, top = 4;
   const has = new Set(all.map(c => c.p));
   const panels = D.rsr.panels.map((p, i) => [p, i]).filter(([, i]) => RS.on.has(i) && has.has(i)), H = top + panels.length * (ph + gap) + 44;
