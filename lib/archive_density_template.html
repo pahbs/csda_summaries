@@ -181,13 +181,25 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
   .people, .people tbody, .people tr, .people td { display: block; width: auto; }
   .people td { padding: 2px 12px; } .people td:first-child { padding-top: 10px; } .people td:last-child { padding-bottom: 10px; }
   .people tbody tr + tr td:not(:first-child) { border-top: 0; }
+}
 /* the map's heading on the left, its legend on the right, above the map */
 .maphead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 6px 24px; margin-bottom: 8px; }
 .maphead h2 { margin-bottom: 2px; }
 .maphead .note { margin: 0; }
 .maphead > div:first-child { flex: 1 1 380px; min-width: 0; }
-.maphead .legend { flex: 0 1 560px; margin: 4px 0 0; justify-content: flex-end; text-align: right; }
-@media (max-width: 860px) { .maphead .legend { justify-content: flex-start; max-width: none; } }
+/* the legend: a block with its title over the ramp, values under the step edges, the note below */
+.maphead .legend { flex: 0 1 auto; display: grid; justify-items: start; gap: 3px; margin: 4px 0 0; }
+.legend .lt { font-weight: 600; color: var(--ink); }
+.legend .lscale { display: grid; gap: 3px; width: max-content; }
+.legend .lbar { display: flex; gap: 1px; }
+.legend .lbar i { display: block; width: 40px; height: 12px; }
+.legend .lbar i:first-child { border-radius: 3px 0 0 3px; } .legend .lbar i:last-child { border-radius: 0 3px 3px 0; }
+.legend .lticks { position: relative; height: 15px; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.legend .lticks span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+.legend .lticks span:first-child { transform: none; } .legend .lticks span:last-child { transform: translateX(-100%); }
+.legend .lticks span::before { content: ''; position: absolute; left: 50%; top: -3px; height: 3px; border-left: 1px solid var(--ink-2); }
+.legend .lticks span:first-child::before { left: 0; } .legend .lticks span:last-child::before { left: auto; right: 0; }
+.legend .lnote { max-width: 340px; color: var(--ink-3); font-size: 11.5px; }
 /* a commercial tab while commercial data is withheld (archive_density.py commercial hide) */
 .tabs button.off { opacity: .4; cursor: not-allowed; }
 /* the interactive globe (MapLibre GL, loaded when first asked for): same cells and colors as the static map */
@@ -222,7 +234,7 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
   <thead><tr><th scope="col">Contributor</th><th scope="col">Affiliation</th><th scope="col">Role</th><th scope="col">Contact</th></tr></thead>
   <tbody>
     <tr><td><span class="person">Paul Montesano, PhD</span></td><td>NASA Goddard Space Flight Center; Earth System Science Interdisciplinary Center, U. Maryland-College Park</td>
-      <td>CSDA Multispectral Optical SME Group</td><td><a href="mailto:paul.m.montesano@nasa.gov">paul.m.montesano@nasa.gov</a></td></tr>
+      <td>CSDA Multispectral Optical SME Group Lead</td><td><a href="mailto:paul.m.montesano@nasa.gov">paul.m.montesano@nasa.gov</a></td></tr>
   </tbody>
 </table>
 <p class="note" style="margin:8px 0 0"><span id="updated"></span></p>
@@ -391,9 +403,14 @@ function renderLegend(t) {
   const {min, max} = scaleOf(t), ramp = mapRamp();
   const edge = k => Math.max(1, Math.round(min * Math.exp(k / 6 * Math.log((max + 1) / min))));
   const what = t.days ? (state.view === 'month' ? 'Days with an acquisition' : 'Days with an acquisition, summed') : units(t)[0].toUpperCase() + units(t).slice(1);
-  $('legend').replaceChildren(el('span', {text: `${what} in a ${t.cell}° cell:`}), el('span', {text: (min > 1 ? '≤ ' : '') + edge(0).toLocaleString()}),
-    el('span', {class: 'scale'}, ramp.map(c => { const i = el('i'); i.style.background = c; return i; })), el('span', {text: t.days && state.view === 'month' ? `${Math.min(31, edge(6))}${edge(6) < 31 ? '+' : ''}` : `${edge(6).toLocaleString()}+`}),
-    el('span', {text: state.scale === 'shared'
+  // values under every other step edge (the two ends always), so each number sits where its color changes
+  const steps = 6, top = t.days && state.view === 'month' ? `${Math.min(31, edge(steps))}${edge(steps) < 31 ? '+' : ''}` : `${edge(steps).toLocaleString()}+`;
+  const ticks = [0, 2, 4, 6].map(k => { const sp = el('span', {text: k === 0 ? (min > 1 ? '≤ ' : '') + edge(0).toLocaleString() : k === steps ? top : edge(k).toLocaleString()});
+    sp.style.left = `${100 * k / steps}%`; return sp; });
+  $('legend').replaceChildren(el('span', {class: 'lt', text: `${what} in a ${t.cell}° cell`}),
+    el('span', {class: 'lscale'}, el('span', {class: 'lbar'}, ramp.map(c => { const i = el('i'); i.style.background = c; return i; })),
+      el('span', {class: 'lticks'}, ticks)),
+    el('span', {class: 'lnote', text: state.scale === 'shared'
       ? (t.days ? 'One scale for every constellation: days in the month with at least one acquisition.'
         : 'One scale for every constellation (logarithmic). Units differ: SuperDove counts single scenes, about 10–20 to a pass, so it reads denser.')
       : 'The scale stays fixed for this constellation, so months compare directly.'}));
@@ -578,6 +595,7 @@ function showPending(tab) {   // a vendor whose catalog access is not in place y
 }
 function show() {
   document.querySelector('.viz-root').classList.toggle('is-pending', !!TAB().pending);
+  applyPalette();   // every tab, pending ones too: the series color (tab underline, name pill, controls) follows the tab
   if (TAB().pending) return showPending(TAB());
   const groups = TAB().groups, sel = $('group');
   sel.replaceChildren(...groups.map((g, i) => el('option', {value: i, text: g.constellation})));
