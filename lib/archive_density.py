@@ -50,6 +50,12 @@ VENDORS = {
     "worldview": dict(provider="vantor", collections=["wv02", "wv03-vnir"], vendor="Vantor", constellation="WorldView", unit="strip",
                       guide="One catalog strip (Vantor catalog ID) counts once, from Vantor's own catalog. WorldView-3 is its VNIR "
                             "collection (wv03-vnir)."),
+    "geoeye": dict(provider="vantor", collections=["ge01"], vendor="Vantor", constellation="GeoEye", unit="strip",
+                   guide="One catalog strip (Vantor catalog ID) counts once, from Vantor's own catalog (collection ge01)."),
+    "pelican": dict(provider="planet", collections=["PelicanScene"], vendor="Planet", constellation="Pelican", unit="strip",
+                    start="2025-01",
+                    guide="One Pelican strip counts once (pl:strip_id): a pass is delivered as a run of consecutive scenes, from "
+                          "Planet's own catalog. Pelican scenes start in May 2025."),
     "tanager": dict(provider="planet", collections=["TanagerScene"], vendor="Planet", constellation="Tanager", unit="strip",
                     guide="One Tanager strip counts once (pl:strip_id): a pass is delivered as a run of consecutive scenes, about four "
                           "to a strip, from Planet's own catalog."),
@@ -326,9 +332,10 @@ def fetch_stats_days(vendor: str = "superdove", workers: int = 3, cell: float = 
 # (label, store, catalog collections or None for all)
 TABS = [("hydrosat", [("VanZyl", "hydrosat", None)]),
         ("kuva", [("Hyperfield", "kuva", None)]),
-        ("planet", [("SuperDove", "superdove", None), ("Tanager", "tanager", None)]),
+        ("planet", [("SuperDove", "superdove", None), ("Pelican", "pelican", None), ("Tanager", "tanager", None)]),
         ("satellogic", [("Aleph-1", "satellogic", None)]),
-        ("vantor", [("Legion", "vantor", None), ("WorldView-2", "worldview", {"wv02"}), ("WorldView-3", "worldview", {"wv03-vnir"})]),
+        ("vantor", [("Legion", "vantor", None), ("WorldView-2", "worldview", {"wv02"}), ("WorldView-3", "worldview", {"wv03-vnir"}),
+                    ("GeoEye-1", "geoeye", None)]),
         ("airbus", [("Pleiades", "airbus", {"PLEIADES"}), ("Pleiades Neo", "airbus", {"PLEIADES-NEO"}), ("SPOT 6/7", "airbus", {"SPOT"})]),
         ("landsat", [("Landsat 8 and 9", "landsat", None)]),
         ("sentinel2", [("Sentinel-2", "sentinel2", None)])]
