@@ -31,6 +31,7 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-19 · [density] First tile now the satellites contributing in the month on the map ("4 satellites contributing to archive in Oct 2021"), as on the HLS page, instead of the whole-archive count.
 - 2026-11-19 · [density] Interactive globe fixed: the contributors table's phone-width CSS block was left unclosed (aa82b7e), so the map, legend and globe styles applied only under 760 px and the globe had no height. Legend now one block (title over the ramp, values under the step edges, note below), as on the HLS page; the name pill takes each tab's color on pending tabs too; role "CSDA Multispectral Optical SME Group Lead".
 - 2026-11-19 · [4] Vostok's longitude fixed in the sheet (81.12 E, was W; now 72.82 N 81.12 E): sites regenerated, and the evaluation sites map (`html/aoi_eval_sites_map.html`, `csda_eval_sites_map.ipynb` with `CSDA_ONLY = FALSE`) rebuilt with Las Vegas and Vostok. Running that R notebook outside JupyterLab needs `PROJ_LIB` and `RSTUDIO_PANDOC` set in the kernel spec.
 - 2026-11-19 · [4] Sites regenerated from the Evaluation Sites sheet (`csda_eval_sites_process.ipynb`): eval sites 660 -> 662, new Las Vegas (SLI, 36.19 N 115.02 W, 314 km²) and Vostok (SLI, 9 km²; its coordinates 72.82 N 81.12 W are in the Canadian Arctic, not at Vostok Station 78.5 S 106.8 E: to check in the sheet). CSDA sites unchanged (240).

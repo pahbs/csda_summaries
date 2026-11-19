@@ -540,10 +540,10 @@ function render() {
   const missing = t.totals[i].month < t.fetched_from || !!t.totals[i].pending;
   $('month').replaceChildren(name(t.totals[i].month), now ? el('small', {text: ' so far'}) : missing ? el('small', {text: ' not fetched yet'}) : '');
   const tile = (v, k, cls = '') => el('div', {class: 'tile ' + cls}, el('div', {class: 'v', text: v}), el('div', {class: 'k', text: k}));
-  // the first tile: satellites over the whole archive, and in the latest month with acquisitions (whatever month is on the map)
-  const fleet = new Set(t.totals.flatMap(sats)).size, latest = t.totals[t.totals.findLastIndex(x => x.n > 0)];
-  $('answer').replaceChildren(fleet && latest
-      ? tile(fleet.toLocaleString(), `satellite${fleet === 1 ? '' : 's'} contributing to archive (${sats(latest).length.toLocaleString()} in ${name(latest.month)}${latest.month === t.partial ? ' so far' : ''})`, 'hero')
+  // the first tile: satellites contributing in the month on the map (as on the HLS page)
+  const listed = t.totals.some(x => sats(x).length), k = sats(m).length;
+  $('answer').replaceChildren(listed
+      ? tile(k.toLocaleString(), `satellite${k === 1 ? '' : 's'} contributing to archive in ${label(t, i)}`, 'hero')
       : tile('–', 'satellites contributing to archive: not listed for this catalog yet', 'hero'),
     tile(total.toLocaleString(), `${units(t)} since ${name(t.first)}`),
     tile(`${m.clear.toLocaleString()}`, 'of this month with cloud up to 20%'), tile(name(busiest.month), `busiest month: ${busiest.n.toLocaleString()}`));
