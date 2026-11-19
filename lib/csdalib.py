@@ -105,19 +105,25 @@ def find_metadata_file(file_path, profile):
     base_dim = re.sub(r'_RGB$|_NED$|_RGBN$|_BGRN$|_P$', '', base_dim)  # strip band-combo
     base_dim = re.sub(r'-\d+$', '', base_dim)            # strip trailing -N (e.g., -1)
 
-    # Try exact pattern
+    # 'scene': the part of the name that identifies the scene (finder['scene_pattern'], e.g. a Tanager item ID)
+    m = re.match(finder['scene_pattern'], fp.name) if 'scene_pattern' in finder else None
+    scene = m.group(0) if m else base
+
+    # Try exact pattern, beside the file, then in any extra metadata folders
     candidates = [
         finder['pattern'].format(
             base=base,
             base_clean=base_clean,
             base_no_tile=base_no_tile,
             base_dim=base_dim,
+            scene=scene,
         )
     ]
-    for c in candidates:
-        p = fp.parent / c
-        if p.exists():
-            return p
+    for folder in [fp.parent] + [Path(d) for d in finder.get('extra_dirs', [])]:
+        for c in candidates:
+            p = folder / c
+            if p.exists():
+                return p
 
     # Fallback: glob the directory
     if 'fallback_glob' in finder:
@@ -924,8 +930,11 @@ def plot_site_coverage(site_name, footprint_gdf, sites_gdf, #BUF_KM,
                            label=f'Overlapping {site_name} site', 
                            zorder=10)
     
-    # Add basemap
-    ctx.add_basemap(ax, source=ctx.providers.Esri.WorldGrayCanvas, attribution_size=8)
+    # Add basemap (tile downloads time out now and then from the ADAPT nodes: plot without one rather than stop)
+    try:
+        ctx.add_basemap(ax, source=ctx.providers.Esri.WorldGrayCanvas, attribution_size=8)
+    except Exception as exc:
+        print(f'{site_name}: no basemap ({type(exc).__name__})')
     
     # Format
     ax.set_title(f'{site_name}\n{len(footprints)} acquisitions', 
@@ -1114,7 +1123,7 @@ def prepare_gdf_for_export(gdf):
     return gdf_export
 
 def link_acquisitions_to_sites(footprint_gdf, sites_gdf, buffer_distance=0, 
-                               site_name_col='Site Name'):
+                               site_name_col='Site Name', near_miss_distance=0):
     """
     Link acquisition-level footprints to sites using spatial join.
     
@@ -1134,6 +1143,10 @@ def link_acquisitions_to_sites(footprint_gdf, sites_gdf, buffer_distance=0,
         Distance to buffer sites (in units of sites_gdf CRS)
     site_name_col : str, default='Site Name'
         Column name containing site names in sites_gdf (note: 'Site Name' with space)
+    near_miss_distance : float, default=0
+        An acquisition that touches no buffered site is linked to its nearest site when that site is within this
+        distance (CRS units), e.g. a scene delivered for a site that lies beside it rather than over it. 0 = off.
+        Columns 'site_link' ('overlap', 'near miss' or 'none') and 'site_distance_km' say how each was linked.
     
     Returns:
     --------
@@ -1188,6 +1201,19 @@ def link_acquisitions_to_sites(footprint_gdf, sites_gdf, buffer_distance=0,
     # This prevents a single acquisition_id that spans multiple sites from
     # contaminating all rows that share that ID
     joined = joined.drop_duplicates(subset=['_orig_idx', site_name_col], keep='first')
+    overlap_idx = set(joined.index)
+
+    # Near misses: acquisitions touching no buffered site, linked to their nearest site within near_miss_distance
+    near_distance = pd.Series(dtype=float)
+    if near_miss_distance and near_miss_distance > 0:
+        unmatched = footprint_gdf.loc[~footprint_gdf.index.isin(overlap_idx)]
+        if len(unmatched):
+            near = gpd.sjoin_nearest(unmatched, sites_gdf[[site_name_col, 'geometry']], how='inner',
+                                     max_distance=near_miss_distance, distance_col='_site_distance')
+            near = near[~near.index.duplicated(keep='first')]
+            near['_orig_idx'] = near.index
+            near_distance = near['_site_distance']
+            joined = pd.concat([joined, near.drop(columns='_site_distance')])
     
     # Create per-row site mappings by grouping on the original row index
     # This is CRITICAL for handling duplicate acquisition_ids with different geometries
@@ -1242,6 +1268,12 @@ def link_acquisitions_to_sites(footprint_gdf, sites_gdf, buffer_distance=0,
         lambda x: extract_site(x, 2)
     )
     footprint_with_sites['num_sites'] = footprint_with_sites['sites'].apply(len)
+    footprint_with_sites['site_link'] = [
+        'overlap' if i in overlap_idx else 'near miss' if i in near_distance.index else 'none'
+        for i in footprint_with_sites.index
+    ]
+    footprint_with_sites['site_distance_km'] = (near_distance / 1000).round(1).reindex(footprint_with_sites.index)
+    footprint_with_sites.loc[footprint_with_sites['site_link'].eq('overlap'), 'site_distance_km'] = 0.0
     
     # Fill NaN for acquisitions not near any site
     footprint_with_sites['Site_Primary'] = footprint_with_sites['Site_Primary'].fillna('Not CSDA Eval Site')
@@ -1255,8 +1287,12 @@ def link_acquisitions_to_sites(footprint_gdf, sites_gdf, buffer_distance=0,
     
     print(f"\nSummary:")
     print(f"  Total acquisitions (P + MS): {len(footprint_with_sites)}")
-    print(f"  Acquisitions intersecting sites: {(footprint_with_sites['num_sites'] > 0).sum()}")
-    print(f"  Acquisitions NOT intersecting sites: {(footprint_with_sites['num_sites'] == 0).sum()}")
+    print(f"  Acquisitions linked to a site: {(footprint_with_sites['num_sites'] > 0).sum()}")
+    print(f"  Acquisitions NOT intersecting sites: {(footprint_with_sites['site_link'] != 'overlap').sum()}")
+    if near_miss_distance and near_miss_distance > 0:
+        print(f"    of which linked as near misses (nearest site within {near_miss_distance / 1000:g} km): "
+              f"{(footprint_with_sites['site_link'] == 'near miss').sum()}")
+        print(f"    not linked to any site: {(footprint_with_sites['site_link'] == 'none').sum()}")
     print(f"  Single-site acquisitions: {(footprint_with_sites['num_sites'] == 1).sum()}")
     print(f"  Multi-site acquisitions (2+ sites): {(footprint_with_sites['num_sites'] > 1).sum()}")
     print(f"  Acquisitions covering 3+ sites: {(footprint_with_sites['num_sites'] > 2).sum()}")

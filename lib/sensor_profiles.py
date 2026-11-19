@@ -74,10 +74,17 @@ METADATA LOCATION
             {base_no_tile}  — base with tile pattern (R#C#) stripped
             {base_dim}      — base with IMG_ prefix removed and tile/band stripped
                               (Airbus IMG_*.TIF → DIM_*.XML pairing)
+            {scene}         — the start of the file name matched by scene_pattern
 
     'tile_pattern' : str  [optional]
         Regex defining the tile suffix to strip for {base_no_tile}.
         Default: r'_R\\d+C\\d+'
+
+    'scene_pattern' : str  [optional]
+        Regex matched at the start of the file name; the match is the {scene} token (e.g. a Tanager item ID).
+
+    'extra_dirs' : list of str  [optional]
+        Folders also searched for the pattern, after the file's own folder (metadata fetched separately).
 
     'fallback_glob' : str  [optional]
         If the exact pattern fails, glob the directory and use the first match.
@@ -432,10 +439,15 @@ SENSOR_PROFILES = {
         },
 
         # How to locate the metadata file given an image file path
+        # Matched by scene (item) ID, not the file name: a folder can hold several scenes (no guessing with a glob,
+        # which gave every file in a two-scene folder the first scene's metadata). Deliveries without Planet's
+        # {id}_metadata.json (LosAngeles, BuenosAires) use the item JSON fetched from Planet's Data API into
+        # extra_dirs (their folders are not writable to the project; see the README there).
         'metadata_finder': {
-            'type':            'sibling',          # in same dir
-            'pattern':         '{base}.json',      # {base} = filename without extension
-            'fallback_glob':   '*.json',           # if exact match fails, glob and filter
+            'type':            'sibling',
+            'scene_pattern':   r'\d{8}_\d{6}_\d{2}_\d{4}',
+            'pattern':         '{scene}_metadata.json',
+            'extra_dirs':      ['/explore/nobackup/projects/CSDA_eval/footprints/metadata/planet_tanager'],
         },
 
         # Parsing rules — maps standard fields to JSON paths

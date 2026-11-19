@@ -31,6 +31,7 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-18 · [5] Footprints: Planet Tanager LosAngeles and BuenosAires deliveries (18 scenes) were missing: delivered without Planet's metadata JSON, so no geometry. Item JSON fetched from Planet into `footprints/metadata/planet_tanager/`; Tanager metadata now matched by scene ID. Tanager 22 -> 40 acquisitions. Near misses now count: an acquisition touching no site counts for its nearest site within 60 km (`NEAR_MISS_KM`, columns `site_link`, `site_distance_km`): 29 of 45 unlinked acquisitions, incl. all 18 LA/BA scenes.
 - 2026-11-17 · [1] First look covers every evaluation site except the USGS ARD acquisition tiles (was: CSDA optical/thermal + Misc). Find also searches source, location, country and abbreviation; Source chips stay on one line (smallest give way, "+N more"); site table filled in batches and counts read straight from the columns; tabs over 200k rows redraw when a slider is let go. Daily job: `--hours` (0 = no limit, for a catch-up) and `--batch`. Thumbnail viewer subtitle reworded.
 - 2026-11-18 · [6] Vendor Specs: Spectral Response tab gets a thermal infrared chart and band table (3–14.5 µm, 69 curves: Landsat 5/7/8/9, MODIS, VIIRS, Sentinel-3 SLSTR, Hydrosat). Landsat 8/9 thermal rows fixed in the source and both database copies.
 - 2026-11-18 · [6] RSR database: Hydrosat VanZyl-1 and -2 curves (vendor-provided .h5) added to both `csda_rsr_curve_data.csv` copies; Spectral Response tab now has a Hydrosat VanZyl panel (8 VNIR bands per satellite; LWIR in the database, not drawn).
@@ -510,6 +511,23 @@ only if needed), never a separate search API.
 ---
 
 ## 5 · Footprints and acquisition summaries
+
+### 2026-11-18 · Tanager LosAngeles / BuenosAires footprints (`sensor_profiles.py`, `csdalib.py`)
+- `Data/Planet/Tanager/LosAngeles` and `BuenosAires` (asemple, Jul 2026; flat folders of ortho/basic products) came without
+  `{id}_metadata.json`. The `tanager` profile takes geometry from that JSON, so all 18 scenes were dropped without a message.
+- The item JSON for each (Planet Data API, TanagerScene) is now in `/explore/nobackup/projects/CSDA_eval/footprints/metadata/planet_tanager/`
+  (those folders are not writable to the project; README there). New finder options: `scene_pattern` (the `{scene}` token) and
+  `extra_dirs`. Tanager metadata = `{scene}_metadata.json`, no `fallback_glob`: the glob gave every file in a two-scene folder
+  (`20260421_194547_42_4001_Basic_TanagerScene`) the first scene's metadata. All 140 Tanager files under `Data/` match their own scene.
+- Rerun `footprint_CSDA_eval_all_data.ipynb` (forest204): Tanager 22 -> 40 acquisitions. Linked to a site: Buenos Aires 6; the other
+  6 Buenos Aires scenes are 2-22 km off its AOI and all 6 Los Angeles scenes 23-55 km off (1 km buffer), so they count as
+  "Not CSDA Eval Site". Planet delivered scenes near, not over, the small AOIs (or the AOIs need checking).
+- `plot_site_coverage`: draws without a basemap when the Esri tile download times out (it did in 3 runs from forest203/204).
+- Near misses (2026-11-19): `link_acquisitions_to_sites(..., near_miss_distance=)` links an acquisition that touches no
+  buffered site to its nearest site within that distance (default 0 = off, so the other footprint notebooks are unchanged);
+  `site_link` = overlap / near miss / none, `site_distance_km`. The notebook sets `NEAR_MISS_KM = 60`: 29 of 45 unlinked
+  acquisitions now count (Buenos Aires 12 = 6 overlap + 6 near; Los Angeles 5; one LA-folder scene goes to RCRA 0, 55 km;
+  also Airbus Pleiades / Neo, Legion and Satellogic near Singapore, Sapporo, Boston and others). 16 stay unlinked (> 60 km).
 
 ### 2026-10-23 · Airbus / Satellogic satellite geometry for skyplots (`sensor_profiles.py`, `csdalib.py`)
 - Bug: `airbus_dimap` mapped `INCIDENCE_ANGLE` and Satellogic `view:incidence_angle` to `satellite_elevation`.
