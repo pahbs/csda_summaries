@@ -165,6 +165,22 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
 /* "Last updated": a neutral ink pill (no affiliation hue); the age is added when it is over a day, and flagged past a week */
 .updated { display: inline-block; padding: 1px 9px; border-radius: 9999px; background: var(--ink); color: var(--surface); font-weight: 600; font-size: 11.5px; white-space: nowrap; }
 .updated.stale { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
+/* contributors: a quiet table under the title, each name in a pill tinted with the page's series color */
+.people { margin: 14px 0 0; width: 100%; max-width: 980px; border: 1px solid var(--grid); border-radius: 10px; border-collapse: separate;
+  border-spacing: 0; overflow: hidden; font-size: 13px; }
+.people th { font-size: 11.5px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .04em; text-align: left;
+  padding: 7px 12px; background: var(--surface-2); border-bottom: 1px solid var(--grid); }
+.people td { padding: 8px 12px; color: var(--ink-2); vertical-align: middle; }
+.people tbody tr + tr td { border-top: 1px solid var(--grid); }
+.people td:first-child { white-space: nowrap; width: 1%; }
+.people td.none { color: var(--ink-3); }
+.person { display: inline-block; padding: 2px 11px; border-radius: 9999px; font-weight: 650; color: var(--ink); white-space: nowrap;
+  background: color-mix(in oklab, var(--series) 14%, var(--surface)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--series) 35%, var(--surface)); }
+@media (max-width: 760px) {   /* phones: one card per person, the labels dropped */
+  .people thead { display: none; }
+  .people, .people tbody, .people tr, .people td { display: block; width: auto; }
+  .people td { padding: 2px 12px; } .people td:first-child { padding-top: 10px; } .people td:last-child { padding-bottom: 10px; }
+  .people tbody tr + tr td:not(:first-child) { border-top: 0; }
 /* the map's heading on the left, its legend on the right, above the map */
 .maphead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 6px 24px; margin-bottom: 8px; }
 .maphead h2 { margin-bottom: 2px; }
@@ -202,9 +218,14 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
 <div class="viz-root"><div class="wrap">
 <h1>Earth Observation Archive Density</h1>
 <p class="sub">Visualizing constellation acquisitions for each month</p>
-<p class="note" style="margin:4px 0 0">Paul Montesano, PhD · NASA Goddard Space Flight Center; ESSIC · CSDA Multispectral Optical SME Group ·
-  <a href="mailto:paul.m.montesano@nasa.gov">paul.m.montesano@nasa.gov</a> · <span id="updated"></span></p>
-<div class="warn" style="margin:12px 0 0;font-size:13.5px"><b>Suggested use:</b> use this page to see where and when a constellation has been collecting. Drag along the timeline or press Play to watch collection change.</div>
+<table class="people" aria-label="Contributors">
+  <thead><tr><th scope="col">Contributor</th><th scope="col">Affiliation</th><th scope="col">Role</th><th scope="col">Contact</th></tr></thead>
+  <tbody>
+    <tr><td><span class="person">Paul Montesano, PhD</span></td><td>NASA Goddard Space Flight Center; Earth System Science Interdisciplinary Center, U. Maryland-College Park</td>
+      <td>CSDA Multispectral Optical SME Group</td><td><a href="mailto:paul.m.montesano@nasa.gov">paul.m.montesano@nasa.gov</a></td></tr>
+  </tbody>
+</table>
+<p class="note" style="margin:8px 0 0"><span id="updated"></span></p>
 <div class="tabs" id="tabs" role="tablist"></div>
 <div class="card" id="pending" style="margin-top:18px"></div>
 <div class="filters controls">
