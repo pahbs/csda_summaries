@@ -274,6 +274,8 @@ const T = () => { const g = G();
 const name = m => new Date(`${m}-15`).toLocaleDateString('en-US', {month: 'short', year: 'numeric'});
 const units = t => t.unit === 'pass' ? 'passes' : `${t.unit}s`;
 const label = (t, i) => name(t.totals[i].month) + (t.totals[i].month === t.partial ? ' (so far)' : '');
+const sats = m => m.sats || Object.keys(m.sensors || {});   // the satellites that collected in a month (counted stores: listed apart)
+const nsat = n => `${n.toLocaleString()} satellite${n === 1 ? '' : 's'}`;
 
 function combine(t) {   // a combined view: the constellations' counts added cell by cell (strips are distinct)
   const parts = TAB().groups.filter(g => t.parts.includes(g.constellation));
@@ -286,6 +288,7 @@ function combine(t) {   // a combined view: the constellations' counts added cel
     const sensors = {};
     parts.forEach(g => Object.entries(g.totals[i].sensors).forEach(([k, v]) => { sensors[k] = (sensors[k] || 0) + v; }));
     return {month: m.month, n: parts.reduce((s, g) => s + g.totals[i].n, 0), cells: t.frames[i].length / 2, sensors,
+            sats: [...new Set(parts.flatMap(g => sats(g.totals[i])))],
             clear: parts.reduce((s, g) => s + g.totals[i].clear, 0)};
   });
   ['vendor', 'cell', 'columns', 'partial', 'palette'].forEach(k => { t[k] = parts[0][k]; });
@@ -404,12 +407,13 @@ function renderTimeline(t) {
   const x0 = cx(i0), v0 = values[i0];
   root.append(svg('line', {x1: x0, x2: x0, y1: top - 4, y2: base, stroke: 'var(--ink)', 'stroke-width': 1.5}));
   root.append(svg('circle', {cx: x0, cy: y(v0), r: 5, fill: 'var(--surface)', stroke: 'var(--ink)', 'stroke-width': 2}));
-  const right = x0 > w - 160;
+  const k0 = view === 'month' ? sats(t.totals[i0]).length : new Set(t.totals.slice(0, i0 + 1).flatMap(sats)).size;
+  const right = x0 > w - 300;
   root.append(svg('text', {x: right ? x0 - 8 : x0 + 8, y: top - 6, 'text-anchor': right ? 'end' : 'start', style: 'fill:var(--ink);font-weight:600',
-    text: `${v0.toLocaleString()} ${view === 'month' ? 'this month' : 'so far'}`}));
+    text: `${v0.toLocaleString()} acquisitions${view === 'month' ? '' : ' so far'}${k0 ? ` (${nsat(k0)})` : ''}`}));
   const box = $('timeline'); box.replaceChildren(root);
   box.setAttribute('aria-valuemin', 0); box.setAttribute('aria-valuemax', n - 1); box.setAttribute('aria-valuenow', i0);
-  box.setAttribute('aria-valuetext', `${label(t, i0)}: ${v0.toLocaleString()} ${units(t)} ${view === 'month' ? 'this month' : 'in all'}`);
+  box.setAttribute('aria-valuetext', `${label(t, i0)}: ${v0.toLocaleString()} acquisitions ${view === 'month' ? 'this month' : 'in all'}${k0 ? `, from ${nsat(k0)}` : ''}`);
 }
 function renderTable(t) {
   const sensors = [...new Set(t.totals.flatMap(m => Object.keys(m.sensors)))].sort(), i0 = state.per[t.key];
@@ -498,7 +502,12 @@ function render() {
   const missing = t.totals[i].month < t.fetched_from || !!t.totals[i].pending;
   $('month').replaceChildren(name(t.totals[i].month), now ? el('small', {text: ' so far'}) : missing ? el('small', {text: ' not fetched yet'}) : '');
   const tile = (v, k, cls = '') => el('div', {class: 'tile ' + cls}, el('div', {class: 'v', text: v}), el('div', {class: 'k', text: k}));
-  $('answer').replaceChildren(tile(missing ? '–' : m.n.toLocaleString(), `${units(t)} in ${label(t, i)}`, 'hero'), tile(total.toLocaleString(), `${units(t)} since ${name(t.first)}`),
+  // the first tile: satellites over the whole archive, and in the latest month with acquisitions (whatever month is on the map)
+  const fleet = new Set(t.totals.flatMap(sats)).size, latest = t.totals[t.totals.findLastIndex(x => x.n > 0)];
+  $('answer').replaceChildren(fleet && latest
+      ? tile(fleet.toLocaleString(), `satellite${fleet === 1 ? '' : 's'} contributing to archive (${sats(latest).length.toLocaleString()} in ${name(latest.month)}${latest.month === t.partial ? ' so far' : ''})`, 'hero')
+      : tile('–', 'satellites contributing to archive: not listed for this catalog yet', 'hero'),
+    tile(total.toLocaleString(), `${units(t)} since ${name(t.first)}`),
     tile(`${m.clear.toLocaleString()}`, 'of this month with cloud up to 20%'), tile(name(busiest.month), `busiest month: ${busiest.n.toLocaleString()}`));
   $('mapTitle').textContent = t.days
     ? (state.view === 'month' ? `${t.vendor} ${t.constellation}, days with an acquisition in ${label(t, i)}` : `${t.vendor} ${t.constellation}, days with an acquisition, summed up to ${label(t, i)}`)
@@ -589,7 +598,7 @@ tl.addEventListener('pointerdown', e => { dragging = true; tl.setPointerCapture(
 tl.addEventListener('pointermove', e => {
   const i = monthAt(e), t = T();
   if (dragging) { if (i !== state.per[t.key]) go(i); hideTip(); }
-  else showTip(e, t.totals[i].n.toLocaleString(), `${units(t)} in ${label(t, i)}`);
+  else { const k = sats(t.totals[i]).length; showTip(e, `${t.totals[i].n.toLocaleString()} acquisitions in`, `${label(t, i)}${k ? ` from ${nsat(k)}` : ''}`); }
 });
 tl.addEventListener('pointerup', () => { dragging = false; });
 tl.addEventListener('pointerleave', hideTip);

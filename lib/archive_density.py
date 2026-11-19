@@ -240,6 +240,19 @@ def land_cells(cell: float = CELL_DEG) -> List[int]:
     return [int(i) for i in np.flatnonzero(shapely.intersects(land, boxes))]
 
 
+def _save(table: pd.DataFrame, path: Path) -> None:
+    """Write beside the file, then rename: a failed write leaves the old file whole (on 19 Nov one left cells.pkl empty)."""
+    tmp = path.with_name(path.name + ".tmp")
+    table.to_pickle(tmp)
+    os.replace(tmp, path)
+
+
+def _save_text(path: Path, text: str) -> None:
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text)
+    os.replace(tmp, path)
+
+
 def fetch_stats(vendor: str = "superdove", refresh: int = REFRESH_MONTHS, workers: int = 3, cell: float = CELL_DEG) -> None:
     """SuperDove: monthly counts per land cell from Planet's stats, about 9,000 small requests for the whole archive.
     Saved as STORE/<vendor>/cells.pkl (cell, month, n) and totals.json; later runs ask only for the last `refresh` months."""
@@ -274,8 +287,8 @@ def fetch_stats(vendor: str = "superdove", refresh: int = REFRESH_MONTHS, worker
             done.add(c)
             if i % 500 == 0 or i == len(todo):   # checkpoint, so a stopped run resumes
                 table = pd.concat([old[~(old.month >= start)] if complete else old, pd.DataFrame(new, columns=["cell", "month", "n"])])
-                table.drop_duplicates(["cell", "month"], keep="last").to_pickle(path)
-                done_path.write_text(json.dumps({"complete": i == len(todo) or complete, "cells": [] if i == len(todo) else sorted(done)}))
+                _save(table.drop_duplicates(["cell", "month"], keep="last"), path)
+                _save_text(done_path, json.dumps({"complete": i == len(todo) or complete, "cells": [] if i == len(todo) else sorted(done)}))
                 print(f"{vendor}: {i} of {len(todo)} cells, {time.time() - started:.0f} s", flush=True)
     totals = {m: {"n": n} for m, n in _planet_stats(session, instrument, every[0], end).items()}
     clear = _planet_stats(session, instrument + [{"type": "RangeFilter", "field_name": "cloud_cover", "config": {"lte": 0.2}}], every[0], end)
@@ -320,12 +333,72 @@ def fetch_stats_days(vendor: str = "superdove", workers: int = 3, cell: float = 
             new += [(c, m, d) for m, d in by_month.items()]
             done.add(c)
             if i % 500 == 0 or i == len(todo):   # checkpoint, so a stopped run resumes
-                pd.concat([old, pd.DataFrame(new, columns=["cell", "month", "d"])]).drop_duplicates(["cell", "month"], keep="last").to_pickle(path)
+                _save(pd.concat([old, pd.DataFrame(new, columns=["cell", "month", "d"])]).drop_duplicates(["cell", "month"], keep="last"), path)
                 refreshing = start != VENDORS[vendor].get("start", START) and i < len(todo)
-                done_path.write_text(json.dumps({"complete": i == len(todo), "cells": [] if i == len(todo) else sorted(done),
-                                                 **({"refresh_from": start} if refreshing else {})}))
+                _save_text(done_path, json.dumps({"complete": i == len(todo), "cells": [] if i == len(todo) else sorted(done),
+                                                  **({"refresh_from": start} if refreshing else {})}))
                 print(f"{vendor} days: {i} of {len(todo)} cells, {time.time() - started:.0f} s", flush=True)
     print(f"{vendor} days done", flush=True)
+
+
+EARTH_SEARCH = "https://earth-search.aws.element84.com/v1/search"
+PLATFORMS = {"landsat": ["landsat-8", "landsat-9"], "sentinel2": ["sentinel-2a", "sentinel-2b", "sentinel-2c"]}
+FIRST_LOOK_PLANET = Path("/explore/nobackup/people/pmontesa/multistac/first_look_cache/planet/results.pkl")
+
+
+def fetch_satellites(vendor: str, workers: int = 4) -> None:
+    """Which satellites collected each month, for the counted stores (no item list to read sensors from). Saved as
+    STORE/<vendor>/satellites.json {month: {satellite: catalog items}}; the page counts satellites from it, not items.
+    Landsat / Sentinel-2: Earth Search item counts per platform. SuperDove: Planet's stats per satellite ID (PSB.SD); the
+    IDs to ask about are those already seen (this file, the first look's Planet results), and a month whose satellites
+    add up to fewer scenes than its total is reported, as some satellite is then missing from the list."""
+    from concurrent.futures import ThreadPoolExecutor
+    import requests
+    every, end = months(VENDORS[vendor].get("start", START)), f"{pd.Timestamp.today():%Y-%m-%d}"
+    path = STORE / vendor / "satellites.json"
+    out: Dict[str, Dict[str, int]] = {m: {} for m in every}
+    if vendor in PLATFORMS:
+        def one(job):
+            month, platform = job
+            first = pd.Timestamp(f"{month}-01")
+            span = f"{first:%Y-%m-%d}T00:00:00Z/{first + pd.offsets.MonthEnd(0):%Y-%m-%d}T23:59:59Z"
+            body = {"collections": VENDORS[vendor]["collections"], "datetime": span, "query": {"platform": {"eq": platform}}, "limit": 1}
+            for attempt in range(6):
+                try:
+                    r = requests.post(EARTH_SEARCH, json=body, timeout=120)
+                    if r.ok:
+                        j = r.json()
+                        return month, platform, int(j.get("numberMatched", j.get("context", {}).get("matched", 0)))
+                except requests.exceptions.RequestException:
+                    pass
+                time.sleep(2 ** attempt)
+            raise RuntimeError(f"Earth Search count failed for {month} {platform}")
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            for month, platform, n in pool.map(one, [(m, p) for m in every for p in PLATFORMS[vendor]]):
+                if n:
+                    out[month][platform] = n
+    elif vendor == "superdove":
+        ids = set(json.loads(path.read_text()).get("ids", [])) if path.exists() else set()
+        if FIRST_LOOK_PLANET.exists():
+            ids |= {s[3:] for s in pd.read_pickle(FIRST_LOOK_PLANET).get("sensor", pd.Series(dtype=str)).astype(str) if s.startswith("PS-")}
+        instrument = [{"type": "StringInFilter", "field_name": "instrument", "config": ["PSB.SD"]}]
+        session = _planet_session()
+        one = lambda sat: (sat, _planet_stats(session, instrument + [{"type": "StringInFilter", "field_name": "satellite_id",
+                                                                        "config": [sat]}], every[0], end))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            for sat, counts in pool.map(one, sorted(ids)):
+                for month, n in counts.items():
+                    if n and month in out:
+                        out[month][sat] = n
+        totals = json.loads((STORE / vendor / "totals.json").read_text())
+        short = {m: (sum(out[m].values()), totals[m]["n"]) for m in every if m in totals and sum(out[m].values()) < totals[m]["n"]}
+        if short:
+            print(f"{vendor}: months whose listed satellites miss some scenes (listed, total): {short}", flush=True)
+    else:
+        raise ValueError(f"{vendor}: satellites come from the stored items, nothing to fetch")
+    seen = sorted({s for m in out.values() for s in m})
+    path.write_text(json.dumps({"months": out, **({"ids": seen} if vendor == "superdove" else {})}))
+    print(f"{vendor}: {len(seen)} satellites, {sum(bool(v) for v in out.values())} months; saved {path}", flush=True)
 
 
 # Page tabs: one per vendor; a vendor's constellations are groups within it, shown one at a time or together.
@@ -436,11 +509,13 @@ def _group(name: str, tables: Dict[str, pd.DataFrame], every: List[str], cell: f
 def _stats_tables(store: str) -> Optional[dict]:
     """A counted store (SuperDove): cell counts by month and the monthly totals, once the counting has finished."""
     folder = STORE / store
+    sats_path = folder / "satellites.json"   # fetch_satellites
+    sats = {"satellites": json.loads(sats_path.read_text())["months"]} if sats_path.exists() else {}
     counted = sorted((folder / "counts").glob("*.pkl")) if (folder / "counts").exists() else []
     if counted:   # fetch_counted: a file per month
         cells = pd.concat([pd.read_pickle(f).assign(month=f.stem) for f in counted], ignore_index=True)
         keep = ["cell", "month", "n"] + (["d"] if "d" in cells else [])
-        return {"cells": cells[keep], "totals": {f.stem: json.loads(f.with_suffix(".json").read_text()) for f in counted}}
+        return {"cells": cells[keep], "totals": {f.stem: json.loads(f.with_suffix(".json").read_text()) for f in counted}, **sats}
     if not (folder / "totals.json").exists() or not (folder / "cells.pkl").exists():
         return None
     cells = pd.read_pickle(folder / "cells.pkl")
@@ -448,7 +523,7 @@ def _stats_tables(store: str) -> Optional[dict]:
     if (folder / "cells_days.pkl").exists() and days_done.exists() and json.loads(days_done.read_text()).get("complete"):
         # fetch_stats_days: days with a scene, per cell and month (only once every cell is counted, or the map would look empty)
         cells = cells.merge(pd.read_pickle(folder / "cells_days.pkl"), on=["cell", "month"], how="left")
-    return {"cells": cells, "totals": json.loads((folder / "totals.json").read_text())}
+    return {"cells": cells, "totals": json.loads((folder / "totals.json").read_text()), **sats}
 
 
 def _with_days(rows: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
@@ -460,8 +535,10 @@ def _stats_group(name: str, counted: dict, every: List[str]) -> dict:
     by_month = {m: g for m, g in counted["cells"].groupby("month")}
     frames = [[int(v) for pair in zip(by_month[m].cell, by_month[m].n) for v in pair] if m in by_month else [] for m in every]
     days = True if "d" in counted["cells"] else None
+    sats = counted.get("satellites", {})   # fetch_satellites: which satellites collected each month (none yet: not shown)
     totals = [{"month": m, "n": counted["totals"].get(m, {}).get("n", 0), "cells": len(frames[i]) // 2, "sensors": {},
-               "clear": counted["totals"].get(m, {}).get("clear", 0)} for i, m in enumerate(every)]
+               "clear": counted["totals"].get(m, {}).get("clear", 0), **({"sats": sorted(sats.get(m, {}))} if sats else {})}
+              for i, m in enumerate(every)]
     out = {"constellation": name, "frames": frames, "totals": totals}
     if days is not None:   # days per cell, where counted (rows of months counted before days were added have none)
         out["days"] = [[int(v) for pair in zip(g.cell, g.d) for v in pair] if (g := _with_days(by_month.get(m))) is not None else []
@@ -647,6 +724,8 @@ if __name__ == "__main__":
         sys.exit(0)
     if sys.argv[1] == "days":   # days superdove: days with a scene per cell, from Planet's stats by day
         fetch_stats_days(sys.argv[2])
+    elif sys.argv[1] == "satellites":   # satellites superdove|landsat|sentinel2: which satellites collected each month
+        fetch_satellites(sys.argv[2])
     elif sys.argv[1] == "fetch":   # fetch <vendor> [year or YYYY-MM ...]: only those (counted stores; several runs in parallel)
         v, years = sys.argv[2], sys.argv[3:]
         if VENDORS[v].get("count_on_fetch"):
