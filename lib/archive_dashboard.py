@@ -29,6 +29,7 @@ from typing import Dict, Iterable, List, Optional, Union
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import shapely
 from shapely import affinity
 from shapely.ops import unary_union
 
@@ -203,32 +204,90 @@ def _rings(geometry, tolerance: float) -> List[List[List[float]]]:
 
 def acquisitions(gdf: gpd.GeoDataFrame, sites: gpd.GeoDataFrame, levels: List[str], sensors: List[str],
                  site_names: List[str]):
-    """One record per acquisition and site, and each record's whole footprint (not clipped to the site)."""
+    """One record per acquisition and site, and each record's whole footprint (not clipped to the site). Done for all
+    acquisitions at once: shapely's array functions per catalog row, then sums per acquisition, so the only Python loops are
+    a union per acquisition (Planet: ~3.5 M rows in ~0.5 M acquisitions, minutes rather than hours).
+    Per acquisition: cloud, off-nadir, sun and satellite angles are the means of its rows weighted by each row's area over
+    the site (the plain mean where no row with a value covers the site); cov is the share of the site its rows cover."""
     aoi = {}
     for name, geometry in zip(sites.site_name, sites.geometry):
         lat = geometry.centroid.y
         aoi[name] = (_flat(geometry.buffer(0), lat), lat)
-    times = pd.to_datetime(gdf["datetime"].map(pd.Timestamp), utc=True)
-    records, footprints = [], []
-    for (site, acquisition), rows in gdf.assign(_t=times).groupby(["site_name", "acquisition_id"]):
-        if site not in aoi:
-            continue
-        shape, lat = aoi[site]
-        parts = [_flat(g.buffer(0), lat).intersection(shape) if g is not None else None for g in rows.geometry]
-        weights = pd.Series([p.area if p is not None else 0.0 for p in parts], index=rows.index)
-        union = unary_union([p for p in parts if p is not None and not p.is_empty])
-        held = rows.provider.eq("csda").any() or ("in_csda" in rows and rows.in_csda.fillna(False).astype(bool).any())
-        records.append({
-            "s": site_names.index(site), "n": sensors.index(rows.sensor.iloc[0]), "a": str(acquisition),
-            "d": f"{rows._t.min():%Y-%m-%d}", "cloud": _number(_weighted(rows, "cloud_cover", weights)),
-            "off": _number(_weighted(rows, "off_nadir", weights)),
-            "cov": _number(100 * min(union.area / shape.area, 1.0), 0) if shape.area else None,
-            "sun": _number(_weighted(rows, "sun_elevation", weights)), "sunaz": _number(_weighted(rows, "sun_azimuth", weights)),
-            "az": _number(_weighted(rows, "sat_azimuth", weights)), "el": _number(_weighted(rows, "sat_elevation", weights)),
-            "items": int(rows.id.nunique()), "lv": sorted({levels.index(v) for v in rows.processing_level if v in levels}),
-            "csda": bool(held), "dn": _time_of_day(rows)})
-        footprints.append(_rings(unary_union([g.buffer(0) for g in rows.geometry if g is not None]), 0.001))
-    return records, footprints
+    rows = gdf[gdf.site_name.isin(list(aoi)) & gdf.acquisition_id.notna()]
+    rows = rows.assign(_t=pd.to_datetime(rows["datetime"].map(pd.Timestamp), utc=True))
+    rows = rows.sort_values(["site_name", "acquisition_id"], kind="stable")   # by site, then acquisition; rows keep their order
+    n = len(rows)
+    if not n:
+        return [], []
+    site_key, acq_key = rows.site_name.to_numpy(), rows.acquisition_id.to_numpy()
+    first = np.ones(n, bool)
+    first[1:] = (site_key[1:] != site_key[:-1]) | (acq_key[1:] != acq_key[:-1])
+    start = np.flatnonzero(first)
+    end = np.append(start[1:], n)
+    group, m = np.cumsum(first) - 1, len(start)
+
+    # per row: the footprint made valid, flattened at its site's latitude (as _flat), and its part over the site
+    geoms = np.asarray(rows.geometry.values, dtype=object)
+    lat = rows.site_name.map({k: v[1] for k, v in aoi.items()}).to_numpy(float)
+    shape = np.asarray(rows.site_name.map({k: v[0] for k, v in aoi.items()}).to_numpy(), dtype=object)
+    whole = shapely.buffer(geoms, 0)
+    coords, index = shapely.get_coordinates(whole, return_index=True)
+    coords[:, 0] *= np.cos(np.radians(lat))[index]
+    part = shapely.intersection(shapely.set_coordinates(whole.copy(), coords), shape)
+    weight = np.nan_to_num(shapely.area(part))
+
+    def column(name):
+        return pd.to_numeric(rows[name], errors="coerce").to_numpy(float) if name in rows else None
+
+    def per(values):   # sum per acquisition
+        return np.bincount(group, values, m)
+
+    def weighted(name):
+        v = column(name)
+        if v is None:
+            return [None] * m
+        has = ~np.isnan(v)
+        known = has & (weight > 0)
+        num, den = per(np.where(known, v * weight, 0)), per(np.where(known, weight, 0))
+        mean = per(np.where(has, v, 0)) / np.maximum(per(has), 1)
+        out = np.where(per(known) > 0, num / np.where(den > 0, den, 1), np.where(per(has) > 0, mean, np.nan))
+        return [None if x != x else round(float(x), 1) for x in out]
+
+    # per acquisition: the union of its parts over the site (coverage) and of its whole footprints (the map)
+    covered = [shapely.area(shapely.union_all(part[i:j])) for i, j in zip(start, end)]
+    site_area = {k: v[0].area for k, v in aoi.items()}
+    cov = [round(float(100 * min(c / site_area[site_key[i]], 1.0)), 0) if site_area[site_key[i]] else None
+           for c, i in zip(covered, start)]
+    footprints = [_rings(shapely.union_all(whole[i:j]), 0.001) for i, j in zip(start, end)]
+
+    held = rows.provider.eq("csda").to_numpy()
+    if "in_csda" in rows:
+        held = held | rows.in_csda.fillna(False).astype(bool).to_numpy()
+    items = pd.Series(rows.id.to_numpy()).groupby(group).nunique().reindex(range(m), fill_value=0).to_numpy()
+    level_of = {v: k for k, v in enumerate(levels)}
+    bits = np.bitwise_or.reduceat(np.array([1 << level_of[v] if v in level_of else 0 for v in rows.processing_level], dtype=np.int64), start)
+    t_ns = rows._t.dt.tz_convert("UTC").dt.tz_localize(None).to_numpy().astype("datetime64[ns]").astype(np.int64)
+    days = pd.to_datetime(np.minimum.reduceat(t_ns, start)).strftime("%Y-%m-%d")
+    # day or night (as _time_of_day): what the catalog says, its first value in the acquisition, or from the mean sun elevation
+    sun = column("sun_elevation")
+    sun_mean = (np.where(per(~np.isnan(sun)) > 0, per(np.nan_to_num(sun)) / np.maximum(per(~np.isnan(sun)), 1), np.nan)
+                if sun is not None else np.full(m, np.nan))
+    said = [None] * m
+    if "hydrosat:day_night" in rows:
+        for g, v in zip(group, rows["hydrosat:day_night"]):
+            if said[g] is None and not pd.isna(v):
+                said[g] = str(v).lower()
+    dn = [said[g] if said[g] is not None else (None if sun_mean[g] != sun_mean[g] else "day" if sun_mean[g] > 0 else "night")
+          for g in range(m)]
+
+    site_of, sensor_of = {v: k for k, v in enumerate(site_names)}, {v: k for k, v in enumerate(sensors)}
+    columns = dict(s=[site_of[site_key[i]] for i in start], n=[sensor_of[v] for v in rows.sensor.to_numpy()[start]],
+                   a=[str(acq_key[i]) for i in start], d=list(days), cloud=weighted("cloud_cover"), off=weighted("off_nadir"),
+                   cov=cov, sun=weighted("sun_elevation"), sunaz=weighted("sun_azimuth"), az=weighted("sat_azimuth"),
+                   el=weighted("sat_elevation"), items=[int(x) for x in items],
+                   lv=[[k for k in range(len(levels)) if b >> k & 1] for b in bits], csda=[bool(x) for x in per(held) > 0], dn=dn)
+    keys = list(columns)
+    return [dict(zip(keys, values)) for values in zip(*(columns[k] for k in keys))], footprints
 
 
 def _site_table(sites: gpd.GeoDataFrame, sites_file: Union[str, Path], name_field: str) -> List[dict]:
