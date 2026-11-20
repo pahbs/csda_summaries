@@ -159,8 +159,8 @@ footer { color: var(--ink-2); font-size: 12px; margin-top: 26px; }
     <button role="tab" id="tab-coverage" aria-controls="panel-coverage" aria-selected="false">Coverage</button>
     <button role="tab" id="tab-revisit" aria-controls="panel-revisit" aria-selected="false">Revisit</button>
     <button role="tab" id="tab-launches" aria-controls="panel-launches" aria-selected="false">Launches &amp; Orbits</button>
-    <button role="tab" id="tab-table" aria-controls="panel-table" aria-selected="false">Data Table</button>
-    <button role="tab" id="tab-quality" aria-controls="panel-quality" aria-selected="false">Database Quality <span class="count" id="tab-q-count"></span></button>
+    <button role="tab" id="tab-table" aria-controls="panel-table" aria-selected="false" hidden>Data Table</button>
+    <button role="tab" id="tab-quality" aria-controls="panel-quality" aria-selected="false" hidden>Database Quality <span class="count" id="tab-q-count"></span></button>
   </div>
   </div>
 
@@ -1045,6 +1045,8 @@ function init() {
   }
   scatterLegend(); launchLegend(); drawQuality(); render();
   const hash = location.hash.slice(1);
+  // Data Table and Database Quality are for the database's maintainer: shown only with ?internal (or #table / #quality) in the URL
+  if (new URLSearchParams(location.search).has('internal') || ['table', 'quality'].includes(hash)) $('#tab-table').hidden = $('#tab-quality').hidden = false;
   if (TABS.includes(hash)) show(hash);
 }
 init();
