@@ -36,8 +36,19 @@ h2 span { color: var(--ink-3); font-weight: 400; font-size: 13px; margin-left: 6
   background: color-mix(in oklab, var(--tag-bg) 65%, var(--surface)); color: var(--tag-ink); }   /* softened: some hues are loud */
 .tag.quiet { --tag-bg: var(--surface-2); --tag-ink: var(--ink-2); font-weight: 500; font-size: 11px; padding: 1px 8px; }
 .note { color: var(--ink-3); font-size: 12.5px; margin: 0 0 2px; max-width: 980px; }
-.filters { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--grid);
-  position: sticky; top: 0; background: var(--surface); z-index: 5; margin-top: 14px; }
+.sticky { position: sticky; top: 0; z-index: 5; background: var(--surface); margin-top: 16px; padding-top: 6px; }
+/* Your review: the same tools in the same place on every page, set apart on a gray panel */
+.tools { background: var(--surface-2); border: 1px solid var(--grid); border-radius: 10px; padding: 10px 14px 8px; }
+.toolrow { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.toolrow label { font-size: 13px; color: var(--ink-2); display: inline-flex; gap: 6px; align-items: center; }
+.sect { font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); min-width: 96px; }
+.tools .tally { margin-top: 6px; min-height: 19px; }
+.tools .banner { margin: 6px 0 0; background: var(--surface); }
+.filters { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--axis); }
+/* the page's sections below the sticky bar */
+.part { margin-top: 18px; }
+.parthead, .tlbox > summary { margin: 0 0 6px; padding-top: 10px; border-top: 2px solid var(--axis); font-size: 13px; font-weight: 400; color: var(--ink-2); }
+.parttitle { font-size: 17px; font-weight: 650; color: var(--ink); margin-right: 4px; }
 .filters label { font-size: 13px; color: var(--ink-2); display: inline-flex; gap: 6px; align-items: center; }
 select, button { font: inherit; font-size: 13px; padding: 4px 9px; border-radius: 6px; border: 1px solid var(--axis); background: var(--surface); color: var(--ink); }
 button { cursor: pointer; }
@@ -47,8 +58,16 @@ button:hover { background: var(--surface-2); }
 .spacer { flex: 1; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--card, 250px), 1fr)); gap: 12px; }
 .card { background: var(--surface-2); border-radius: 10px; overflow: hidden; border: 2px solid transparent; display: flex; flex-direction: column; }
+.card { scroll-margin-top: calc(var(--stick, 60px) + 8px); }   /* clear of the sticky bar */
 .card:focus-visible, .card.focus { outline: 2px solid var(--link); outline-offset: 2px; }
 .card.keep { border-color: var(--ok); }
+/* the card of a timeline dot just clicked: outlined until another card is picked, with a pulse to catch the eye */
+.card.found { outline: 3px solid var(--link); outline-offset: 3px; }
+.card.found.pulse { animation: found 1.2s ease-out 2; }
+@keyframes found { 0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--link) 75%, transparent); } 100% { box-shadow: 0 0 0 18px transparent; } }
+@media (prefers-reduced-motion: reduce) { .card.found.pulse { animation: none; } }
+.found-tag { position: absolute; top: 6px; left: 6px; z-index: 1; background: var(--link); color: #fff; font-size: 11.5px; font-weight: 600;
+  padding: 1px 8px; border-radius: 4px; }
 .card.drop { opacity: .45; }
 .img { aspect-ratio: 1; background: var(--empty); display: grid; place-items: center; cursor: zoom-in; position: relative; }
 .img img { width: 100%; height: 100%; object-fit: contain; image-rendering: auto; }
@@ -81,14 +100,58 @@ button:hover { background: var(--surface-2); }
 .selinfo .lim { font-variant-numeric: tabular-nums; }
 .banner { margin: 10px 0 0; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--axis); font-size: 13px; max-width: 1100px; }
 .banner.warn { border-color: var(--short); }
-.filters input[type=text] { font: inherit; font-size: 13px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--axis); background: var(--surface); color: var(--ink); width: 150px; }
+.tools input[type=text] { font: inherit; font-size: 13px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--axis); background: var(--surface); color: var(--ink); width: 150px; }
 button.primary { background: var(--ink); color: var(--surface); border-color: var(--ink); font-weight: 600; }
 button.primary:hover { background: var(--ink-2); }
 .why { margin: -4px 10px 10px; font-size: 12px; }
+/* a sensor's cards within a site, in date order: the same rows as the timeline's lanes */
+h3.sensorhead { font-size: 13px; font-weight: 620; margin: 14px 0 6px; color: var(--ink); }
+h3.sensorhead span { color: var(--ink-3); font-weight: 400; margin-left: 6px; }
+h3.sensorhead.bad, h3.sensorhead.bad span { color: var(--short); }
 .why[hidden], #preason[hidden] { display: none; }
 .met { color: var(--ok); font-weight: 600; }
 /* the title's "Candidate Acquisition": the vendor-colored tag, at heading size (as in the first-look title) */
 .tag.gqh { font-size: inherit; font-weight: 650; padding: 1px 12px 2px; }
+/* the timeline: one row per site, one lane per sensor; dots are acquisitions, bands the "same time" window around each Keep */
+.tlbox { margin: 0; }
+.tlbox > summary { cursor: pointer; }
+.tlbar { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; font-size: 12.5px; color: var(--ink-2); margin: 6px 0; }
+.tlbar label { display: inline-flex; gap: 6px; align-items: center; }
+.tlkey { display: inline-flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; color: var(--ink-3); }
+.tlkey span { display: inline-flex; gap: 5px; align-items: center; }
+.tlkey .sw { width: 22px; height: 10px; border-radius: 2px; }
+.tl { display: grid; grid-template-columns: minmax(120px, 190px) 1fr; max-height: 45vh; overflow: auto; position: relative;
+  border: 1px solid var(--grid); border-radius: 8px; font-size: 12px; background: var(--surface); }
+.tl .lab { padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 20px; line-height: 20px; color: var(--ink-2);
+  font-variant-numeric: tabular-nums; }
+.tl .lab.site { color: var(--ink); font-weight: 620; height: 24px; line-height: 26px; }
+.tl .lab.site span { color: var(--ink-3); font-weight: 400; margin-left: 6px; }
+.tl .lab.bad { color: var(--short); }
+.tl .gap { height: 24px; border-top: 1px solid var(--grid); }
+.tl .lab.site { border-top: 1px solid var(--grid); }
+.tl .track { position: relative; height: 20px; overflow: hidden; }
+.tl .axis { position: sticky; top: 0; z-index: 3; background: var(--surface); height: 22px; border-bottom: 1px solid var(--axis); }
+.tl .axis span { position: absolute; top: 3px; transform: translateX(-50%); color: var(--ink-3); white-space: nowrap; font-size: 11px; }
+.tl .track, .tl .gap { background-image: var(--gl, none); }   /* month gridlines, set by drawTimeline */
+.tl .band { position: absolute; top: 3px; bottom: 3px; border-radius: 3px; background: color-mix(in oklab, var(--ok) 20%, transparent); }
+.tl .band.bad { background: color-mix(in oklab, var(--short) 30%, transparent); }
+.tl .dot { position: absolute; top: 4px; width: 12px; height: 12px; margin-left: -6px; padding: 0; border-radius: 50%; cursor: pointer;
+  border: 2px solid var(--ink-3); background: var(--surface); }
+.tl .dot.check { border-style: dashed; }
+.tl .dot.keep { background: var(--ok); border-color: var(--surface); box-shadow: 0 0 0 1px var(--ok); }
+.tl .dot.drop { border: 0; background: none; color: var(--short); font: 700 13px/12px system-ui, sans-serif; }
+.tl .dot.drop::before { content: "×"; }
+.tl .dot.cur { outline: 2px solid var(--link); outline-offset: 2px; z-index: 2; }
+.tl .dot:hover { z-index: 2; transform: scale(1.25); }
+.tltip { position: fixed; z-index: 30; pointer-events: none; background: var(--ink); color: var(--surface); font-size: 12px; padding: 5px 8px;
+  border-radius: 6px; max-width: 320px; line-height: 1.4; }
+.sticky .tlbox { padding: 0 14px 8px; border-bottom: 1px solid var(--axis); }
+.sticky .tlbox > summary { border-top: 0; padding-top: 6px; }
+.sticky .tl { max-height: 30vh; }
+.near { font-size: 11.5px; color: var(--ink-2); margin-top: 2px; }
+.near.bad { color: var(--short); font-weight: 600; }
+.near[hidden] { display: none; }
+.tally .bad { color: var(--short); }
 </style>
 </head>
 <body>
@@ -101,22 +164,49 @@ button.primary:hover { background: var(--ink-2); }
   <p class="context"><span class="tag" id="who"></span><span id="counts"></span></p>
   <p class="selinfo" id="selinfo"></p>
   <p class="note" id="placement"></p>
-  <div class="filters">
-    <label>Site <select id="site"></select></label>
-    <label>Status <select id="status"><option value="">All</option><option value="good">Candidate</option><option value="check AOI">Check AOI</option></select></label>
-    <label>Decision <select id="decision"><option value="">All</option><option value="none">Not decided</option><option value="keep">Keep</option><option value="drop">Drop</option></select></label>
-    <label>Size <input id="size" type="range" min="180" max="420" value="250"></label>
-    <span class="tally" id="tally"></span>
-    <span class="spacer"></span>
-    <label>Reviewer <input type="text" id="reviewer" placeholder="Your name" autocomplete="name"></label>
-    <button id="loadReview" type="button" title="Restore the decisions of a review saved earlier (.zip or its .json)">Load review…</button>
-    <input type="file" id="reviewFile" accept=".zip,.json" hidden>
-    <button id="saveReview" class="primary" type="button" title="The kept acquisitions (CSV) and a record of every decision with the selection behind it (JSON)">Save review</button>
-    <button id="zipReview" type="button" title="The same two files in a .zip, downloaded: to send or keep elsewhere">Download .zip</button>
+  <div class="sticky" id="bar">
+    <section class="tools" aria-label="Your review">
+      <div class="toolrow">
+        <span class="sect">Your review</span>
+        <label>Reviewer <input type="text" id="reviewer" placeholder="Your name" autocomplete="name"></label>
+        <button id="saveReview" class="primary" type="button" title="The kept acquisitions (CSV) and a record of every decision with the selection behind it (JSON)">Save review</button>
+        <button id="loadReview" type="button" title="Restore the decisions of a review saved earlier (.zip or its .json)">Load review…</button>
+        <input type="file" id="reviewFile" accept=".zip,.json" hidden>
+        <button id="zipReview" type="button" title="The same two files in a .zip, downloaded: to send or keep elsewhere">Download .zip</button>
+      </div>
+      <div class="tally" id="tally"></div>
+      <div id="restored"></div>
+    </section>
+    <div class="filters">
+      <span class="sect">Show</span>
+      <label>Site <select id="site"></select></label>
+      <label>Status <select id="status"><option value="">All</option><option value="good">Candidate</option><option value="check AOI">Check AOI</option></select></label>
+      <label>Decision <select id="decision"><option value="">All</option><option value="none">Not decided</option><option value="keep">Keep</option><option value="drop">Drop</option></select></label>
+      <label>Arrange <select id="arrange"><option value="sensor">By sensor, then date</option><option value="date">By date</option><option value="selection">As in the selection</option></select></label>
+      <label>Thumbnail size <input id="size" type="range" min="180" max="420" value="250"></label>
+    </div>
   </div>
-  <div id="restored"></div>
-  <p class="hint" style="margin:6px 0 0" id="keys">Keys: <b>K</b> keep, <b>D</b> drop, <b>U</b> undo, <b>←/→</b> move, <b>1–6</b> drop with a reason, <b>Enter</b> open on the map, <b>Esc</b> close. <b>Save review</b> writes the kept acquisitions (CSV) and the review (JSON) next to the selection.</p>
-  <div id="cards"></div>
+  <section class="part" id="tlhome">
+    <details class="tlbox" id="tlbox" open>
+    <summary><span class="parttitle">Timeline</span> by site and sensor <span class="hint" id="tlsum"></span></summary>
+    <div class="tlbar">
+      <label>Same sensor within <select id="tlwin"><option>7</option><option>14</option><option>30</option><option>60</option><option>90</option><option>180</option></select> days counts as the same time</label>
+      <label><input type="checkbox" id="tlpin"> Keep in view while scrolling</label>
+      <span class="tlkey"><span><i class="dot-key" style="width:10px;height:10px;border-radius:50%;border:2px solid var(--ink-3)"></i>not decided</span>
+        <span><i style="width:10px;height:10px;border-radius:50%;background:var(--ok)"></i>kept</span>
+        <span><b style="color:var(--short)">×</b>dropped</span>
+        <span><i class="sw" style="background:color-mix(in oklab, var(--ok) 20%, transparent)"></i>the window around a Keep</span>
+        <span><i class="sw" style="background:color-mix(in oklab, var(--short) 30%, transparent)"></i>two Keeps, same sensor, same time</span>
+        <span>dashed: Check AOI · click a dot to go to its card</span></span>
+    </div>
+    <div class="tl" id="tl"></div>
+  </details>
+  </section>
+  <section class="part">
+    <h2 class="parthead"><span class="parttitle">Thumbnails</span></h2>
+    <p class="hint" style="margin:0 0 6px" id="keys">Keys: <b>K</b> keep, <b>D</b> drop, <b>U</b> undo, <b>←/→</b> move, <b>1–6</b> drop with a reason, <b>Enter</b> open on the map, <b>Esc</b> close. <b>Save review</b> writes the kept acquisitions (CSV) and the review (JSON) next to the selection.</p>
+    <div id="cards"></div>
+  </section>
 </div>
 <div class="panel" id="panel" role="dialog" aria-modal="true" aria-label="Preview on the map">
   <div class="box">
@@ -207,7 +297,10 @@ function tally() {
   const met = withNeed.filter(x => keptAt(x) >= need[x]).length;
   $('tally').innerHTML = `<b>${keep.length}</b> kept${unique < keep.length ? ` (${unique} unique)` : ''} · <b>${drop}</b> dropped · <b>${DATA.cards.length - keep.length - drop}</b> not decided`
     + (withNeed.length ? ` · <b>${met}</b> of ${withNeed.length} sites at their minimum` : '');
+  const clash = keep.filter(c => (nearestKeep(c) ?? Infinity) <= WIN).length;
+  if (clash) $('tally').insertAdjacentHTML('beforeend', ` · <span class="bad">⚠ <b>${clash}</b> Keeps within ${WIN} days of another from the same sensor</span>`);
   for (const [site, span] of siteHeads) span.replaceChildren(...siteNote(site));
+  DATA.cards.forEach(paintNear); paintSensorHeads(); drawTimeline();
 }
 function decide(c, value) {
   if (!value || decisions[uid(c)] === value) delete decisions[uid(c)]; else decisions[uid(c)] = value;
@@ -240,10 +333,11 @@ function card(c) {
     el('div', {class: 'meta'},
       el('div', {class: 'when'}, `${r.date} · ${r.sensor}`, el('span', {class: `pill ${isGood(r) ? 'good' : 'check'}`, text: isGood(r) ? 'Candidate' : 'Check AOI'})),
       el('div', {class: 'nums', text: `Cloud ${num(r.cloud_pct, '%')} · Off-nadir ${num(r.off_nadir_deg, '°')} · Site covered ${num(r.site_covered_pct, '%')}`}),
-      el('div', {class: 'id', title: r.acquisition_id + (c.how === 'sensor and date' ? ' (matched by sensor and date)' : ''), text: r.acquisition_id})),
+      el('div', {class: 'id', title: r.acquisition_id + (c.how === 'sensor and date' ? ' (matched by sensor and date)' : ''), text: r.acquisition_id}),
+      el('div', {class: 'near', hidden: ''})),
     el('div', {class: 'act'}, k, d));
   const pickWhy = reasonPick(code => dropFor(c, code)); pickWhy.classList.add('why'); box.append(pickWhy);
-  box.onfocus = () => { focus = shown.indexOf(c); };
+  box.onfocus = () => { focus = shown.indexOf(c); markFocus(c); if (foundCard && foundCard !== c) unfind(); };
   c.node = box; paint(c); return box;
 }
 function paint(c) {
@@ -253,20 +347,42 @@ function paint(c) {
   c.node.querySelector('.k').setAttribute('aria-pressed', String(v === 'keep'));
   c.node.querySelector('.d').setAttribute('aria-pressed', String(v === 'drop'));
   const why = c.node.querySelector('.why'); why.hidden = v !== 'drop'; why.value = reasons[uid(c)] || '';
+  paintNear(c);
+}
+const sensorHeads = new Map();   // "site|sensor" -> its heading
+function sensorNote(site, sensor) {   // "SN46 · 17 acquisitions, 2 kept", flagged when two Keeps are at the same time
+  const lane = lanes.get(`${site}|${sensor}`) || [], kept = lane.filter(c => decisionOf(c) === 'keep');
+  const clash = kept.some(c => (nearestKeep(c) ?? Infinity) <= WIN);
+  return {clash, kids: [`${clash ? '⚠ ' : ''}${sensor}`, el('span', {text: `${lane.length} acquisition${lane.length === 1 ? '' : 's'}`
+    + (kept.length ? `, ${kept.length} kept` : '') + (clash ? ` · two Keeps within ${WIN} days` : '')})]};
+}
+function paintSensorHeads() {
+  for (const [k, h] of sensorHeads) { const [site, ...rest] = k.split('|'), n = sensorNote(site, rest.join('|')); h.classList.toggle('bad', n.clash); h.replaceChildren(...n.kids); }
 }
 function render() {
-  shown = visible(); focus = -1;
-  const out = [], bySite = new Map();
-  shown.forEach(c => { if (!bySite.has(c.row.site)) bySite.set(c.row.site, []); bySite.get(c.row.site).push(c); });
-  siteHeads.clear();
+  const arrange = $('arrange').value;
+  const list0 = visible(), out = [], bySite = new Map();
+  if (arrange !== 'selection') list0.sort((a, b) => a.t - b.t || natural(a.row.sensor, b.row.sensor));
+  list0.forEach(c => { if (!bySite.has(c.row.site)) bySite.set(c.row.site, []); bySite.get(c.row.site).push(c); });
+  siteHeads.clear(); sensorHeads.clear(); shown = []; focus = -1;
   for (const [site, list] of bySite) {
     const span = el('span'); siteHeads.set(site, span);
-    out.push(el('h2', {}, site, span), el('div', {class: 'grid'}, ...list.map(card)));
+    out.push(el('h2', {}, site, span));
+    if (arrange === 'sensor') {
+      const bySensor = new Map();
+      list.forEach(c => { if (!bySensor.has(c.row.sensor)) bySensor.set(c.row.sensor, []); bySensor.get(c.row.sensor).push(c); });
+      for (const sensor of [...bySensor.keys()].sort(natural)) {
+        const h = el('h3', {class: 'sensorhead'}); sensorHeads.set(`${site}|${sensor}`, h);
+        out.push(h, el('div', {class: 'grid'}, ...bySensor.get(sensor).map(card))); shown.push(...bySensor.get(sensor));
+      }
+    } else { out.push(el('div', {class: 'grid'}, ...list.map(card))); shown.push(...list); }
   }
   if (!shown.length) out.push(el('p', {class: 'sub', style: 'margin-top:20px', text: 'Nothing matches these filters.'}));
   $('cards').replaceChildren(...out); tally();
 }
 ['site', 'status', 'decision'].forEach(id => $(id).onchange = render);
+try { const a = localStorage.getItem('thumbs:arrange'); if (a && [...$('arrange').options].some(o => o.value === a)) $('arrange').value = a; } catch (e) {}
+$('arrange').onchange = () => { try { localStorage.setItem('thumbs:arrange', $('arrange').value); } catch (e) {} render(); };
 $('size').oninput = () => root.style.setProperty('--card', `${$('size').value}px`);
 
 // map panel
@@ -281,6 +397,7 @@ function openPanel(i) {
     const gray = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {maxZoom: 16, attribution: 'Tiles © Esri'});
     imagery.addTo(lmap); L.control.layers({'Imagery': imagery, 'Light gray': gray}).addTo(lmap);
   }
+  markFocus(shown[current]);
   setTimeout(() => { lmap.invalidateSize(); paintPanel(true); }, 30);
 }
 function paintPanel(fit) {
@@ -299,7 +416,7 @@ function paintPanel(fit) {
 }
 function step(d) {
   if (!shown.length) return;
-  current = (current + d + shown.length) % shown.length; paintPanel(true);
+  current = (current + d + shown.length) % shown.length; paintPanel(true); markFocus(shown[current]);
   shown[current].node?.scrollIntoView({block: 'nearest'});
 }
 $('prev').onclick = () => step(-1); $('next').onclick = () => step(1);
@@ -369,7 +486,10 @@ async function unzipJson(buf) {   // the .json in a saved .zip (also one re-zipp
 }
 // Shown in a notebook (jupyter_page.show), the page runs in JupyterLab's origin and saves through Jupyter's contents API
 const JUP = (() => { try { const f = window.frameElement; return f && f.dataset.jupyter ? JSON.parse(f.dataset.jupyter) : null; } catch (e) { return null; } })();
-const DIR = JUP ? (DATA.input_dirs || []).map(p => p === JUP.root ? '' : p.startsWith(JUP.root + '/') ? p.slice(JUP.root.length + 1) : null).find(p => p != null) : null;
+// Saves go next to the selection: where it was at build time if this JupyterLab can reach that, else the folder this page was loaded
+// from (the selection sits beside its page in the candidate acquisitions folder; another person's JupyterLab reaches it by its own path)
+const DIR = JUP ? ((DATA.input_dirs || []).map(p => p === JUP.root ? '' : p.startsWith(JUP.root + '/') ? p.slice(JUP.root.length + 1) : null).find(p => p != null)
+  ?? (JUP.page != null ? JUP.page.split('/').slice(0, -1).join('/') : null)) : null;
 const where = () => `${JUP.root}/${DIR ? DIR + '/' : ''}`;
 function api(path, opts = {}) {
   const headers = {'Content-Type': 'application/json'}; if (JUP.xsrf) headers['X-XSRFToken'] = JUP.xsrf; if (JUP.token) headers.Authorization = `token ${JUP.token}`;
@@ -388,14 +508,16 @@ function makeReview() {
   const record = {
     review: {id, reviewer: $('reviewer').value.trim(), saved: new Date().toISOString(), files: [`${base}_kept.csv`, `${base}.json`],
       viewer_page: `${DATA.title}_thumbnails.html`, viewer_made: DATA.made, viewer_has_all_acquisitions: !DATA.limited,
-      drop_reasons: Object.fromEntries(REASONS)},
+      drop_reasons: Object.fromEntries(REASONS), same_sensor_window_days: WIN},
     counts: {acquisitions: all.length, kept: kept.length, kept_unique: new Set(kept.map(c => c.row.acquisition_id)).size, dropped: dropped.length,
       not_decided: all.length - kept.length - dropped.length, drop_reasons: why,
+      kept_within_window_of_another_same_sensor: kept.filter(c => (nearestKeep(c) ?? Infinity) <= WIN).length,
       sites_with_kept: sites.filter(x => keptAt(x)).length, sites_with_minimum: sites.filter(x => need[x] != null).length,
       sites_at_minimum: sites.filter(x => need[x] != null && keptAt(x) >= need[x]).length,
       kept_by_site: sites.map(x => ({site: x, kept: keptAt(x), required: need[x] ?? null})), kept_by_month: Object.fromEntries(Object.entries(months).sort())},
     decisions: all.map(({c, d, why}) => ({acquisition_id: c.row.acquisition_id, site: c.row.site, date: c.row.date, sensor: c.row.sensor,
-      status: isGood(c.row) ? 'candidate' : 'check AOI', decision: d || 'not decided', drop_reason: why || null, preview_found: !!c.crop})),
+      status: isGood(c.row) ? 'candidate' : 'check AOI', decision: d || 'not decided', drop_reason: why || null, preview_found: !!c.crop,
+      days_to_nearest_keep_same_sensor: nearestKeep(c) == null ? null : Math.round(nearestKeep(c))})),
     selection: SEL || null,
   };
   const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`, cols = [...DATA.columns.filter(k => k !== 'review_id'), 'review_id'];
@@ -412,7 +534,7 @@ function saveReview() {
   if (DIR == null) {
     downloadReview(r);
     return banner(`Downloaded ${r.base}.zip. To save the CSV and JSON next to the selection on the server instead, show this page in a notebook: `
-      + `thumbnail_viewer.show(page) (the build does it). Opened from the file browser, Jupyter does not let a page save files.`, true);
+      + `open the review notebook next to it (<selection>_review.ipynb) and run its cell. Opened from the file browser, Jupyter does not let a page save files.`, true);
   }
   Promise.all([put(`${r.base}_kept.csv`, r.csv), put(`${r.base}.json`, r.json)])
     .then(() => banner(`Saved next to the selection, in ${where()}: ${r.base}_kept.csv (${r.kept} kept) and ${r.base}.json (every decision).`))
@@ -473,7 +595,126 @@ $('loadReview').onclick = () => $('reviewFile').click();
 $('reviewFile').onchange = e => { if (e.target.files[0]) loadReview(e.target.files[0]); e.target.value = ''; };
 if (!stored) $('keys').lastChild.textContent = ' close. This viewer blocks browser storage, so decisions last for this visit only: save the review before closing.';
 if (DIR == null && JUP) $('keys').append(' This page is outside the folders JupyterLab can open, so Save review downloads a .zip.');
-else if (DIR == null) $('keys').append(' Opened outside a notebook, Save review downloads a .zip: show the page with thumbnail_viewer.show(page) to save next to the selection.');
+else if (DIR == null) $('keys').append(' Opened outside a notebook, Save review cannot save next to the selection: open the review notebook next to this page (<selection>_review.ipynb) and run its cell.');
+// Timeline: for each site, one lane per sensor across the dates of the acquisitions shown. Redrawn with every decision.
+const DAY = 864e5, MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const natural = (a, b) => String(a).localeCompare(String(b), undefined, {numeric: true});
+const lanes = new Map();   // "site|sensor" -> its cards, by date
+DATA.cards.forEach(c => { c.t = Date.parse(`${c.row.date.slice(0, 10)}T00:00:00Z`); const k = `${c.row.site}|${c.row.sensor}`;
+  if (!lanes.has(k)) lanes.set(k, []); lanes.get(k).push(c); });
+lanes.forEach(l => l.sort((a, b) => a.t - b.t));
+let WIN = 30;
+try { WIN = +localStorage.getItem('thumbs:window') || 30; } catch (e) {}
+if (![...$('tlwin').options].some(o => +o.value === WIN)) WIN = 30;
+$('tlwin').value = String(WIN);
+function nearestKeep(c) {   // days to the nearest other Keep from the same sensor at the same site (null: none)
+  let best = null;
+  for (const o of lanes.get(`${c.row.site}|${c.row.sensor}`) || [])
+    if (o !== c && decisionOf(o) === 'keep') { const d = Math.abs(o.t - c.t) / DAY; if (best == null || d < best) best = d; }
+  return best;
+}
+const daysText = d => d < 0.5 ? 'the same day' : `${Math.round(d)} day${Math.round(d) === 1 ? '' : 's'} away`;
+function paintNear(c) {
+  const n = c.node?.querySelector('.near'); if (!n) return;
+  const d = nearestKeep(c), kept = decisionOf(c) === 'keep';
+  n.hidden = d == null || d > WIN; if (n.hidden) return;
+  n.classList.toggle('bad', kept);
+  n.textContent = kept ? `⚠ Another ${c.row.sensor} Keep is ${daysText(d)}` : `A ${c.row.sensor} Keep is ${daysText(d)}`;
+}
+function ticks(lo, hi) {   // month ticks, every 1, 2, 3, 6 or 12 months by the span
+  const days = (hi - lo) / DAY, step = days <= 150 ? 1 : days <= 400 ? 2 : days <= 1100 ? 3 : days <= 2200 ? 6 : 12;
+  const d = new Date(lo); let y = d.getUTCFullYear(), m = d.getUTCMonth() + 1;
+  while (m % step) m++;
+  const out = [];
+  for (let first = true; ; first = false) {
+    y += Math.floor(m / 12); m %= 12;
+    const t = Date.UTC(y, m, 1); if (t > hi) break;
+    out.push({t, label: step === 12 ? String(y) : m === 0 || first ? `${MON[m]} ${y}` : MON[m]});
+    m += step;
+  }
+  return out;
+}
+const dotOf = new Map();   // card -> its dot in the timeline now drawn
+let curDot = null;
+function markFocus(c) {
+  curDot?.classList.remove('cur'); curDot = c && dotOf.get(c);
+  if (!curDot) return;
+  curDot.classList.add('cur');
+  const box = $('tl'), row = curDot.parentElement, top = row.offsetTop - 22, bottom = row.offsetTop + row.offsetHeight;
+  if (top < box.scrollTop || bottom > box.scrollTop + box.clientHeight) box.scrollTop = Math.max(0, top - box.clientHeight / 3);
+}
+const tip = el('div', {class: 'tltip', hidden: ''}); root.append(tip);
+function tipFor(c, e) {
+  const r = c.row, v = decisionOf(c), d = nearestKeep(c);
+  tip.textContent = `${r.date} · ${r.sensor} · ${isGood(r) ? 'Candidate' : 'Check AOI'} · ${v === 'keep' ? 'Kept' : v === 'drop' ? 'Dropped' : 'Not decided'}`
+    + `\nCloud ${num(r.cloud_pct, '%')} · Off-nadir ${num(r.off_nadir_deg, '°')} · Site covered ${num(r.site_covered_pct, '%')}`
+    + (d != null ? `\nNearest other ${r.sensor} Keep: ${daysText(d)}` : '');
+  tip.style.whiteSpace = 'pre-line'; tip.hidden = false;
+  const x = Math.min(e.clientX + 12, innerWidth - tip.offsetWidth - 8), y = e.clientY + 14 + tip.offsetHeight > innerHeight ? e.clientY - tip.offsetHeight - 10 : e.clientY + 14;
+  tip.style.left = `${x}px`; tip.style.top = `${y}px`;
+}
+function goTo(c) {   // the card of a dot: clear the filters that hide it
+  if (!c.node || !document.contains(c.node)) {
+    if ($('site').value && $('site').value !== c.row.site) $('site').value = c.row.site;
+    $('status').value = ''; $('decision').value = ''; render();
+  }
+  unfind(); foundCard = c;
+  const n = c.node, tag = el('span', {class: 'found-tag', text: 'From the timeline'});
+  n.querySelector('.img').append(tag);
+  n.classList.add('found'); n.classList.remove('pulse'); void n.offsetWidth; n.classList.add('pulse');   // restart the pulse
+  n.scrollIntoView({block: $('tlpin').checked ? 'start' : 'center'}); n.focus({preventScroll: true});
+}
+let foundCard = null;
+function unfind() {
+  foundCard?.node?.classList.remove('found', 'pulse'); foundCard?.node?.querySelector('.found-tag')?.remove(); foundCard = null;
+}
+function drawTimeline() {
+  const box = $('tl'), keepScroll = box.scrollTop, site = $('site').value;
+  const list = DATA.cards.filter(c => !site || c.row.site === site);
+  dotOf.clear(); curDot = null;
+  if (!list.length) { box.replaceChildren(); $('tlsum').textContent = ''; return; }
+  let lo = Math.min(...list.map(c => c.t)), hi = Math.max(...list.map(c => c.t));
+  const pad = Math.max((hi - lo) * 0.03, 4 * DAY); lo -= pad; hi += pad;
+  const x = t => `${((t - lo) / (hi - lo) * 100).toFixed(3)}%`, wide = days => `${(days * DAY / (hi - lo) * 100).toFixed(3)}%`;
+  const tk = ticks(lo, hi), cells = [];
+  cells.push(el('div', {class: 'lab axis'}), el('div', {class: 'axis'}, ...tk.map(k => el('span', {style: `left:${x(k.t)}`, text: k.label}))));
+  let nLanes = 0, nBad = 0;
+  for (const s of (site ? [site] : sites)) {
+    const mine = [...lanes.keys()].filter(k => k.startsWith(s + '|')).map(k => k.slice(s.length + 1)).sort(natural);
+    const kept = keptAt(s), n = need[s];
+    cells.push(el('div', {class: 'lab site', title: s}, s, el('span', {text: `${kept} kept` + (n != null ? ` of ${n}` : '')})), el('div', {class: 'gap'}));
+    for (const sensor of mine) {
+      const lane = lanes.get(`${s}|${sensor}`), keeps = lane.filter(c => decisionOf(c) === 'keep');
+      const bad = keeps.filter(c => (nearestKeep(c) ?? Infinity) <= WIN);
+      nLanes++; if (bad.length) nBad++;
+      const track = el('div', {class: 'track'});
+      keeps.forEach(c => track.append(el('div', {class: 'band' + (bad.includes(c) ? ' bad' : ''), style: `left:${x(c.t - WIN * DAY)};width:${wide(2 * WIN)}`})));
+      lane.forEach(c => {
+        const v = decisionOf(c), dot = el('button', {type: 'button', class: `dot ${v || 'none'}${isGood(c.row) ? '' : ' check'}`, style: `left:${x(c.t)}`,
+          'aria-label': `${c.row.date} ${sensor}: ${v === 'keep' ? 'kept' : v === 'drop' ? 'dropped' : 'not decided'}. Go to its card.`});
+        dot.onclick = () => goTo(c);
+        dot.onmousemove = e => tipFor(c, e); dot.onmouseleave = () => { tip.hidden = true; };
+        dotOf.set(c, dot); track.append(dot);
+      });
+      cells.push(el('div', {class: 'lab' + (bad.length ? ' bad' : ''), title: `${sensor} at ${s}: ${lane.length} acquisitions, ${keeps.length} kept`},
+        `${bad.length ? '⚠ ' : ''}${sensor} · ${lane.length}${keeps.length ? `, ${keeps.length} kept` : ''}`), track);
+    }
+  }
+  box.style.setProperty('--gl', tk.map(k => { const p = x(k.t);
+    return `linear-gradient(to right, transparent ${p}, var(--grid) ${p}, var(--grid) calc(${p} + 1px), transparent calc(${p} + 1px))`; }).join(',') || 'none');
+  box.replaceChildren(...cells); box.scrollTop = keepScroll;
+  const nSites = site ? 1 : sites.length;
+  $('tlsum').textContent = `· ${nSites} site${nSites === 1 ? '' : 's'}, ${nLanes} sensor lane${nLanes === 1 ? '' : 's'}`
+    + (nBad ? ` · ⚠ ${nBad} with Keeps within ${WIN} days of each other` : '');
+  const f = shown[focus]; if (f) markFocus(f);
+}
+$('tlwin').onchange = () => { WIN = +$('tlwin').value; try { localStorage.setItem('thumbs:window', String(WIN)); } catch (e) {} tally(); };
+const stick = () => root.style.setProperty('--stick', `${$('bar').offsetHeight}px`);
+const pin = on => { (on ? $('bar') : $('tlhome')).append($('tlbox')); stick(); };
+if (window.ResizeObserver) new ResizeObserver(stick).observe($('bar')); else stick();
+try { $('tlpin').checked = localStorage.getItem('thumbs:pin') === '1'; } catch (e) {}
+pin($('tlpin').checked);
+$('tlpin').onchange = () => { pin($('tlpin').checked); try { localStorage.setItem('thumbs:pin', $('tlpin').checked ? '1' : '0'); } catch (e) {} };
 render();
 latestReview();
 </script>
