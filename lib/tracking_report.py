@@ -395,7 +395,8 @@ Vantor pixels still need converting.</p>
 <ul>
 {items}
 </ul>
-{link}</body></html>
+{link}<script data-goatcounter="https://pahbs.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</body></html>
 """
     page = tag_affiliations(page)
     Path(path).write_text(page, encoding="utf-8")
