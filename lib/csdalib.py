@@ -19,6 +19,7 @@ import contextily as ctx
 import folium
 from folium import Map, TileLayer, GeoJson, LayerControl, Icon, Marker, features, Figure, CircleMarker
 from folium import plugins
+from branca.element import MacroElement, Template
 
 # Get a basemap
 tiler_basemap_icesat2boreal = 'https://titiler.maap-project.org/mosaics/623f8f82-ffe7-4348-ab48-d920e4b34763/tiles/{z}/{x}/{y}@1x?rescale=0%2C30&bidx=1&colormap_name=inferno' # Height 2020 updated mask
@@ -1503,10 +1504,63 @@ def create_comprehensive_summary(footprint_with_sites, acquisition_site_mapping,
     
     return summaries
 
+
+class MapLegend(MacroElement):
+    """Legend as a Leaflet control (default bottom-left). Being a control, it stays on the map in fullscreen, and
+    Leaflet stacks it with the other controls of its corner (above the scale bar) instead of overlapping them.
+    Its height is capped to the room left by the top-left controls; a long list scrolls inside it."""
+    _template = Template("""
+        {% macro header(this, kwargs) %}
+        <style>
+          .maplegend { background: rgba(255,255,255,0.92); padding: 8px 10px; font: 12px/1.35 -apple-system,
+                       BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #333; max-width: 260px;
+                       overflow-y: auto; box-shadow: 0 1px 5px rgba(0,0,0,0.25); border-radius: 6px; }
+          .maplegend .legend-title { font-weight: 600; margin-bottom: 6px; }
+          .maplegend .legend-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; white-space: nowrap; }
+          .maplegend .legend-swatch { flex: none; width: 22px; height: 12px; border: 1px solid #999; border-radius: 3px; }
+        </style>
+        {% endmacro %}
+        {% macro script(this, kwargs) %}
+        (function() {
+          var map = {{ this._parent.get_name() }};
+          var legend = L.control({position: {{ this.position|tojson }}});
+          legend.onAdd = function() {
+            var div = L.DomUtil.create('div', 'maplegend');
+            div.innerHTML = {{ this.html|tojson }};
+            L.DomEvent.disableClickPropagation(div);
+            L.DomEvent.disableScrollPropagation(div);
+            return div;
+          };
+          legend.addTo(map);
+          function fit() {
+            var box = legend.getContainer(), c = map.getContainer();
+            var top = c.querySelector('.leaflet-top.leaflet-left');
+            var used = top ? top.getBoundingClientRect().bottom - c.getBoundingClientRect().top : 0;
+            var others = 0;
+            Array.prototype.forEach.call(box.parentNode.children, function(n) { if (n !== box) others += n.offsetHeight + 10; });
+            box.style.maxHeight = Math.max(60, c.clientHeight - used - others - 30) + 'px';
+          }
+          map.on('resize', fit);
+          window.addEventListener('resize', fit);
+          document.addEventListener('fullscreenchange', function() { setTimeout(fit, 100); });
+          map.whenReady(function() { setTimeout(fit, 0); });
+        })();
+        {% endmacro %}
+    """)
+
+    def __init__(self, title, items, position='bottomleft'):
+        super().__init__()
+        import html as html_lib
+        self._name = 'MapLegend'
+        self.position = position
+        rows = ''.join(f'<div class="legend-row"><span class="legend-swatch" style="background:{c}"></span>'
+                       f'{html_lib.escape(str(label))}</div>' for label, c in items)
+        self.html = f'<div class="legend-title">{html_lib.escape(title)}</div>{rows}'
+
+
 def MAP_CONTROL(m):
     LayerControl().add_to(m)
     plugins.Geocoder(position='bottomright').add_to(m)
-    plugins.Fullscreen(position='bottomleft').add_to(m)
     plugins.MousePosition().add_to(m)
     return m
     
@@ -1554,11 +1608,8 @@ def make_CSDA_footprints_map(gdf, MAP=None, width='100%', height='25%', ACQS=Tru
         force_separate_button=True
     ).add_to(m)
     
-    # Create combined field from affiliation, constellation/platform, and sensor
+    # Legend and layer label: affiliation - constellation
     gdf['combined_label'] = gdf['affiliation'].astype(str) + ' - ' + gdf['constellation'].astype(str)
-    #+ ' - '\
-    #+ gdf['sensor'].astype(str) + ' - ' 
-    + gdf['image_type'].astype(str) 
     
     # Get unique combined values
     combined_values = gdf['combined_label'].unique()
@@ -1610,75 +1661,10 @@ def make_CSDA_footprints_map(gdf, MAP=None, width='100%', height='25%', ACQS=Tru
     # Now fit bounds
     m.fit_bounds(folium_bounds)
     
-    # Add a legend
-    legend_html = '''
-    <div id='maplegend' class='maplegend' 
-        style='position: absolute; z-index:9998; border:2px solid grey; background-color:rgba(255, 255, 255, 0.9);
-         border-radius:6px; padding: 10px; font-size:12px; top: 5px; right: 150px;
-         box-shadow: 0 0 15px rgba(0,0,0,0.2); max-height: 400px; overflow-y: auto; width: 250px;'>
-         
-    <div class='legend-title'><b>Affiliation - Constellation - Sensor</b></div>
-    <div class='legend-scale'>
-      <ul class='legend-labels'>
-    '''
-    
-    # Add each combined value to the legend
-    for i, combined_val in enumerate(combined_values):
-        color = colors[i % len(colors)]
-        # Truncate long labels if needed
-        display_label = combined_val if len(combined_val) <= 35 else combined_val[:32] + "..."
-        legend_html += f'<li><span style="background:{color};opacity:1;"></span>{display_label}</li>'
-    
-    legend_html += '''
-      </ul>
-    </div>
-    </div>
-    
-    <style type='text/css'>
-      .maplegend .legend-title {
-        text-align: left;
-        margin-bottom: 8px;
-        font-weight: bold;
-        font-size: 90%;
-        color: #333;
-        }
-      .maplegend .legend-scale ul {
-        margin: 0;
-        margin-bottom: 5px;
-        padding: 0;
-        float: left;
-        list-style: none;
-        }
-      .maplegend .legend-scale ul li {
-        font-size: 80%;
-        list-style: none;
-        margin-left: 0;
-        line-height: 18px;
-        margin-bottom: 2px;
-        color: #333;
-        }
-      .maplegend .legend-scale ul li span {
-        display: block;
-        float: left;
-        height: 14px;
-        width: 25px;
-        margin-right: 6px;
-        margin-left: 0;
-        border: 1px solid #999;
-        border-radius: 3px;
-        }
-      /* Ensure legend stays visible in fullscreen mode */
-      .leaflet-fullscreen-on .maplegend {
-        z-index: 99999 !important;
-      }
-    </style>
-    '''
-
-    # Change the legend positioning to top right
-    legend_html = legend_html.replace('top: 5px; right: 150px;', 'top: 5px; right: 350px;')
-        
-    # Add the legend to the map
-    m.get_root().html.add_child(folium.Element(legend_html))
+    # Legend: a Leaflet control in the bottom-left corner, so it sits on the map (also in fullscreen), stacked
+    # above the scale bar by Leaflet, and never taller than the space under the top-left buttons
+    items = [(val, colors[i % len(colors)]) for i, val in enumerate(combined_values)]
+    MapLegend('Affiliation - Constellation', items).add_to(m)
     
     # Show map
     # #folium.TileLayer(basemaps['basemap_gray'].tiles, attr=' ', name="ESRI Basemap (gray)").add_to(m)
