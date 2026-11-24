@@ -31,6 +31,7 @@ area). Committed work: see `git log`; this log also covers uncommitted work, dec
 
 ## Recent activity (all areas)
 
+- 2026-11-24 · [3][5] Tracking run (Airbus, Vantor Legion), downloads and footprints: Airbus 76 products (118.2 GB: 4 new WLEF acquisitions, and SR + basic versions of 16 Gobabeb Pleiades Neo acquisitions already on ADAPT as reflectance), Legion 22 products (31.7 GB: 10 new acquisitions at PICS Libya-4, La Crau, Railroad Valley, 2 new products of a Golmud one); everything in CSDA at the tracked sites is on ADAPT (Airbus 221 acquisitions / 586 products, Legion 78 / 223). Footprints rerun: 644 acquisitions, 1,382 products. The footprint notebook now lists what is new since the previous run and puts that table on the footprints map page. Timeline: notes updated and a dated entry per vendor for the run.
 - 2026-11-20 · [1] Thumbnail reviews without Python: the candidate acquisitions watcher (`lib/candidate_watch.py`) now writes `<selection>_review.ipynb` next to each page (one cell: shows the page through `.tools/jupyter_page.py`, a copy kept in the folder, so no vendor access or repo needed); a page shown in anyone's JupyterLab saves the review in its own folder. Watcher fixes: an unwritable folder no longer stops the run (it crashed every 10 min from 11:34 on Planet/Tanager/Tanager1stCut; listed in `CANNOT_BUILD.txt` instead); everything this account owns there made group j1004 read/write (pages and reviews were mode 600). README.md in the folder for SMEs. Viewer page: timeline at the top, one row per site and one lane per sensor (satellite), redrawn with each decision; a ±N-day band (7–180, default 30) around each Keep, red where two Keeps of one sensor fall within it, with the same warning on the cards, in the tally and in the review JSON (`same_sensor_window_days`, `days_to_nearest_keep_same_sensor`); clicking a dot jumps to its card and highlights it; "Keep in view while scrolling". Sections: a sticky gray "Your review" panel (Reviewer, Save, Load, Download in fixed places; tally and notices below), a "Show" filter row, then Timeline and Thumbnails; thumbnails arranged by sensor then date within each site (Arrange: by date, or as in the selection). Pages in the folder refreshed.
 - 2026-11-19 · [specs] Data Table and Database Quality tabs hidden from the public page; shown with `?internal` (or `#table` / `#quality`) in the URL. Their data are still in the page source.
 - 2026-11-19 · [first look] Planet's tab build was taking ~10 h (cut off at the 4 h limit on 18 and 19 Nov, so the Planet tab had not updated since 17 Nov): `archive_dashboard.acquisitions()` looped over each acquisition with pandas (SuperDove: 3.5 M rows, 1.6 M acquisition-site records). Rewritten with shapely array functions and per-acquisition sums: full Planet build 52 min (34 GB memory). Checked against the old code on samples of Hydrosat, Legion, Satellogic and Planet: footprints identical, records identical except angles that differ by 0.1 in the last rounded digit (summation order; 169 of 23,929 SuperDove records). Planet tab with Las Vegas (3,635 SuperDove acquisitions) and Vostok (1,724, at 72.82 N 81.12 E) pushed by hand; the overnight Vostok rerun stopped.
@@ -360,6 +361,20 @@ only if needed), never a separate search API.
 
 ## 3 · Data requests and downloads
 
+### 2026-11-24 · Tracking run: Airbus and Legion downloads (notebooks run on forest201)
+- Both tracking notebooks and the footprint notebook were run with `nbconvert --execute --inplace` on forest201 and their own
+  ILAB kernels (`dev`, `tensorflow-kernel`), through `/explore/nobackup/people/pmontesa/multistac/nb_runs/run_nb.sh <notebook>
+  [nbconvert options]` (kernel specs linked from `/panfs/ccds02/app/modules/jupyter/ilab/kernels-current`; logs beside it).
+- **Airbus** (since 11/17/26): 20 CSDA items new, 76 products, all downloaded to `Data/Airbus/augmentation` (118.2 GB). Only 4 are
+  new acquisitions (WLEF, 11/14-11/19/26). The other 16 (Gobabeb, Pleiades Neo, 5/2023-8/2026) are **surface reflectance and
+  basic versions** of acquisitions already there as reflectance (RFL): CSDA gives each version its own item ID and time (to
+  0.1 s), so the tracking notebook counts them as new acquisitions, while the footprints (by `acquisition_id`) see new products
+  only. Tasking: 39 of 93 requests filled, 54 waiting. 221 acquisitions, 586 products in CSDA at the 8 sites, all on ADAPT.
+- **Legion** (since 11/17/26): 10 new acquisitions (PICS Libya-4 6, La Crau 2, Railroad Valley 2) and 2 new products of a
+  Golmud acquisition (10/27/26): 22 products, 31.7 GB, to `Data/Maxar/Legion/augmentation`. 78 acquisitions, 223 products, all
+  on ADAPT. Vantor collected 42 more since 9/1/26 not in CSDA (14 meet the requirements); latest collect 11/23/26.
+- New folders readable by all (checked; runs from the command line, not JupyterLab).
+
 ### 2026-11-10 · Hydrosat order 9265 downloaded (vendor presigned links)
 - `HydrosatRequest.zip` (README, `download_presigned.sh`/`.ps1`, `id_9265_all.txt` with 417 CloudFront presigned links
   under `csdap-nga-collections/Hydrosat/NonDomestic/`) unpacked to `Data/Hydrosat/HydrosatRequest/`.
@@ -521,6 +536,17 @@ only if needed), never a separate search API.
 ---
 
 ## 5 · Footprints and acquisition summaries
+
+### 2026-11-24 · What is new since the last run (`footprint_CSDA_eval_all_data.ipynb`)
+- New section after the acquisition tables: acquisitions and products of this run that are not in the previous run's tables
+  (the latest dated `footprints_CSDA_eval_ACQUISITIONS[_unique]_<date>.csv` before `RUN_DATE`; product = `acquisition_id` +
+  `metadata_path`), by affiliation, constellation and site, with acquisition dates of the new products. The same table goes
+  into the header card of `html/footprints_csda_map.html` ("What is new").
+- A product without a metadata path is `None` in memory but `NaN` when read back from the csv: both are compared as blank
+  (otherwise one Pixxel product showed as new every run).
+- Run 11/24/26 vs 11/19/26: 14 new acquisitions, 98 new products at 4 sites (Airbus WLEF 4 acquisitions / 12 products, Gobabeb 64
+  products of 16 earlier acquisitions; Legion PICS Libya-4 6 / 12, La Crau 2 / 4, Railroad Valley 2 / 4, Golmud 2 products).
+  Now 644 acquisitions, 1,382 products.
 
 ### 2026-11-18 · Tanager LosAngeles / BuenosAires footprints (`sensor_profiles.py`, `csdalib.py`)
 - `Data/Planet/Tanager/LosAngeles` and `BuenosAires` (asemple, Jul 2026; flat folders of ortho/basic products) came without
