@@ -123,6 +123,8 @@ VENDORS = {
                               scope="Planet's own catalog, SuperDove only (instrument <code>PSB.SD</code>); earlier Dove generations are "
                                     "left out. CSDA also holds PlanetScope data (CSDA STAC <code>planet</code> collection), not checked "
                                     "here yet. This tab is large, so it loads when opened."),
+            "Pelican": dict(bands="Pelican: 6-band multispectral and pan, about 0.5 m",
+                            scope="Planet's own catalog (<code>PelicanScene</code>), since May 2025. In CSDA is not shown."),
             "Tanager": dict(bands="Tanager: hyperspectral, about 30 m")}),
     "worldview": dict(
         vendor="Vantor", bands="WorldView-2 and WorldView-3, since 2020",

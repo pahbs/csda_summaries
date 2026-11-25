@@ -60,7 +60,7 @@ VENDORS = {
     "worldview": dict(providers=lambda: {"vantor": ["wv02", "wv03-vnir"]}, split="year"),
     "satellogic": dict(providers=lambda: {"csda": _csda("satellogic"), "satellogic": ["quickview-visual"]},
                        split="month"),   # busy sites answer HTTP 502 to longer windows
-    "planet": dict(providers=lambda: {"planet": ["PSScene", "TanagerScene"]}, split="month"),
+    "planet": dict(providers=lambda: {"planet": ["PSScene", "PelicanScene", "TanagerScene"]}, split="month"),
     # Ready for when catalog access starts: skipped while the provider is enabled: false in stac_providers.yaml. Set the
     # collections when access arrives (None = the profile's default_collections).
     # Airbus's own catalog (OneAtlas STAC). CSDA's airbus-optical holdings are left out: their IDs do not match Airbus's
@@ -81,6 +81,9 @@ def _for_page(vendor: str, gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         gdf = gdf[~ps | gdf.instrument.astype(str).str.contains("PSB.SD", regex=False)].copy()   # SuperDove only
         gdf.loc[gdf.collection.eq("PSScene"), ["constellation", "sensor"]] = ["SuperDove", "SuperDove"]
         gdf.loc[gdf.collection.eq("TanagerScene"), ["constellation", "sensor"]] = ["Tanager", "Tanager-1"]
+        pelican = gdf.collection.eq("PelicanScene")   # named by collection, so a new satellite ID is never taken for PlanetScope
+        gdf.loc[pelican, "constellation"] = "Pelican"
+        gdf.loc[pelican, "sensor"] = "Pelican-" + gdf.platform[pelican].astype(str)
     return gdf
 
 

@@ -61,7 +61,7 @@ SOURCES = {
     "legion": dict(vendor="Vantor", constellation="Legion", provider="vantor", collections=["lg01", "lg02", "lg03", "lg04", "lg05", "lg06"],
                    assets=["browse"]),
     "worldview": dict(vendor="Vantor", constellation="WorldView", provider="vantor", collections=["wv02", "wv03-vnir"], assets=["browse"]),
-    "planet": dict(vendor="Planet", constellation="SuperDove", provider="planet", collections=["PSScene", "TanagerScene"], assets=["thumbnail"]),
+    "planet": dict(vendor="Planet", constellation="SuperDove", provider="planet", collections=["PSScene", "PelicanScene", "TanagerScene"], assets=["thumbnail"]),
     "airbus": dict(vendor="Airbus", constellation="Pleiades, Pleiades Neo, SPOT", provider="airbus", collections=None,
                    assets=["quicklook", "thumbnail"]),
     "earthdaily": dict(vendor="EarthDaily", constellation="EDC", provider="earthdaily", collections=None, assets=["thumbnail"]),
@@ -301,6 +301,8 @@ def build(selection, out: Optional[Path] = None, tab: Optional[str] = None, limi
         source["constellation"] = catalog["constellation"]
     elif tab == "planet" and "tanager" in name.lower():
         source["constellation"] = "Tanager"
+    elif tab == "planet" and "pelican" in name.lower():
+        source["constellation"] = "Pelican"
     if limit:
         rows = rows.head(limit)
     site_table = load_sites() if sites is None else multistac.load_sites(str(sites), site_name_field=site_name_field)
